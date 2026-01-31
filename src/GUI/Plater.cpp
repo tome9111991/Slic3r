@@ -187,11 +187,11 @@ Plater::Plater(wxWindow* parent, const wxString& title) :
         add_info_field(this, this->object_info.materials, _("Materials"), grid_sizer);
         {
             wxString name {"Manifold:"};
-            auto* text {new wxStaticText(parent, wxID_ANY, name, wxDefaultPosition, wxDefaultSize, wxALIGN_LEFT)};
+            auto* text {new wxStaticText(this, wxID_ANY, name, wxDefaultPosition, wxDefaultSize, wxALIGN_LEFT)};
             text->SetFont(ui_settings->small_font());
             grid_sizer->Add(text, 0);
 
-            this->object_info.manifold = new wxStaticText(parent, wxID_ANY, "", wxDefaultPosition, wxDefaultSize, wxALIGN_LEFT);
+            this->object_info.manifold = new wxStaticText(this, wxID_ANY, "", wxDefaultPosition, wxDefaultSize, wxALIGN_LEFT);
             this->object_info.manifold->SetFont(ui_settings->small_font());
 
             this->object_info.manifold_warning_icon = new wxStaticBitmap(this, wxID_ANY, wxBitmap(var("error.png"), wxBITMAP_TYPE_PNG));

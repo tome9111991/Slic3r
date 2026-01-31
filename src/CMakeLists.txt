@@ -12,14 +12,21 @@ option(SLIC3R_DEBUG "Build with Slic3r's debug output" OFF)
 
 # only on newer GCCs: -ftemplate-backtrace-limit=0
 add_compile_options(-ftemplate-backtrace-limit=0)
-add_compile_options(-DNO_PERL -DM_PI=3.14159265358979323846 -DHAS_BOOL -DNOGDI -DBOOST_ASIO_DISABLE_KQUEUE)
+add_compile_options(-DNO_PERL -DM_PI=3.14159265358979323846 -DHAS_BOOL -DBOOST_ASIO_DISABLE_KQUEUE)
+# Define SLIC3R_CPPVER to 11 to enforce C++11 paths (e.g. using unique_ptr instead of auto_ptr)
+add_compile_options(-DSLIC3R_CPPVER=11)
+
 if(SLIC3R_DEBUG)
     add_compile_options(-DSLIC3R_DEBUG)
 endif()
 
 if (MSVC)
     add_compile_options(-W3)
-    add_compile_options(-bigobj) 
+    add_compile_options(-bigobj)
+    # Enable standard C++ conformance (supports 'and', 'or', etc.)
+    add_compile_options(/permissive-)
+    # Define Windows version for Boost ASIO (0x0601 = Windows 7)
+    add_compile_options(-D_WIN32_WINNT=0x0601)
 else()
     add_compile_options(-Wall)
 endif()
@@ -109,11 +116,11 @@ endif(SLIC3R_STATIC)
 
 if (NOT GIT_VERSION STREQUAL "")
     if (MSVC)
-        add_compile_options(/DSLIC3R_BUILD_COMMIT=${GIT_VERSION})
+        add_compile_options(/DSLIC3R_BUILD_COMMIT=\"${GIT_VERSION}\")
     else(MSVC)
         execute_process(COMMAND git rev-parse --short HEAD OUTPUT_VARIABLE GIT_VERSION_1)
         string(REGEX REPLACE "\n$" "" GIT_VERSION "${GIT_VERSION_1}")
-        add_compile_options(-DSLIC3R_BUILD_COMMIT=${GIT_VERSION})
+        add_compile_options(-DSLIC3R_BUILD_COMMIT=\"${GIT_VERSION}\")
     endif(MSVC)
 endif(NOT GIT_VERSION STREQUAL "")
 
@@ -124,7 +131,21 @@ find_package(Boost REQUIRED COMPONENTS system thread filesystem)
 
 if (NOT (${Boost_VERSION_STRING} VERSION_LESS "1.74.0"))
     MESSAGE("Adding in boost::nowide")
-    find_package(Boost REQUIRED COMPONENTS system thread filesystem OPTIONAL_COMPONENTS nowide)
+    find_package(boost_nowide CONFIG QUIET)
+    if(boost_nowide_FOUND)
+        message(STATUS "Found boost_nowide via CONFIG")
+        set(BOOST_NOWIDE_FOUND TRUE)
+        list(APPEND Boost_LIBRARIES Boost::nowide)
+    else()
+        find_package(Boost COMPONENTS nowide QUIET)
+        if(Boost_NOWIDE_FOUND)
+            message(STATUS "Found Boost::nowide via COMPONENTS")
+            set(BOOST_NOWIDE_FOUND TRUE)
+            list(APPEND Boost_LIBRARIES Boost::nowide)
+        else()
+            set(BOOST_NOWIDE_FOUND FALSE)
+        endif()
+    endif()
 endif()
 
 set(LIBDIR ${CMAKE_CURRENT_SOURCE_DIR}/../xs/src/)
@@ -246,9 +267,8 @@ add_library(libslic3r STATIC
 target_compile_features(libslic3r PUBLIC cxx_std_17)
 target_include_directories(libslic3r SYSTEM PUBLIC ${SLIC3R_INCLUDES})
 target_include_directories(libslic3r PUBLIC ${LIBSLIC3R_INCLUDES})
-if (BOOST_NOWIDE_FOUND)
-    target_compile_options(libslic3r -DBOOST_INCLUDE_NOWIDE)
-endif()
+    
+    target_compile_definitions(libslic3r PUBLIC BOOST_NOWIDE_NO_LIB BOOST_ALL_DYN_LINK BOOST_NOWIDE_FOUND)
 
 add_library(BSpline STATIC
     ${LIBDIR}/BSpline/BSpline.cpp
@@ -409,6 +429,8 @@ set(LIBSLIC3R_DEPENDS
     ${CMAKE_THREAD_LIBS_INIT} 
 )
 
+target_link_libraries(libslic3r PUBLIC ${LIBSLIC3R_DEPENDS})
+
 set(SLIC3R_GUI_INCLUDES
     ${LIBDIR}/libslic3r
     ${LIBDIR}/slic3r/GUI
@@ -523,15 +545,21 @@ endif()
 # Windows needs a compiled component for Boost.nowide
 IF (WIN32)
     if (NOT BOOST_NOWIDE_FOUND)
+        # Should have been found by find_package above if vcpkg is working correctly.
+        # Fallback to manual build if absolutely necessary, but preferred flow is vcpkg.
         add_library(boost-nowide STATIC 
             ${LIBDIR}/boost/nowide/iostream.cpp
         )
         if(MSVC)
-            # Tell boost pragmas to not rename nowide as we are building it
-            add_definitions(-DBOOST_NOWIDE_NO_LIB)
+            target_compile_definitions(boost-nowide PUBLIC BOOST_NOWIDE_NO_LIB)
         endif()    
         target_link_libraries(slic3r boost-nowide)
+        # Link to libslic3r so tests inherit it too
+        target_link_libraries(libslic3r PUBLIC boost-nowide)
         target_include_directories(boost-nowide PUBLIC ${COMMON_INCLUDES})
+    else()
+        # Vcpkg found it
+        # libslic3r is already linked to it via LIBSLIC3R_DEPENDS -> Boost_LIBRARIES -> Boost::nowide
     endif()
 
     # MinGW apparently has some multiple definitions of UUID-related items
@@ -578,6 +606,9 @@ if (SLIC3R_BUILD_TESTS)
     configure_file("${TESTDIR}/test_options.hpp.in" "${TESTDIR}/test_options.hpp")
     add_executable(slic3r_test ${SLIC3R_TEST_SOURCES}) 
     target_compile_options(slic3r_test PUBLIC -DSLIC3R_TEST)
+    if(MSVC)
+        target_compile_definitions(slic3r_test PUBLIC NOGDI NOMINMAX)
+    endif()
     add_test(NAME TestSlic3r COMMAND slic3r_test)
     target_compile_features(slic3r_test PUBLIC cxx_std_17)
     target_include_directories(slic3r_test PUBLIC ${SLIC3R_INCLUDES})
