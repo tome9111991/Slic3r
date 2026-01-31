@@ -171,7 +171,7 @@ PrintConfigDef::PrintConfigDef()
     def->label = __TRANS("Brim ears Maximum Angle");
     def->category = __TRANS("Skirt and brim");
     def->tooltip = __TRANS("Maximum angle for a corner to place a brim ear.");
-    def->sidetext = "°";
+    def->sidetext = "\xC2\xB0";
     def->cli = "brim-ears-max-angle=f";
     def->min = 0;
     def->max = 180;
@@ -478,7 +478,7 @@ PrintConfigDef::PrintConfigDef()
     def->label = __TRANS("Fill angle");
     def->category = __TRANS("Infill");
     def->tooltip = __TRANS("Default base angle for infill orientation. Cross-hatching will be applied to this. Bridges will be infilled using the best direction Slic3r can detect, so this setting does not affect them.");
-    def->sidetext = "°";
+    def->sidetext = "\xC2\xB0";
     def->cli = "fill-angle=i";
     def->min = 0;
     def->max = 359;
@@ -1379,7 +1379,7 @@ PrintConfigDef::PrintConfigDef()
     def->full_label = __TRANS("Standby temperature delta");
     def->category = __TRANS("Extruders");
     def->tooltip = __TRANS("Temperature difference to be applied when an extruder is not active.  Enables a full-height \"sacrificial\" skirt on which the nozzles are periodically wiped.");
-    def->sidetext = "∆°C";
+    def->sidetext = "\xE2\x88\x86\xC2\xB0" "C";
     def->cli = "standby-temperature-delta=i";
     def->min = -500;
     def->max = 500;
@@ -1418,7 +1418,7 @@ PrintConfigDef::PrintConfigDef()
     def->label = __TRANS("Pattern angle");
     def->category = __TRANS("Support material");
     def->tooltip = __TRANS("Use this setting to rotate the support material pattern on the horizontal plane.");
-    def->sidetext = "°";
+    def->sidetext = "\xC2\xB0";
     def->cli = "support-material-angle=i";
     def->min = 0;
     def->max = 359;
@@ -1599,7 +1599,7 @@ PrintConfigDef::PrintConfigDef()
     def->label = __TRANS("Overhang threshold");
     def->category = __TRANS("Support material");
     def->tooltip = __TRANS("Support material will not be generated for overhangs whose slope angle (90° = vertical) is above the given threshold. In other words, this value represent the most horizontal slope (measured from the horizontal plane) that you can print without support material. Set to a percentage to automatically detect based on some % of overhanging perimeter width instead (recommended).");
-    def->sidetext = "° (or %)";
+    def->sidetext = "\xC2\xB0 (or %)";
     def->cli = "support-material-threshold=s";
     def->min = 0;
     def->max = 300;

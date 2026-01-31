@@ -76,6 +76,8 @@ public:
     /// Pops file dialog.
     void add();
 
+    void load_files(const std::vector<std::string>& files);
+
     /// Remove a selected model from the plater.
     void remove(int obj_idx, bool dont_push = false);
     void remove();

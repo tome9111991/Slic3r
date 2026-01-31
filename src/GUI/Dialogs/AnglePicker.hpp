@@ -19,8 +19,12 @@ public:
     AnglePicker(wxWindow* parent, const wxString& title, double initial_angle) : 
         wxDialog(parent, wxID_ANY, title, wxDefaultPosition, wxDefaultSize, wxDEFAULT_DIALOG_STYLE, wxString("AnglePicker")), _angle(scaling * initial_angle) {
 
-            auto* lbl_min = new wxStaticText(this, wxID_ANY, wxString(L"-360°"), wxDefaultPosition, wxDefaultSize, wxALIGN_RIGHT);
-            auto* lbl_max = new wxStaticText(this, wxID_ANY, wxString(L"360°"), wxDefaultPosition, wxDefaultSize, wxALIGN_LEFT);
+        auto* sizer = new wxBoxSizer(wxVERTICAL);
+        
+        auto* lbl_min = new wxStaticText(this, wxID_ANY, wxString(L"-360\u00B0"), wxDefaultPosition, wxDefaultSize, wxALIGN_RIGHT);
+        auto* lbl_max = new wxStaticText(this, wxID_ANY, wxString(L"360\u00B0"), wxDefaultPosition, wxDefaultSize, wxALIGN_LEFT);
+        
+        auto* sizer_labels = new wxBoxSizer(wxHORIZONTAL);
             auto* lbl_txt = new wxStaticText(this, wxID_ANY, wxString("Angle "), wxDefaultPosition, wxDefaultSize, wxALIGN_RIGHT);
             
             auto btn_sizer = new wxBoxSizer(wxHORIZONTAL);

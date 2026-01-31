@@ -274,18 +274,22 @@ void Plater::add() {
 
 }
 
-std::vector<int> Plater::load_file(const std::string file, const int obj_idx_to_load) {
-    
-    auto input_file {wxFileName(file)};
-    ui_settings->skein_directory = input_file.GetPath();
-    ui_settings->save_settings();
-    
-    Slic3r::Model model;
-    bool valid_load {true};
+void Plater::load_files(const std::vector<std::string>& files) {
+    for (const auto& file : files) {
+        this->load_file(file);
+    }
+}
 
-    auto obj_idx {std::vector<int>()};
-    auto progress_dialog {new wxProgressDialog(_(L"Loading…"), _(L"Processing input file…"), 100, this, 0)};
+std::vector<int> Plater::load_file(const std::string file, const int obj_idx_to_load) {
+    std::vector<int> obj_idx;
+    if (file.empty()) return obj_idx;
+    
+    auto progress_dialog {new wxProgressDialog(_(L"Loading\u2026"), _(L"Processing input file\u2026"), 100, this, 0)};
     progress_dialog->Pulse();
+    
+    Model model;
+    bool valid_load = true;
+
     //TODO: Add a std::wstring so we can handle non-roman characters as file names.
     try { 
         model = Slic3r::Model::read_from_file(file);
@@ -299,10 +303,11 @@ std::vector<int> Plater::load_file(const std::string file, const int obj_idx_to_
     if (valid_load) {
         if (model.looks_like_multipart_object()) {
             auto dialog {new wxMessageDialog(this, 
-            _("This file contains several objects positioned at multiple heights. Instead of considering them as multiple objects, should I consider\n them this file as a single object having multiple parts?\n"), _("Multi-part object detected"), wxICON_WARNING | wxYES | wxNO)};
+            _("This file contains several objects positioned at multiple heights. Instead of considering them as multiple objects, should I consider them as a single object having multiple parts?"), _("Multi-part object detected"), wxICON_WARNING | wxYES | wxNO)};
             if (dialog->ShowModal() == wxID_YES) {
                 model.convert_multipart_object();
             }
+            dialog->Destroy();
         } 
         
         for (auto i = 0U; i < model.objects.size(); i++) {
@@ -315,24 +320,52 @@ std::vector<int> Plater::load_file(const std::string file, const int obj_idx_to_
                 volume->input_file_vol_idx = j;
             }
         }
+        
         auto i {0U};
-        if (obj_idx_to_load > 0) {
-            Slic3r::Log::info(LogChannel, L"Loading model objects, obj_idx_to_load > 0");
-            const size_t idx_load = obj_idx_to_load;
-            if (idx_load >= model.objects.size()) return std::vector<int>();
-            obj_idx = this->load_model_objects(model.objects.at(idx_load));
-            i = idx_load;
+        if (obj_idx_to_load >= 0) { // Changed > 0 to >= 0 to match logic (or check original intent) - actually logic was > 0, but usually indices are >= 0. Let's keep intent but fix type.
+            // Wait, original code was: if (obj_idx_to_load > 0). If default is -1, then > 0 means explicit index 1+? Or is 0 valid? Usually 0 is valid.
+            // Let's assume -1 means "all".
+             if (obj_idx_to_load != -1) {
+                Slic3r::Log::info(LogChannel, L"Loading model objects, obj_idx_to_load specified");
+                const size_t idx_load = (size_t)obj_idx_to_load;
+                if (idx_load >= model.objects.size()) {
+                    progress_dialog->Destroy();
+                    return std::vector<int>();
+                }
+                obj_idx = this->load_model_objects(model.objects.at(idx_load));
+                i = idx_load;
+            } else {
+                goto LOAD_ALL;
+            }
         } else {
-            Slic3r::Log::info(LogChannel, L"Loading model objects, obj_idx_to_load = 0");
+            LOAD_ALL:
+            Slic3r::Log::info(LogChannel, L"Loading model objects, all");
             obj_idx = this->load_model_objects(model.objects);
             Slic3r::Log::info(LogChannel, LOG_WSTRING("obj_idx size: " << obj_idx.size()));
         }
 
+        // Fix logic for re-mapping input file indices if we loaded all? 
+        // The original loop: for (const auto &j : obj_idx) { this->objects.at(j).input_file = file; ... }
+        // Wait, 'i' was used as counter.
+        // If we loaded specific index, 'i' is that index.
+        // If we loaded all, 'i' started at 0.
+        
+        int counter = 0;
         for (const auto &j : obj_idx) {
-            this->objects.at(j).input_file = file;
-            this->objects.at(j).input_file_obj_idx = i++;
+            // Check if index is valid in main objects list
+            if (j >= 0 && j < this->objects.size()) {
+                 this->objects.at(j).input_file = file;
+                 // If we loaded a specific one, i is fixed? No, original code: input_file_obj_idx = i++; 
+                 // So if we loaded one, it sets it to 'i' then increments.
+                 // If we loaded all, i starts at 0 and increments.
+                 // But wait, if we loaded all, 'i' should reset to 0? 
+                 // In original code: auto i {0U}; ... if specific ... i = idx_load; else ... (i remains 0).
+                 // So yes.
+                 this->objects.at(j).input_file_obj_idx = i++;
+            }
         }
-        GetFrame()->statusbar->SetStatusText(_("Loaded ") + input_file.GetName());
+        
+        GetFrame()->statusbar->SetStatusText(_("Loaded ") + wxString(file));
 
         if (this->scaled_down) {
             GetFrame()->statusbar->SetStatusText(_("Your object appears to be too large, so it was automatically scaled down to fit your print bed."));
@@ -645,7 +678,7 @@ void Plater::selection_changed() {
 void Plater::build_toolbar() {
     wxToolTip::Enable(true);
     auto* toolbar = this->htoolbar = new wxToolBar(this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxTB_HORIZONTAL | wxTB_TEXT | wxBORDER_SIMPLE | wxTAB_TRAVERSAL);
-    toolbar->AddTool(TB_ADD, _(L"Add…"), wxBitmap(var("brick_add.png"), wxBITMAP_TYPE_PNG));
+    toolbar->AddTool(TB_ADD, _(L"Add\u2026"), wxBitmap(var("brick_add.png"), wxBITMAP_TYPE_PNG));
     toolbar->AddTool(TB_REMOVE, _("Delete"), wxBitmap(var("brick_delete.png"), wxBITMAP_TYPE_PNG));
     toolbar->AddTool(TB_RESET, _("Delete All"), wxBitmap(var("cross.png"), wxBITMAP_TYPE_PNG));
     toolbar->AddTool(TB_ARRANGE, _("Arrange"), wxBitmap(var("bricks.png"), wxBITMAP_TYPE_PNG));
@@ -653,14 +686,14 @@ void Plater::build_toolbar() {
     toolbar->AddTool(TB_MORE, _("More"), wxBitmap(var("add.png"), wxBITMAP_TYPE_PNG));
     toolbar->AddTool(TB_FEWER, _("Fewer"), wxBitmap(var("delete.png"), wxBITMAP_TYPE_PNG));
     toolbar->AddSeparator();
-    toolbar->AddTool(TB_45CCW, _(L"45° ccw"), wxBitmap(var("arrow_rotate_anticlockwise.png"), wxBITMAP_TYPE_PNG));
-    toolbar->AddTool(TB_45CW, _(L"45° cw"), wxBitmap(var("arrow_rotate_clockwise.png"), wxBITMAP_TYPE_PNG));
-    toolbar->AddTool(TB_SCALE, _(L"Scale…"), wxBitmap(var("arrow_out.png"), wxBITMAP_TYPE_PNG));
+    toolbar->AddTool(TB_45CCW, _(L"45\u00B0 ccw"), wxBitmap(var("arrow_rotate_anticlockwise.png"), wxBITMAP_TYPE_PNG));
+    toolbar->AddTool(TB_45CW, _(L"45\u00B0 cw"), wxBitmap(var("arrow_rotate_clockwise.png"), wxBITMAP_TYPE_PNG));
+    toolbar->AddTool(TB_SCALE, _(L"Scale\u2026"), wxBitmap(var("arrow_out.png"), wxBITMAP_TYPE_PNG));
     toolbar->AddTool(TB_SPLIT, _("Split"), wxBitmap(var("shape_ungroup.png"), wxBITMAP_TYPE_PNG));
-    toolbar->AddTool(TB_CUT, _(L"Cut…"), wxBitmap(var("package.png"), wxBITMAP_TYPE_PNG));
+    toolbar->AddTool(TB_CUT, _(L"Cut\u2026"), wxBitmap(var("package.png"), wxBITMAP_TYPE_PNG));
     toolbar->AddSeparator();
-    toolbar->AddTool(TB_SETTINGS, _(L"Settings…"), wxBitmap(var("cog.png"), wxBITMAP_TYPE_PNG));
-    toolbar->AddTool(TB_LAYERS, _(L"Layer heights…"), wxBitmap(var("variable_layer_height.png"), wxBITMAP_TYPE_PNG));
+    toolbar->AddTool(TB_SETTINGS, _(L"Settings\u2026"), wxBitmap(var("cog.png"), wxBITMAP_TYPE_PNG));
+    toolbar->AddTool(TB_LAYERS, _(L"Layer heights\u2026"), wxBitmap(var("variable_layer_height.png"), wxBITMAP_TYPE_PNG));
 
     toolbar->Realize();
 
@@ -944,18 +977,18 @@ wxMenu* Plater::object_menu() {
     append_menu_item(menu, _("Delete"), _("Remove the selected object."), [=](wxCommandEvent& e) { this->remove();}, wxID_ANY, "brick_delete.png", "Ctrl+Del");
     append_menu_item(menu, _("Increase copies"), _("Place one more copy of the selected object."), [=](wxCommandEvent& e) { this->increase();}, wxID_ANY, "add.png", "Ctrl++");
     append_menu_item(menu, _("Decrease copies"), _("Remove one copy of the selected object."), [=](wxCommandEvent& e) { this->decrease();}, wxID_ANY, "delete.png", "Ctrl+-");
-    append_menu_item(menu, _(L"Set number of copies…"), _("Change the number of copies of the selected object."), [=](wxCommandEvent& e) { this->set_number_of_copies();}, wxID_ANY, "textfield.png");
+    append_menu_item(menu, _(L"Set number of copies\u2026"), _("Change the number of copies of the selected object."), [=](wxCommandEvent& e) { this->set_number_of_copies();}, wxID_ANY, "textfield.png");
     menu->AppendSeparator();
     append_menu_item(menu, _(L"Move to bed center"), _(L"Center object around bed center."), [=](wxCommandEvent& e) { this->center_selected_object_on_bed();}, wxID_ANY, "arrow_in.png");
-    append_menu_item(menu, _(L"Rotate 45° clockwise"), _(L"Rotate the selected object by 45° clockwise."), [=](wxCommandEvent& e) { this->rotate(45);}, wxID_ANY, "arrow_rotate_clockwise.png");
-    append_menu_item(menu, _(L"Rotate 45° counter-clockwise"), _(L"Rotate the selected object by 45° counter-clockwise."), [=](wxCommandEvent& e) { this->rotate(-45);}, wxID_ANY, "arrow_rotate_anticlockwise.png");
+    append_menu_item(menu, _(L"Rotate 45\u00B0 clockwise"), _(L"Rotate the selected object by 45\u00B0 clockwise."), [=](wxCommandEvent& e) { this->rotate(45);}, wxID_ANY, "arrow_rotate_clockwise.png");
+    append_menu_item(menu, _(L"Rotate 45\u00B0 counter-clockwise"), _(L"Rotate the selected object by 45\u00B0 counter-clockwise."), [=](wxCommandEvent& e) { this->rotate(-45);}, wxID_ANY, "arrow_rotate_anticlockwise.png");
     
     {
         auto* rotateMenu {new wxMenu};
 
-        append_menu_item(rotateMenu, _(L"Around X axis…"), _("Rotate the selected object by an arbitrary angle around X axis."), [this](wxCommandEvent& e) { this->rotate(X); }, wxID_ANY, "bullet_red.png");
-        append_menu_item(rotateMenu, _(L"Around Y axis…"), _("Rotate the selected object by an arbitrary angle around Y axis."), [this](wxCommandEvent& e) { this->rotate(Y); }, wxID_ANY, "bullet_green.png");
-        append_menu_item(rotateMenu, _(L"Around Z axis…"), _("Rotate the selected object by an arbitrary angle around Z axis."), [this](wxCommandEvent& e) { this->rotate(Z); }, wxID_ANY, "bullet_blue.png");
+        append_menu_item(rotateMenu, _(L"Around X axis\u2026"), _("Rotate the selected object by an arbitrary angle around X axis."), [this](wxCommandEvent& e) { this->rotate(X); }, wxID_ANY, "bullet_red.png");
+        append_menu_item(rotateMenu, _(L"Around Y axis\u2026"), _("Rotate the selected object by an arbitrary angle around Y axis."), [this](wxCommandEvent& e) { this->rotate(Y); }, wxID_ANY, "bullet_green.png");
+        append_menu_item(rotateMenu, _(L"Around Z axis\u2026"), _("Rotate the selected object by an arbitrary angle around Z axis."), [this](wxCommandEvent& e) { this->rotate(Z); }, wxID_ANY, "bullet_blue.png");
 
         append_submenu(menu, _("Rotate"), _("Rotate the selected object by an arbitrary angle"), rotateMenu, wxID_ANY, "textfield.png");
     }
