@@ -37,3 +37,4 @@ gui_test
 slic3r_test
 compile_commands.json
 tags
+build_log.txt

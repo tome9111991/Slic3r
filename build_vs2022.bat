@@ -14,7 +14,7 @@ set "GLOBAL_BUILD_DIR=%BASE_DIR%\build"
 set "DEPS_DIR=%GLOBAL_BUILD_DIR%\deps"
 set "VCPKG_DIR=%DEPS_DIR%\vcpkg"
 set "CMAKE_BUILD_DIR=%GLOBAL_BUILD_DIR%\target"
-set "SOURCE_DIR=%BASE_DIR%\src"
+set "SOURCE_DIR=%BASE_DIR%"
 set "LOG_FILE=%BASE_DIR%\build_log.txt"
 
 :: Create directories

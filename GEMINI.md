@@ -1,63 +1,71 @@
 # Slic3r Project Context
 
 ## Project Overview
-Slic3r is a G-code generator for 3D printers. It converts 3D models (STL, OBJ, AMF) into printing instructions (G-code). 
-The project features a hybrid architecture:
-- **Core Logic:** Written in C++ (C++11/14) for performance, located in `src/` and `xs/src/libslic3r`.
-- **Scripting/GUI:** Historically written in Perl, with bindings to the C++ core via XS (Extension Subroutines).
-- **GUI:** Transitioning to C++ (wxWidgets).
+Slic3r is a G-code generator for 3D printers, converting 3D models (STL, OBJ, AMF, 3MF) into printing instructions.
+This codebase represents the **Slic3r** project, featuring a hybrid architecture:
+- **Core Logic & GUI:** Modern C++ (C++17) using wxWidgets, located in `src/`.
+- **Scripting/Legacy:** Perl with XS bindings (`xs/` directory) and legacy UI components (`lib/`).
 
 ## Environment & Prerequisites (Windows)
-The development environment on Windows relies heavily on **Strawberry Perl**, which provides the Perl runtime and the **MinGW** compiler environment.
-
-### Required Tools
-- **Strawberry Perl:** (e.g., v5.24 as seen in CI configs)
-- **CMake:** For building the C++ parts.
-- **Git:** For version control.
-- **MinGW-w64:** Usually bundled with Strawberry Perl.
-
-### Dependencies
-- **Boost:** (Requires explicit path configuration)
-- **wxWidgets:** For the GUI.
-- **FreeGLUT:** Used for some graphics rendering.
-- **Perl Modules:** Various CPAN modules (handled via `cpanm` or `Build.PL`).
+- **OS:** Windows 11
+- **Shell:** PowerShell 7 (`pwsh`) or 5.1.
+- **Compilers:** Visual Studio 2022 (MSVC).
+- **Build Tools:** CMake, Ninja.
+- **Dependencies:** Managed via **vcpkg** (manifest mode).
 
 ## Building & Running
 
-### Automated Build (Reference)
-The project uses AppVeyor for Windows CI. The scripts in `package/win/` are the most reliable reference for the build process:
-- `package/win/appveyor_preinstall.ps1`: Installs dependencies (Boost, wxWidgets, Strawberry Perl).
-- `package/win/appveyor_buildscript.ps1`: Configures environment and runs the build.
+### Automated Build (Recommended)
+The project uses `build_vs2022.bat` as the primary build script. This script handles:
+1.  Visual Studio 2022 environment setup (`vcvars64.bat`).
+2.  **vcpkg** setup (cloning & bootstrapping if missing).
+3.  Dependency installation and CMake configuration.
+4.  Compilation (Release mode).
 
-### Manual Build Steps
-1.  **Install Dependencies:** Ensure Boost and wxWidgets are available.
-2.  **Configure Environment:** Set variables like `BOOST_DIR`, `WXDIR` to your installation paths.
-3.  **Build:**
+```powershell
+.\build_vs2022.bat
+```
+*   **Logs:** `build_log.txt`
+*   **Output:** `build/target/slic3r.exe`
+
+### Manual Build (CMake)
+If you prefer to run CMake manually (e.g., for IDE integration):
+
+1.  **Configure:**
     ```powershell
-    # Install Perl dependencies
-    cpanm --installdeps .
-    
-    # Build the XS extensions (C++ core bindings)
-    perl Build.PL
-    
-    # Run tests
-    perl Build.PL test
+    cmake -S src -B build/target -G "Ninja" `
+        -DCMAKE_BUILD_TYPE=Release `
+        -DCMAKE_TOOLCHAIN_FILE="build/deps/vcpkg/scripts/buildsystems/vcpkg.cmake" `
+        -DVCPKG_TARGET_TRIPLET=x64-windows `
+        -DVCPKG_MANIFEST_DIR="." `
+        -DEnable_GUI=ON `
+        -DSLIC3R_STATIC=OFF
     ```
-    *Note: The root `Build.PL` orchestrates the build process, delegating to `xs/Build.PL` for the C++ components.*
+2.  **Build:**
+    ```powershell
+    cmake --build build/target --parallel
+    ```
+
+### Running
+- **C++ Executable:** `.\build\target\slic3r.exe`
+- **Perl Wrapper:** `perl slic3r.pl` (Requires Perl environment setup, usually for legacy or headless use).
 
 ## Directory Structure
 
 | Directory | Description |
 | :--- | :--- |
-| **`src/`** | Main C++ source code for the executable and GUI. |
-| **`xs/`** | Perl XS bindings. `xs/src/libslic3r` contains the C++ core logic. |
-| **`lib/`** | Perl modules (`.pm`), defining the scripting logic and legacy UI parts. |
-| **`t/`** | Test suite (Perl). |
-| **`package/`** | Packaging and build scripts for various platforms (Windows, Linux, OSX). |
-| **`utils/`** | Utility scripts (Perl/Shell) for maintenance and data processing. |
-| **`var/`** | Assets like icons and images. |
+| **`src/`** | Main C++ source code (Core logic + GUI). |
+| **`xs/`** | Perl XS bindings connecting C++ core to Perl. |
+| **`lib/`** | Perl modules (`.pm`). |
+| **`t/`** | Test suite (Perl-based). |
+| **`package/`** | Packaging scripts (AppVeyor, Travis, etc.). |
+| **`utils/`** | Helper scripts (e.g., `amf-to-stl.pl`). |
+| **`var/`** | Assets (icons, images, resources). |
+| **`build/`** | Build artifacts (created by `build_auto.bat`). |
 
 ## Development Conventions
-- **Hybrid Codebase:** Changes often span both C++ (logic) and Perl (interface/glue).
-- **Testing:** Uses standard Perl test harnesses (`t/` directory). Run via `prove` or `perl Build.PL test`.
-- **Platform Specifics:** Windows builds require careful handling of paths and compiler compatibility (MinGW vs MSVC).
+- **Language:** C++17 for new development; Perl for existing scripting/tests.
+- **Style:** Adhere to existing indentation (spaces vs tabs) in the file being edited.
+- **Testing:** 
+    -   C++ Tests: `ctest` in the build directory.
+    -   Perl Tests: `prove t/` (requires full Perl dev environment).
