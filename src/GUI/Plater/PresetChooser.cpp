@@ -29,6 +29,9 @@ PresetChooser::PresetChooser(wxWindow* parent, std::weak_ptr<Print> print, Setti
         }
         auto* text {new wxStaticText(this, wxID_ANY, name, wxDefaultPosition, wxDefaultSize, wxALIGN_RIGHT)};
         text->SetFont(_settings->small_font());
+        if (_settings->color->SOLID_BACKGROUNDCOLOR()) {
+            text->SetForegroundColour(*wxWHITE);
+        }
 
         auto* choice {new wxBitmapComboBox(this, wxID_ANY, "", wxDefaultPosition, wxDefaultSize, 0, nullptr, wxCB_READONLY)};
         this->preset_choosers[get_preset(group)].push_back(choice);

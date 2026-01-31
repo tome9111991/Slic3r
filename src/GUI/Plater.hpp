@@ -120,6 +120,9 @@ public:
 
 
     void show_preset_editor(preset_t preset, unsigned int idx);
+
+    void select_view_3d();
+    void select_view_preview();
 private:
     std::shared_ptr<Slic3r::Print> print {std::make_shared<Print>(Slic3r::Print())};
     std::shared_ptr<Slic3r::Model> model {std::make_shared<Model>(Slic3r::Model())};

@@ -7,5 +7,6 @@
 #include "ColorScheme/ColorSchemeBase.hpp"
 #include "ColorScheme/Default.hpp"
 #include "ColorScheme/Solarized.hpp"
+#include "ColorScheme/Dark.hpp"
 
 #endif

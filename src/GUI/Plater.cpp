@@ -44,6 +44,9 @@ Plater::Plater(wxWindow* parent, const wxString& title) :
     wxPanel(parent, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxTAB_TRAVERSAL, title),
     _presets(new PresetChooser(dynamic_cast<wxWindow*>(this), this->print))
 {
+    if (ui_settings->color->SOLID_BACKGROUNDCOLOR()) {
+        this->SetBackgroundColour(ui_settings->color->BACKGROUND_COLOR());
+    }
 
     // Set callback for status event for worker threads
     /*
@@ -226,6 +229,7 @@ Plater::Plater(wxWindow* parent, const wxString& title) :
     auto* right_sizer {this->right_sizer};
     right_sizer->Add(this->_presets, 0, wxEXPAND | wxTOP, 10);
 
+    /* Moved to Top Bar in MainFrame
     auto*buttons_sizer = new wxBoxSizer(wxVERTICAL);
     {
         auto* btn = new wxButton(this, wxID_ANY, _("Slice now"));
@@ -240,6 +244,7 @@ Plater::Plater(wxWindow* parent, const wxString& title) :
         buttons_sizer->Add(btn, 0, wxEXPAND);
     }
     right_sizer->Add(buttons_sizer, 0, wxEXPAND | wxTOP | wxBOTTOM, 10);
+    */
 
 //    $right_sizer->Add($self->{settings_override_panel}, 1, wxEXPAND, 5);
     right_sizer->Add(object_info_sizer, 0, wxEXPAND, 0);
@@ -262,7 +267,19 @@ Plater::Plater(wxWindow* parent, const wxString& title) :
     // Initialize the toolbar
     this->selection_changed();
 
+    this->selection_changed();
+
 }
+
+void Plater::select_view_3d() {
+    if (this->preview_notebook) this->preview_notebook->SetSelection(0);
+}
+
+void Plater::select_view_preview() {
+    // Index 2 is Toolpaths (2D Preview with G-code)
+    if (this->preview_notebook) this->preview_notebook->SetSelection(2);
+}
+
 void Plater::add() {
     Log::info(LogChannel, L"Called Add function");
 

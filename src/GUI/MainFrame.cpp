@@ -35,7 +35,70 @@ MainFrame::MainFrame(const wxString& title, const wxPoint& pos, const wxSize& si
     // Initialize layout
     {
         wxSizer* sizer = new wxBoxSizer(wxVERTICAL);
+        
+        // --- Top Navigation Bar (OrcaSlicer Style) ---
+        wxPanel* top_bar = new wxPanel(this, wxID_ANY);
+        if (ui_settings->color->SOLID_BACKGROUNDCOLOR()) 
+            top_bar->SetBackgroundColour(ui_settings->color->TOP_COLOR());
+
+        wxBoxSizer* top_sizer = new wxBoxSizer(wxHORIZONTAL);
+        
+        // Buttons
+        // We need 3 main modes: Prepare, Preview (Plater's Preview), Device (Controller)
+        auto create_nav_btn = [&](const wxString& label, int id) -> wxButton* {
+            wxButton* b = new wxButton(top_bar, id, label);
+            b->SetFont(ui_settings->small_bold_font());
+            return b;
+        };
+
+        wxButton* btn_prepare = create_nav_btn(_("Prepare"), wxNewId());
+        wxButton* btn_preview = create_nav_btn(_("Preview"), wxNewId());
+        wxButton* btn_device  = create_nav_btn(_("Device"), wxNewId());
+
+        top_sizer->AddStretchSpacer();
+        top_sizer->Add(btn_prepare, 0, wxALL | wxALIGN_CENTER_VERTICAL, 10);
+        top_sizer->Add(btn_preview, 0, wxALL | wxALIGN_CENTER_VERTICAL, 10);
+        top_sizer->Add(btn_device, 0, wxALL | wxALIGN_CENTER_VERTICAL, 10);
+        top_sizer->AddStretchSpacer();
+        
+        // Right Side Actions (OrcaSlicer Style)
+        wxButton* btn_slice = create_nav_btn(_("Slice plate"), wxNewId());
+        btn_slice->SetBackgroundColour(ui_settings->color->SELECTED_COLOR()); // Green
+        btn_slice->SetForegroundColour(*wxWHITE);
+
+        wxButton* btn_export = create_nav_btn(_("Export G-code"), wxNewId());
+        
+        top_sizer->Add(btn_slice, 0, wxALL | wxALIGN_CENTER_VERTICAL, 10);
+        top_sizer->Add(btn_export, 0, wxALL | wxALIGN_CENTER_VERTICAL, 10);
+
+        top_bar->SetSizer(top_sizer);
+        sizer->Add(top_bar, 0, wxEXPAND);
+        // ---------------------------------------------
+
         sizer->Add(this->tabpanel, 1, wxEXPAND);
+        
+        // wiring
+        btn_prepare->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) {
+             this->tabpanel->SetSelection(0); // Show Plater Panel
+             if (this->plater) this->plater->select_view_3d();
+        });
+
+        btn_preview->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) {
+             this->tabpanel->SetSelection(0); // Stay on Plater
+             if (this->plater) this->plater->select_view_preview();
+        });
+
+        btn_device->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) {
+             if (this->tabpanel->GetPageCount() > 1) this->tabpanel->SetSelection(1);
+        });
+
+        btn_slice->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) {
+             if (this->plater) this->plater->slice();
+        });
+
+        btn_export->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) {
+             if (this->plater) this->plater->export_gcode();
+        });
         sizer->SetSizeHints(this);
         this->SetSizer(sizer);
         this->Fit();
@@ -43,6 +106,9 @@ MainFrame::MainFrame(const wxString& title, const wxPoint& pos, const wxSize& si
         this->SetSize(this->GetMinSize());
         wxTheApp->SetTopWindow(this);
         ui_settings->restore_window_pos(this, "main_frame");
+        if (ui_settings->color->SOLID_BACKGROUNDCOLOR()) {
+            this->SetBackgroundColour(ui_settings->color->BACKGROUND_COLOR());
+        }
         this->Show();
         this->Layout();
     }
@@ -76,29 +142,28 @@ MainFrame::MainFrame(const wxString& title, const wxPoint& pos, const wxSize& si
 /// Private initialization function for the main frame tab panel.
 void MainFrame::init_tabpanel()
 {
-    this->tabpanel = new wxNotebook(this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxNB_TOP);
+    this->tabpanel = new wxSimplebook(this, wxID_ANY);
     auto panel = this->tabpanel; 
 
-    panel->Bind(wxEVT_NOTEBOOK_PAGE_CHANGED, ([=](wxNotebookEvent& e) 
-    { 
-        auto tabpanel = this->tabpanel;
-        // TODO: trigger processing for activation event
-        if (tabpanel->GetSelection() > 1) {
-            tabpanel->SetWindowStyle(tabpanel->GetWindowStyleFlag());
-        } 
-    }), panel->GetId());
-
-    this->plater = new Slic3r::GUI::Plater(panel, _("Plater"));
+    this->plater = new Slic3r::GUI::Plater(panel, _("Prepare")); // Renamed "Plater" to "Prepare"
     this->controller = new Slic3r::GUI::Controller(panel, _("Controller"));
 
-    panel->AddPage(this->plater, this->plater->GetName());
-    if (ui_settings->show_host) panel->AddPage(this->controller, this->controller->GetName());
+    panel->AddPage(this->plater, _("Prepare"));
+    // Use "Preview" as the second page (Controller is usually the printer host/queue, maybe Plater handles preview?)
+    // In original code: Panel had Plater (idx 0) and Controller (idx 1).
+    // But Plater has internal tabs for "3D", "Preview", "Toolpaths".
+    // Wait, OrcaSlicer separates "Prepare" (3D Editor) and "Preview" (G-code viewer).
+    // Original Slic3r has them as tabs INSIDE Plater?
+    
+    // Let's stick to original structure for now but just host them in Simplebook.
+    
+    if (ui_settings->show_host) panel->AddPage(this->controller, _("Device")); // Rename Controller to Device like Orca
+
     if (ui_settings->preset_editor_tabs) {
         this->plater->show_preset_editor(preset_t::Print,0);
         this->plater->show_preset_editor(preset_t::Material,0);
         this->plater->show_preset_editor(preset_t::Printer,0);
     }
-    
 }
 
 void MainFrame::init_menubar()

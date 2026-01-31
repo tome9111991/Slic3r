@@ -41,7 +41,7 @@ class Settings {
         bool hide_reload_dialog {false};
 
         ReloadBehavior reload {ReloadBehavior::all};
-        std::unique_ptr<ColorScheme> color {new Slic3r::GUI::DefaultColor};
+        std::unique_ptr<ColorScheme> color {new Slic3r::GUI::DarkColor};
         PathColor color_toolpaths_by {PathColor::role};
 
         float nudge {1.0}; //< 2D plater nudge amount in mm

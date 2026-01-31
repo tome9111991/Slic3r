@@ -7,6 +7,7 @@
 #endif
 #include <wx/tooltip.h>
 #include <wx/notebook.h>
+#include <wx/simplebook.h>
 
 #include <memory>
 #include <map>
@@ -33,7 +34,7 @@ public:
 
     bool has_plater_menu() { return this->plater_menu != nullptr; }
     wxMenu* plater_select_menu {nullptr};
-    wxNotebook* tabs() { return tabpanel; }
+    wxSimplebook* tabs() { return tabpanel; }
 
     std::map<preset_t, PresetEditor*> preset_editor_tabs;
 private:
@@ -46,7 +47,7 @@ private:
     // STUB: preset editor tabs storage
     // STUB: Statusbar reference
 
-    wxNotebook* tabpanel;
+    wxSimplebook* tabpanel;
     Controller* controller;
     Plater* plater;
 
