@@ -1,0 +1,22 @@
+{
+  "name": "slic3r",
+  "version-string": "1.3.0",
+  "dependencies": [
+    "boost-system",
+    "boost-thread",
+    "boost-filesystem",
+    "boost-nowide",
+    "boost-polygon",
+    "boost-algorithm",
+    "boost-asio",
+    "boost-locale",
+    "boost-property-tree",
+    "boost-lexical-cast",
+    "boost-any",
+    "boost-bind",
+    "boost-date-time",
+    "boost-foreach",
+    "wxwidgets"
+  ],
+  "builtin-baseline": "6d7bf7ef2193e2d1c5798a5ff8811d533104c861"
+}
