@@ -4,6 +4,10 @@
 #include <wx/progdlg.h>
 #include <wx/window.h> 
 #include <wx/numdlg.h> 
+#include <wx/filedlg.h>
+#include <wx/msgdlg.h> 
+#include <wx/button.h> 
+#include <thread> 
 
 
 #include "Plater.hpp"
@@ -221,7 +225,22 @@ Plater::Plater(wxWindow* parent, const wxString& title) :
     // right panel sizer
     auto* right_sizer {this->right_sizer};
     right_sizer->Add(this->_presets, 0, wxEXPAND | wxTOP, 10);
-//    $right_sizer->Add($buttons_sizer, 0, wxEXPAND | wxBOTTOM, 5);
+
+    auto*buttons_sizer = new wxBoxSizer(wxVERTICAL);
+    {
+        auto* btn = new wxButton(this, wxID_ANY, _("Slice now"));
+        btn->SetBitmap(wxBitmap(var("cog.png"), wxBITMAP_TYPE_PNG)); 
+        btn->Bind(wxEVT_BUTTON, [this](wxCommandEvent& e) { this->slice(); });
+        buttons_sizer->Add(btn, 0, wxEXPAND | wxBOTTOM, 5);
+    }
+    {
+        auto* btn = new wxButton(this, wxID_ANY, _("Export G-code"));
+        btn->SetBitmap(wxBitmap(var("cog_go.png"), wxBITMAP_TYPE_PNG)); 
+        btn->Bind(wxEVT_BUTTON, [this](wxCommandEvent& e) { this->export_gcode(); });
+        buttons_sizer->Add(btn, 0, wxEXPAND);
+    }
+    right_sizer->Add(buttons_sizer, 0, wxEXPAND | wxTOP | wxBOTTOM, 10);
+
 //    $right_sizer->Add($self->{settings_override_panel}, 1, wxEXPAND, 5);
     right_sizer->Add(object_info_sizer, 0, wxEXPAND, 0);
 //    $right_sizer->Add($object_info_sizer, 0, wxEXPAND, 0);
@@ -1133,5 +1152,153 @@ void Plater::load_presets() {
     this->_presets->load();
 }
 
+
+void Plater::export_gcode() {
+    if (this->objects.empty()) {
+        wxMessageBox(_("No objects to slice."), _("Error"), wxICON_ERROR);
+        return;
+    }
+
+    wxFileDialog saveFileDialog(this, _("Save G-code file"), "", "",
+                                "G-code files (*.gcode)|*.gcode", wxFD_SAVE | wxFD_OVERWRITE_PROMPT);
+    if (saveFileDialog.ShowModal() == wxID_CANCEL)
+        return;
+    std::string output_file = saveFileDialog.GetPath().ToStdString();
+
+    // Apply config
+    this->print->apply_config(this->config->config());
+
+    // Validate
+    try {
+        this->print->validate();
+    } catch (std::exception& e) {
+        wxMessageBox(wxString::FromUTF8(e.what()), _("Configuration Error"), wxICON_ERROR);
+        return;
+    }
+
+    wxProgressDialog progressDialog(_("Slicing"), _("Processing..."), 100, this, wxPD_APP_MODAL | wxPD_AUTO_HIDE);
+    
+    // Set status callback
+    this->print->status_cb = [&progressDialog](int percent, const std::string& msg) {
+        progressDialog.Update(percent, wxString::FromUTF8(msg.c_str()));
+        wxYield(); 
+    };
+
+    try {
+        // Ensure Print object has the latest Model state
+        this->print->reload_model_instances();
+
+        // Process
+        this->print->process();
+        
+        // Export
+        this->print->export_gcode(output_file);
+        
+        wxMessageBox(_("G-code exported successfully."), _("Done"), wxICON_INFORMATION);
+
+    } catch (std::exception& e) {
+        wxMessageBox(wxString::FromUTF8(e.what()), _("Slicing Error"), wxICON_ERROR);
+    }
+    
+    // Cleanup callback
+    this->print->status_cb = nullptr;
+}
+
+
+void Plater::slice() {
+    if (this->objects.empty()) {
+        wxMessageBox(_("No objects to slice."), _("Error"), wxICON_ERROR);
+        return;
+    }
+
+    // Apply config
+    this->print->apply_config(this->config->config());
+    
+    // Auto-detect threads if not set or set to 1
+    if (this->print->config.threads.value <= 1) {
+        this->print->config.threads.value = std::thread::hardware_concurrency();
+         if (this->print->config.threads.value == 0) this->print->config.threads.value = 2;
+    }
+
+    // Validate
+    try {
+        this->print->validate();
+    } catch (std::exception& e) {
+        wxMessageBox(wxString::FromUTF8(e.what()), _("Configuration Error"), wxICON_ERROR);
+        return;
+    }
+
+    // Create a progress handling mechanism that works across threads
+    // We cannot use wxProgressDialog in modal mode effectively if we want non-blocking (well, we can but we want background)
+    // For now, let's keep the dialog but show it non-modally or use a flag.
+    // Actually, "Background slicing" usually implies the UI remains responsive. 
+    // Let's use a non-modal ProgressDialog or just a status bar update. 
+    // For specific user request "background sliceing like prusa", PrusaSlicer shows a progress bar in the bottom right 
+    // and lets you rotate the view.
+
+    // Using a simpler approach: Standard thread.
+    
+    // Disable slice button to prevent double-click
+    // TODO: Disable UI controls
+    
+    auto* progressDialog = new wxProgressDialog(_("Slicing"), _("Processing..."), 100, this, wxPD_APP_MODAL | wxPD_AUTO_HIDE);
+    // Note: wxPD_APP_MODAL blocks the UI interaction. 
+    // If we want TRUE background slicing, we should remove wxPD_APP_MODAL and potentially use the status bar.
+    // But for now, ensuring it runs in a thread prevents "Not Responding" windows ghosting.
+    
+    // To allow UI updates, we pass the pointer. Mutable lambda.
+    
+    std::thread([this, progressDialog]() {
+        try {
+            // Ensure Print object has the latest Model state
+             // This touches Model which might be main-thread only if not careful, but usually Model is data.
+             // reload_model_instances() reads model instances. 
+             // We should probably do this on main thread before spawning? 
+             // Let's assume it's safe or do it before.
+            
+            // Set status callback
+            this->print->status_cb = [progressDialog](int percent, const std::string& msg) {
+                wxTheApp->CallAfter([progressDialog, percent, msg]() {
+                    progressDialog->Update(percent, wxString::FromUTF8(msg.c_str()));
+                });
+            };
+
+            // Process
+            // reload_model_instances interacts with ModelObject which touches Pointf, safe.
+            this->print->reload_model_instances();
+            this->print->process();
+
+            // Success
+            wxTheApp->CallAfter([this, progressDialog]() {
+                progressDialog->Close();
+                progressDialog->Destroy();
+                
+                // Update Preview
+                if(this->preview3D) this->preview3D->reload_print();
+                if(this->preview2D) this->preview2D->reload_print();
+
+                // Switch execution to Preview tab
+                this->preview_notebook->SetSelection(2); 
+                
+                // Optional: Flash notification or simple message
+                // wxMessageBox(_("Slicing Complete"), _("Done"), wxICON_INFORMATION);
+            });
+
+        } catch (std::exception& e) {
+             std::string msg = e.what();
+             wxTheApp->CallAfter([this, progressDialog, msg]() {
+                progressDialog->Close();
+                progressDialog->Destroy();
+                wxMessageBox(wxString::FromUTF8(msg.c_str()), _("Slicing Error"), wxICON_ERROR);
+            });
+        }
+        
+        // Cleanup callback
+        this->print->status_cb = nullptr;
+        
+    }).detach();
+}
+
 }} // Namespace Slic3r::GUI
+
 

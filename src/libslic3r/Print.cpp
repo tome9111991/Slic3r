@@ -700,8 +700,10 @@ Print::export_gcode(std::string outfile, bool quiet)
     
     // write G-code to a temporary file in order to make the export atomic
     const std::string tempfile{ outfile + ".tmp" };
-    std::ofstream outstream(tempfile);
-    this->export_gcode(outstream);
+    {
+        std::ofstream outstream(tempfile);
+        this->export_gcode(outstream);
+    }
     
     // rename the temporary file to the destination file
     // When renaming, some other application (thank you, Windows Explorer) 

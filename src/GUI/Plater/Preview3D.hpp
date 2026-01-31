@@ -16,9 +16,26 @@ namespace Slic3r { namespace GUI {
 class PreviewScene3D : public Scene3D {
 public:
     PreviewScene3D(wxWindow* parent, const wxSize& size) : Scene3D(parent,size){}
-    // TODO: load_print_toolpaths(Print);
-    // TODO: load_print_object_toolpaths(PrintObject);
-    void resetObjects(){volumes.clear();}
+
+    void load_print_toolpaths(std::shared_ptr<Slic3r::Print> print);
+    void set_toolpaths_range(float min_z, float max_z);
+    
+    void resetObjects(){
+        volumes.clear();
+        layers.clear();
+    }
+    
+protected:
+    virtual void after_render() override;
+
+private:
+   struct LayerData {
+       float z;
+       std::vector<float> verts;
+       std::vector<unsigned char> colors;
+   };
+   std::vector<LayerData> layers;
+   float m_max_z = std::numeric_limits<float>::max();
 };
 
 class Preview3D : public wxPanel {

@@ -111,10 +111,12 @@ public:
     void select_prev() {};
     void zoom(Zoom dir) {};
 
-    void export_gcode() {};
+    void export_gcode();
     void export_amf() {};
     void export_tmf() {};
     void export_stl() {};
+
+    void slice();
 
 
     void show_preset_editor(preset_t preset, unsigned int idx);
