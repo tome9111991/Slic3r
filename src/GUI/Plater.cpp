@@ -79,13 +79,13 @@ Plater::Plater(wxWindow* parent, const wxString& title) :
     */
 
     // initialize 2D Preview Canvas
-    canvas2D = new Plate2D(preview_notebook, wxDefaultSize, objects, model, config);
-    preview_notebook->AddPage(canvas2D, _("2D"));
+    // canvas2D = new Plate2D(preview_notebook, wxDefaultSize, objects, model, config);
+    // preview_notebook->AddPage(canvas2D, _("2D"));
 
-    canvas2D->on_select_object = std::function<void (ObjIdx obj_idx)>(on_select_object);
-    canvas2D->on_double_click = std::function<void ()>(on_double_click);
-    canvas2D->on_right_click = std::function<void (const wxPoint& pos)>([=](const wxPoint& pos){ on_right_click(canvas2D, pos); });
-    canvas2D->on_instances_moved = std::function<void ()>(on_instances_moved);
+    // canvas2D->on_select_object = std::function<void (ObjIdx obj_idx)>(on_select_object);
+    // canvas2D->on_double_click = std::function<void ()>(on_double_click);
+    // canvas2D->on_right_click = std::function<void (const wxPoint& pos)>([=](const wxPoint& pos){ on_right_click(canvas2D, pos); });
+    // canvas2D->on_instances_moved = std::function<void ()>(on_instances_moved);
 
 
     canvas3D = new Plate3D(preview_notebook, wxDefaultSize, objects, model, config);
@@ -100,8 +100,10 @@ Plater::Plater(wxWindow* parent, const wxString& title) :
     preview2D = new Preview2D(preview_notebook, wxDefaultSize, objects, model, config);
     preview_notebook->AddPage(preview2D, _("Toolpaths"));
 
+    /*
     previewDLP = new PreviewDLP(preview_notebook, wxDefaultSize, objects, model, config);
     preview_notebook->AddPage(previewDLP, _("DLP/SLA"));
+    */
 
     /*
     # Initialize 2D preview canvas
@@ -207,7 +209,7 @@ Plater::Plater(wxWindow* parent, const wxString& title) :
         object_info_sizer->Add(grid_sizer, 0, wxEXPAND);
     }
     this->selection_changed();
-    this->canvas2D->update_bed_size();
+    if (this->canvas2D) this->canvas2D->update_bed_size();
 
     // Toolbar
     this->build_toolbar();
@@ -509,8 +511,10 @@ void Plater::refresh_canvases() {
     if (this->preview2D != nullptr)
         this->preview2D->reload_print();
 
+    /*
     if (this->previewDLP != nullptr)
         this->previewDLP->reload_print();
+    */
 
 }
 
@@ -600,7 +604,7 @@ void Plater::select_object() {
 
 void Plater::selection_changed() {
     // Remove selection in 2D plater
-    this->canvas2D->set_selected(-1, -1);
+    if (this->canvas2D) this->canvas2D->set_selected(-1, -1);
     this->canvas3D->selection_changed();
 
     auto obj = this->selected_object();
@@ -728,8 +732,10 @@ void Plater::remove(int obj_idx, bool dont_push) {
     if (this->preview3D != nullptr) 
         this->preview3D->enabled(false);
 
+    /*
     if (this->previewDLP != nullptr) 
         this->previewDLP->enabled(false);
+    */
     
     ObjRef obj_ref;
     // if no object index is supplied or an invalid one is supplied, remove the selected one
@@ -788,8 +794,10 @@ void Plater::reset(bool dont_push) {
     if (this->preview3D != nullptr) 
         this->preview3D->enabled(false);
 
+    /*
     if (this->previewDLP != nullptr) 
         this->previewDLP->enabled(false);
+    */
 
     if (!dont_push) {
         Slic3r::Model current_model {*(this->model)};

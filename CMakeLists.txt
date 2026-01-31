@@ -256,7 +256,6 @@ add_library(libslic3r STATIC
     ${LIBDIR}/libslic3r/PrintObject.cpp
     ${LIBDIR}/libslic3r/PrintRegion.cpp
     ${LIBDIR}/libslic3r/SimplePrint.cpp
-    ${LIBDIR}/libslic3r/SLAPrint.cpp
     ${LIBDIR}/libslic3r/SlicingAdaptive.cpp
     ${LIBDIR}/libslic3r/Surface.cpp
     ${LIBDIR}/libslic3r/SurfaceCollection.cpp

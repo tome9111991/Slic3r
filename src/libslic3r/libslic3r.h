@@ -141,12 +141,37 @@ parallelize(std::queue<T> queue, boost::function<void(T)> func,
 }
 
 template <class T> void
+_parallelize_range_static_do(T start, T end, boost::function<void(T)> func)
+{
+    for (T i = start; i <= end; ++i) {
+        func(i);
+        boost::this_thread::interruption_point();
+    }
+}
+
+template <class T> void
 parallelize(T start, T end, boost::function<void(T)> func,
     int threads_count = boost::thread::hardware_concurrency())
 {
-    std::queue<T> queue;
-    for (T i = start; i <= end; ++i) queue.push(i);
-    parallelize(queue, func, threads_count);
+    if (threads_count == 0) threads_count = 2;
+    boost::thread_group workers;
+    
+    long long len = (long long)end - (long long)start + 1;
+    if (len <= 0) return;
+    
+    if (len < threads_count) threads_count = (int)len;
+    long long chunk_size = len / threads_count;
+    long long remainder = len % threads_count;
+    
+    T current_start = start;
+    for (int i = 0; i < threads_count; i++) {
+        long long size = chunk_size + (i < remainder ? 1 : 0);
+        if (size == 0) break;
+        T current_end = current_start + (T)size - 1;
+        workers.add_thread(new boost::thread(&_parallelize_range_static_do<T>, current_start, current_end, func));
+        current_start = current_end + 1;
+    }
+    workers.join_all();
 }
 
 } // namespace Slic3r

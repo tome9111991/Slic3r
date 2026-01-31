@@ -608,6 +608,7 @@ class FullPrintConfig
     };
 };
 
+/*
 class SLAPrintConfig
     : public virtual StaticPrintConfig
 {
@@ -644,6 +645,7 @@ class SLAPrintConfig
         return NULL;
     };
 };
+*/
 
 class CLIActionsConfigDef : public ConfigDef
 {

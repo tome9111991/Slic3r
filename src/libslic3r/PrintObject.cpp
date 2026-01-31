@@ -352,9 +352,9 @@ PrintObject::detect_surfaces_type()
     // prerequisites
     this->slice();
     
-    parallelize<Layer*>(
-        std::queue<Layer*>(std::deque<Layer*>(this->layers.begin(), this->layers.end())),  // cast LayerPtrs to std::queue<Layer*>
-        boost::bind(&Slic3r::Layer::detect_surfaces_type, _1),
+    parallelize<size_t>(
+        0, this->layers.size() - 1,
+        [this](size_t i) { this->layers[i]->detect_surfaces_type(); },
         this->_print->config.threads.value
     );
     
@@ -365,9 +365,9 @@ PrintObject::detect_surfaces_type()
 void
 PrintObject::process_external_surfaces()
 {
-    parallelize<Layer*>(
-        std::queue<Layer*>(std::deque<Layer*>(this->layers.begin(), this->layers.end())),  // cast LayerPtrs to std::queue<Layer*>
-        boost::bind(&Slic3r::Layer::process_external_surfaces, _1),
+    parallelize<size_t>(
+        0, this->layers.size() - 1,
+        [this](size_t i) { this->layers[i]->process_external_surfaces(); },
         this->_print->config.threads.value
     );
 }
@@ -1193,9 +1193,9 @@ PrintObject::make_perimeters()
         }
     }
     
-    parallelize<Layer*>(
-        std::queue<Layer*>(std::deque<Layer*>(this->layers.begin(), this->layers.end())),  // cast LayerPtrs to std::queue<Layer*>
-        boost::bind(&Slic3r::Layer::make_perimeters, _1),
+    parallelize<size_t>(
+        0, this->layers.size() - 1,
+        [this](size_t i) { this->layers[i]->make_perimeters(); },
         this->_print->config.threads.value
     );
     
@@ -1218,9 +1218,9 @@ PrintObject::infill()
     // prerequisites
     this->prepare_infill();
     
-    parallelize<Layer*>(
-        std::queue<Layer*>(std::deque<Layer*>(this->layers.begin(), this->layers.end())),  // cast LayerPtrs to std::queue<Layer*>
-        boost::bind(&Slic3r::Layer::make_fills, _1),
+    parallelize<size_t>(
+        0, this->layers.size() - 1,
+        [this](size_t i) { this->layers[i]->make_fills(); },
         this->_print->config.threads.value
     );
     
@@ -1238,7 +1238,7 @@ PrintObject::prepare_infill()
     
     // This prepare_infill() is not really idempotent.
     // TODO: It should clear and regenerate fill_surfaces at every run 
-    // instead of modifying it in place.
+    // instead of modifying it in place.
 
     this->state.invalidate(posPerimeters);
     this->make_perimeters();
@@ -1252,9 +1252,14 @@ PrintObject::prepare_infill()
         this->_print->status_cb(30, "Preparing infill");
     
     // decide what surfaces are to be filled
-    for (auto& layer : this->layers)
-        for (auto& layerm : layer->regions)
-            layerm->prepare_fill_surfaces();
+    parallelize<size_t>(
+        0, this->layers.size() - 1,
+        [this](size_t i) {
+            for (auto& layerm : this->layers[i]->regions)
+                layerm->prepare_fill_surfaces();
+        },
+        this->_print->config.threads.value
+    );
 
     // this will detect bridges and reverse bridges
     // and rearrange top/bottom/internal surfaces
@@ -1324,86 +1329,95 @@ PrintObject::combine_infill()
             combine[this->layers.size() - 1] = num_layers;
         }
 
-        // loop through layers to which we have assigned layers to combine
-        for (size_t layer_idx = 0; layer_idx < combine.size(); ++layer_idx) {
-            const size_t& num_layers = combine[layer_idx];
-            if (num_layers <= 1)
-                continue;
-            
-            // Get all the LayerRegion objects to be combined.
-            std::vector<LayerRegion*> layerms;
-            layerms.reserve(num_layers);
-            for (size_t i = layer_idx + 1 - num_layers; i <= layer_idx; ++i)
-                layerms.push_back(this->layers[i]->regions[region_id]);
-            
-            // We need to perform a multi-layer intersection, so let's split it in pairs.
-            
-            // Initialize the intersection with the candidates of the lowest layer.
-            ExPolygons intersection = to_expolygons(layerms.front()->fill_surfaces.filter_by_type(stInternal));
-            
-            // Start looping from the second layer and intersect the current intersection with it.
-            for (size_t i = 1; i < layerms.size(); ++i)
-                intersection = intersection_ex(
-                    to_polygons(intersection),
-                    to_polygons(layerms[i]->fill_surfaces.filter_by_type(stInternal))
-                );
-            
-            // Remove ExPolygons whose area is <= infill_area_threshold()
-            const double area_threshold = layerms.front()->infill_area_threshold();
-            intersection.erase(std::remove_if(intersection.begin(), intersection.end(), 
-                [area_threshold](const ExPolygon &expoly) { return expoly.area() <= area_threshold; }), 
-                intersection.end());
-            
-            if (intersection.empty())
-                continue;
-            
-            #ifdef SLIC3R_DEBUG
-            std::cout << "  combining " << intersection.size()
-                << " internal regions from layers " << (layer_idx-(every-1))
-                << "-" << layer_idx << std::endl;
-            #endif
-            
-            // intersection now contains the regions that can be combined across the full amount of layers,
-            // so let's remove those areas from all layers.
-            
-            const float clearance_offset = 
-                0.5f * layerms.back()->flow(frPerimeter).scaled_width() +
-                    // Because fill areas for rectilinear and honeycomb are grown 
-                    // later to overlap perimeters, we need to counteract that too.
-                    ((region->config.fill_pattern == ipRectilinear   ||
-                      region->config.fill_pattern == ipGrid          ||
-                      region->config.fill_pattern == ipHoneycomb) ? 1.5f : 0.5f)
-                      * layerms.back()->flow(frSolidInfill).scaled_width();
-            
-            Polygons intersection_with_clearance;
-            intersection_with_clearance.reserve(intersection.size());
-            for (const ExPolygon &expoly : intersection)
-                polygons_append(intersection_with_clearance, offset(expoly, clearance_offset));
-            
-            for (LayerRegion *layerm : layerms) {
-                const Polygons internal = to_polygons(layerm->fill_surfaces.filter_by_type(stInternal));
-                layerm->fill_surfaces.remove_type(stInternal);
-                
-                layerm->fill_surfaces.append(
-                    diff_ex(internal, intersection_with_clearance),
-                    stInternal
-                );
-                
-                if (layerm == layerms.back()) {
-                    // Apply surfaces back with adjusted depth to the uppermost layer.
-                    Surface templ(stInternal, ExPolygon());
-                    templ.thickness = 0.;
-                    for (const LayerRegion *layerm2 : layerms)
-                        templ.thickness += layerm2->layer()->height;
-                    templ.thickness_layers = (unsigned short)layerms.size();
-                    layerm->fill_surfaces.append(intersection, templ);
-                } else {
-                    // Save void surfaces.
-                    layerm->fill_surfaces.append(
-                            intersection_ex(internal, intersection_with_clearance),
-                            (stInternal | stVoid));
-                }
-            }
+    // define the buffer for parallel processing
+    parallelize<size_t>(
+        0, combine.size() - 1,
+        boost::bind(&PrintObject::_combine_infill_nonlinear, this, _1, boost::cref(combine), region_id),
+        this->_print->config.threads.value
+    );
+    }
+}
+
+void PrintObject::_combine_infill_nonlinear(size_t layer_idx, const std::vector<size_t>& combine, size_t region_id)
+{
+    const size_t& num_layers = combine[layer_idx];
+    if (num_layers <= 1)
+        return;
+    
+    const PrintRegion *region = this->print()->regions[region_id];
+
+    // Get all the LayerRegion objects to be combined.
+    std::vector<LayerRegion*> layerms;
+    layerms.reserve(num_layers);
+    for (size_t i = layer_idx + 1 - num_layers; i <= layer_idx; ++i)
+        layerms.push_back(this->layers[i]->regions[region_id]);
+    
+    // We need to perform a multi-layer intersection, so let's split it in pairs.
+    
+    // Initialize the intersection with the candidates of the lowest layer.
+    ExPolygons intersection = to_expolygons(layerms.front()->fill_surfaces.filter_by_type(stInternal));
+    
+    // Start looping from the second layer and intersect the current intersection with it.
+    for (size_t i = 1; i < layerms.size(); ++i)
+        intersection = intersection_ex(
+            to_polygons(intersection),
+            to_polygons(layerms[i]->fill_surfaces.filter_by_type(stInternal))
+        );
+    
+    // Remove ExPolygons whose area is <= infill_area_threshold()
+    const double area_threshold = layerms.front()->infill_area_threshold();
+    intersection.erase(std::remove_if(intersection.begin(), intersection.end(), 
+        [area_threshold](const ExPolygon &expoly) { return expoly.area() <= area_threshold; }), 
+        intersection.end());
+    
+    if (intersection.empty())
+        return;
+    
+    #ifdef SLIC3R_DEBUG
+    std::cout << "  combining " << intersection.size()
+        << " internal regions from layers " << (layer_idx-(num_layers-1))
+        << "-" << layer_idx << std::endl;
+    #endif
+    
+    // intersection now contains the regions that can be combined across the full amount of layers,
+    // so let's remove those areas from all layers.
+    
+    const float clearance_offset = 
+        0.5f * layerms.back()->flow(frPerimeter).scaled_width() +
+            // Because fill areas for rectilinear and honeycomb are grown 
+            // later to overlap perimeters, we need to counteract that too.
+            ((region->config.fill_pattern == ipRectilinear   ||
+              region->config.fill_pattern == ipGrid          ||
+              region->config.fill_pattern == ipHoneycomb) ? 1.5f : 0.5f)
+              * layerms.back()->flow(frSolidInfill).scaled_width();
+    
+    Polygons intersection_with_clearance;
+    intersection_with_clearance.reserve(intersection.size());
+    for (const ExPolygon &expoly : intersection)
+        polygons_append(intersection_with_clearance, offset(expoly, clearance_offset));
+    
+    for (LayerRegion *layerm : layerms) {
+        const Polygons internal = to_polygons(layerm->fill_surfaces.filter_by_type(stInternal));
+        layerm->fill_surfaces.remove_type(stInternal);
+        
+        layerm->fill_surfaces.append(
+            diff_ex(internal, intersection_with_clearance),
+            stInternal
+        );
+        
+        if (layerm == layerms.back()) {
+            // Apply surfaces back with adjusted depth to the uppermost layer.
+            Surface templ(stInternal, ExPolygon());
+            templ.thickness = 0.;
+            for (const LayerRegion *layerm2 : layerms)
+                templ.thickness += layerm2->layer()->height;
+            templ.thickness_layers = (unsigned short)layerms.size();
+            layerm->fill_surfaces.append(intersection, templ);
+        } else {
+            // Save void surfaces.
+            layerm->fill_surfaces.append(
+                    intersection_ex(internal, intersection_with_clearance),
+                    (stInternal | stVoid));
         }
     }
 }

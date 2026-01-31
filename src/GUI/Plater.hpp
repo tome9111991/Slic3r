@@ -25,7 +25,7 @@
 #include "Plater/Plate3D.hpp"
 #include "Plater/Preview2D.hpp"
 #include "Plater/Preview3D.hpp"
-#include "Plater/PreviewDLP.hpp"
+// #include "Plater/PreviewDLP.hpp"
 #include "Plater/PresetChooser.hpp"
 
 #include "Settings.hpp"
@@ -148,7 +148,7 @@ private:
     Preview2D* preview2D {nullptr}; //< 2D Preview 
     Preview3D* preview3D {nullptr}; //< 3D Preview 
 
-    PreviewDLP* previewDLP {nullptr}; //< DLP/SLA Preview canvas
+    // PreviewDLP* previewDLP {nullptr}; //< DLP/SLA Preview canvas
 
     wxStaticBoxSizer* object_info_size {nullptr};
 

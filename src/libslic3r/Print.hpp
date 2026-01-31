@@ -215,6 +215,9 @@ class PrintObject
     /// Inner loop of logic for horizontal shell discovery
     void _discover_neighbor_horizontal_shells(LayerRegion* layerm, const size_t& i, const size_t& region_id, const SurfaceType& type, Polygons& solid, const size_t& solid_layers);  
 
+    /// Helper for parallel execution of combine_infill
+    void _combine_infill_nonlinear(size_t layer_idx, const std::vector<size_t>& combine, size_t region_id);
+
 };
 
 typedef std::vector<PrintObject*> PrintObjectPtrs;

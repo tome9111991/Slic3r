@@ -8,7 +8,7 @@
 #include "Geometry.hpp"
 #include "IO.hpp"
 #include "Log.hpp"
-#include "SLAPrint.hpp"
+// #include "SLAPrint.hpp"
 #include "Print.hpp"
 #include "SimplePrint.hpp"
 #include "TriangleMesh.hpp"
@@ -305,8 +305,10 @@ int CLI::run(int argc, char **argv) {
         } else if (opt_key == "export_3mf") {
             this->export_models(IO::TMF);
         } else if (opt_key == "export_sla") {
-            Slic3r::Log::error("CLI") << "--export-sla is not implemented yet" << std::endl;
+            Slic3r::Log::error("CLI") << "--export-sla has been removed from this version." << std::endl;
         } else if (opt_key == "export_sla_svg") {
+             Slic3r::Log::error("CLI") << "--export-sla-svg has been removed from this version." << std::endl;
+             /*
             for (const Model &model : this->models) {
                 SLAPrint print(&model); // initialize print with model
                 print.config.apply(this->print_config, true); // apply configuration
@@ -315,6 +317,7 @@ int CLI::run(int argc, char **argv) {
                 print.write_svg(outfile); // write SVG
                 boost::nowide::cout << "SVG file exported to " << outfile << std::endl;
             }
+            */
         } else if (opt_key == "export_gcode") {
             for (const Model &model : this->models) {
                 // If all objects have defined instances, their relative positions will be
