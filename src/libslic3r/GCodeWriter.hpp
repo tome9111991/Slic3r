@@ -27,7 +27,7 @@ public:
     template <typename Iter>
     void set_extruders(Iter begin, Iter end) {
         for (auto i = begin; i != end; ++i)
-            this->extruders.insert( std::pair<unsigned int,Extruder>(*i, Extruder(*i, &this->config)) );
+            this->extruders.insert( std::pair<unsigned int,Extruder>(static_cast<unsigned int>(*i), Extruder(static_cast<unsigned int>(*i), &this->config)) );
 
         /*  we enable support for multiple extruder if any extruder greater than 0 is used
             (even if prints only uses that one) since we need to output Tx commands

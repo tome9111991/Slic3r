@@ -79,7 +79,7 @@ typedef double coordf_t;
 // This scaling generates a following fixed point representation with for a 32bit integer:
 // 0..4294mm with 1nm resolution
 constexpr auto SCALING_FACTOR = 0.000001;
-inline constexpr coord_t  scale_(const coordf_t &val) { return val / SCALING_FACTOR; }
+inline constexpr coord_t  scale_(const coordf_t &val) { return static_cast<coord_t>(val / SCALING_FACTOR); }
 inline constexpr coordf_t unscale(const coord_t &val) { return val * SCALING_FACTOR; }
 
 //FIXME This epsilon value is used for many non-related purposes:
@@ -95,7 +95,7 @@ constexpr auto PI = 3.141592653589793238;
 // When extruding a closed loop, the loop is interrupted and shortened a bit to reduce the seam.
 constexpr auto LOOP_CLIPPING_LENGTH_OVER_NOZZLE_DIAMETER = 0.15;
 // Maximum perimeter length for the loop to apply the small perimeter speed. 
-constexpr coord_t SMALL_PERIMETER_LENGTH = scale_(6.5) * 2 * PI;
+constexpr coord_t SMALL_PERIMETER_LENGTH = static_cast<coord_t>(scale_(6.5) * 2 * PI);
 constexpr coordf_t INSET_OVERLAP_TOLERANCE = 0.4;
 constexpr coordf_t EXTERNAL_INFILL_MARGIN = 3;
 constexpr coord_t SCALED_EXTERNAL_INFILL_MARGIN = scale_(EXTERNAL_INFILL_MARGIN);

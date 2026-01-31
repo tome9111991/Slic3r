@@ -236,7 +236,7 @@ namespace boost { namespace polygon {
             return t.holes.end();
         }
         static inline unsigned int size_holes(const Slic3r::ExPolygon& t) {
-            return t.holes.size();
+            return static_cast<unsigned int>(t.holes.size());
         }
     };
 

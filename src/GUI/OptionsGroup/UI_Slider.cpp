@@ -47,14 +47,14 @@ void UI_Slider::set_value(boost::any value) {
         std::string _val = boost::any_cast<std::string>(value);
         try {
             this->_slider->SetValue(std::stod(_val) * this->_scale);
-        } catch (std::invalid_argument &e) {
+        } catch (std::invalid_argument & /*e*/) {
             Slic3r::Log::error(this->LogChannel()) << "Conversion to numeric from string failed.\n";
         }
     } else if (value.type() == typeid(wxString)) {
         std::string _val = boost::any_cast<wxString>(value).ToStdString();
         try {
             this->_slider->SetValue(std::stod(_val) * this->_scale);
-        } catch (std::invalid_argument &e) {
+        } catch (std::invalid_argument & /*e*/) {
             Slic3r::Log::error(this->LogChannel()) << "Conversion to numeric from string failed.\n";
         }
     } else {
