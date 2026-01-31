@@ -75,10 +75,10 @@ config_ptr Preset::load_config() {
 
     if (this->default_preset) {
         this->_config = Slic3r::Config::new_from_defaults(keys);
-    } else if (this->_file.HasName() > 0) {
+    } else if (this->_file.HasName()) {
         config_ptr config = Slic3r::Config::new_from_defaults(keys);
         if (this->file_exists()) {
-            auto external_config { Slic3r::Config::new_from_ini(this->_file.GetFullPath().ToStdString()) };
+            config_ptr external_config = Slic3r::Config::new_from_ini(this->_file.GetFullPath().ToStdString());
             // Apply preset values on top of defaults
             config = Slic3r::Config::new_from_defaults(keys);
             config->apply_with_defaults(external_config, keys);

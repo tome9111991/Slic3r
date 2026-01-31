@@ -238,12 +238,13 @@ void Plate2D::mouse_down(wxMouseEvent& e) {
                     auto& instance {this->model->objects.at(obj_idx)->instances.at(instance_idx)};
                     auto instance_origin { Point::new_scale(instance->offset) };
 
-                    this->drag_start_pos = wxPoint(
-                        point.x - instance_origin.x,
-                        point.y - instance_origin.y
-                    );
+                    long long diff_x = point.x;
+                    diff_x -= instance_origin.x;
+                    long long diff_y = point.y;
+                    diff_y -= instance_origin.y;
+                    this->drag_start_pos = wxPoint(static_cast<int>(diff_x), static_cast<int>(diff_y));
 
-                    this->drag_object = { obj_idx, instance_idx };
+                    this->drag_object = { static_cast<long>(obj_idx), static_cast<long>(instance_idx) };
                     this->selected_instance = this->drag_object;
 
                     obj->selected_instance = instance_idx;
@@ -439,7 +440,7 @@ std::vector<wxPoint> Plate2D::scaled_points_to_pixel(const Slic3r::Polyline& pol
     for (const auto& pt : poly.points) {
         const auto x {_unscale ? Slic3r::unscale(pt.x) : pt.x};
         const auto y {_unscale ? Slic3r::unscale(pt.y) : pt.y};
-        result.push_back(unscaled_point_to_pixel(wxPoint(x, y)));
+        result.push_back(unscaled_point_to_pixel(wxPoint(static_cast<long>(x), static_cast<long>(y))));
     }
     return result;
 }
@@ -448,8 +449,8 @@ wxPoint Plate2D::unscaled_point_to_pixel(const wxPoint& in) {
     const auto& canvas_height {this->GetSize().GetHeight()};
     const auto& zero = this->bed_origin;
     return wxPoint(
-            in.x * this->scaling_factor + zero.x, 
-            canvas_height - in.y * this->scaling_factor + (zero.y - canvas_height));
+            static_cast<long>(in.x * this->scaling_factor + zero.x), 
+            static_cast<long>(canvas_height - in.y * this->scaling_factor + (zero.y - canvas_height)));
 }
 
 

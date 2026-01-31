@@ -5,14 +5,18 @@
 #include "PrintConfig.hpp"
 #include "Config.hpp"
 
+#include <vector>
+#include <array>
+
 // wx
 #include <wx/wxprec.h>
 #ifndef WX_PRECOMP
     #include <wx/wx.h>
     #include <wx/string.h>
     #include <wx/filefn.h> 
-    #include <wx/filename.h> 
+    #include <wx/filename.h>
 #endif
+#include <wx/filename.h>
 
 namespace Slic3r { namespace GUI {
 using namespace std::literals::string_literals;
@@ -116,7 +120,7 @@ private:
     config_ptr _dirty_config { nullptr };
 
     /// Underlying filename for this preset config
-    wxFileName _file {wxFileName()};
+    wxFileName _file;
 
     /// All the options owned by the corresponding editor
     t_config_option_keys _group_keys() const;

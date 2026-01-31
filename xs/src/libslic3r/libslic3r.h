@@ -21,6 +21,16 @@
 #include <limits>
 #define NOMINMAX
 #endif
+
+#if defined(_WIN32) && !defined(NOGDI) && !defined(USE_WX)
+#define NOGDI
+#endif
+
+// Undefine Polygon macro from Windows GDI to avoid conflict with Slic3r::Polygon
+#ifdef Polygon
+#undef Polygon
+#endif
+
 /* Implementation of CONFESS("foo"): */
 #ifdef _MSC_VER
 	#define CONFESS(...) confess_at(__FILE__, __LINE__, __FUNCTION__, __VA_ARGS__)
@@ -32,10 +42,7 @@ void confess_at(const char *file, int line, const char *func, const char *pat, .
 
 // Which C++ version is supported?
 // For example, could optimized functions with move semantics be used?
-#if __cplusplus==201402L
-	#define SLIC3R_CPPVER 14
-	#define STDMOVE(WHAT) std::move(WHAT)
-#elif __cplusplus==201103L
+#if __cplusplus >= 201103L || defined(_MSC_VER)
 	#define SLIC3R_CPPVER 11
 	#define STDMOVE(WHAT) std::move(WHAT)
 #else

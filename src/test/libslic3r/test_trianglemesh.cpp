@@ -1,4 +1,5 @@
 #include <catch.hpp>
+#include <array>
 
 #include "TriangleMesh.hpp"
 #include "libslic3r.h"

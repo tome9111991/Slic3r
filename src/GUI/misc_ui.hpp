@@ -10,9 +10,13 @@
 #include <wx/settings.h>
 #include <wx/filename.h>
 #include <wx/stdpaths.h>
+#include <wx/dir.h>
 #include <map>
 #include <utility>
 #include <memory>
+#include <vector>
+#include <algorithm>
+#include <functional>
 
 #include "Settings.hpp"
 
@@ -31,19 +35,21 @@ namespace Slic3r { namespace GUI {
 
 enum class OS { Linux, Mac, Windows } ;
 // constants to reduce the proliferation of macros in the rest of the code
-#ifdef __WIN32
+#if defined(_WIN32) || defined(WIN32) || defined(__WIN32__)
 constexpr OS the_os = OS::Windows;
 constexpr bool wxGTK {false};
-#elif __APPLE__
+#elif defined(__APPLE__)
 constexpr OS the_os = OS::Mac;
 constexpr bool wxGTK {false};
-#elif __linux__
+#elif defined(__linux__)
 constexpr OS the_os = OS::Linux;
     #ifdef __WXGTK__
     constexpr bool wxGTK {true};
     #else 
     constexpr bool wxGTK {false};
     #endif
+#else
+#error "Unknown OS"
 #endif
 
 #ifdef SLIC3R_DEV

@@ -8,6 +8,9 @@
     #include <wx/bmpcbox.h>
 #endif
 
+#include <vector>
+#include <array>
+
 #include "Print.hpp"
 
 #include "misc_ui.hpp"

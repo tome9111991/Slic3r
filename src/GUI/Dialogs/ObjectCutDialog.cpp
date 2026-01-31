@@ -6,7 +6,7 @@
 
 namespace Slic3r { namespace GUI {
 
-ObjectCutDialog::ObjectCutDialog(wxWindow* parent, ModelObject* _model_object/*, ...*/): wxDialog(parent, -1, _(_model_object->name), wxDefaultPosition, wxSize(500, 500), wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER), model_object(_model_object) {
+ObjectCutDialog::ObjectCutDialog(wxWindow* parent, ModelObject* _model_object/*, ...*/): wxDialog(parent, -1, wxString::FromUTF8(_model_object->name.c_str()), wxDefaultPosition, wxSize(500, 500), wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER), model_object(_model_object) {
 
 /*
     $self->{model_object}->transform_by_instance($self->{model_object}->get_instance(0), 1);

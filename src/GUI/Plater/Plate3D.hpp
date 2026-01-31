@@ -40,7 +40,7 @@ private:
     void color_volumes();
     Point pos, move_start;
     bool hover = false, mouse = false, moving = false;
-    uint hover_volume, hover_object, moving_volume;
+    unsigned int hover_volume, hover_object, moving_volume;
     
     std::vector<PlaterObject>& objects; //< reference to parent vector
     std::shared_ptr<Slic3r::Model> model;

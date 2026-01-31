@@ -70,7 +70,7 @@ if (MSVC)
         endif(SLIC3R_STATIC)
     elseif (CMAKE_BUILD_TYPE MATCHES Release)
         if (SLIC3R_STATIC)
-            add_compile_options(-MTd)
+            add_compile_options(-MT)
         else(SLIC3R_STATIC)
             add_compile_options(-MD)
         endif(SLIC3R_STATIC)
@@ -268,7 +268,15 @@ target_compile_features(libslic3r PUBLIC cxx_std_17)
 target_include_directories(libslic3r SYSTEM PUBLIC ${SLIC3R_INCLUDES})
 target_include_directories(libslic3r PUBLIC ${LIBSLIC3R_INCLUDES})
     
-    target_compile_definitions(libslic3r PUBLIC BOOST_NOWIDE_NO_LIB BOOST_ALL_DYN_LINK BOOST_NOWIDE_FOUND)
+    target_compile_definitions(libslic3r PUBLIC BOOST_NOWIDE_NO_LIB BOOST_NOWIDE_FOUND)
+
+    if(NOT SLIC3R_STATIC)
+        target_compile_definitions(libslic3r PUBLIC BOOST_ALL_DYN_LINK)
+    endif()
+
+    if(MSVC)
+        target_compile_definitions(libslic3r PUBLIC NOMINMAX)
+    endif()
 
 add_library(BSpline STATIC
     ${LIBDIR}/BSpline/BSpline.cpp
@@ -547,12 +555,23 @@ IF (WIN32)
     if (NOT BOOST_NOWIDE_FOUND)
         # Should have been found by find_package above if vcpkg is working correctly.
         # Fallback to manual build if absolutely necessary, but preferred flow is vcpkg.
-        add_library(boost-nowide STATIC 
-            ${LIBDIR}/boost/nowide/iostream.cpp
+        if(SLIC3R_STATIC)
+            set(BOOST_NOWIDE_LIB_TYPE STATIC)
+        else()
+            set(BOOST_NOWIDE_LIB_TYPE SHARED)
+        endif()
+
+        add_library(boost-nowide ${BOOST_NOWIDE_LIB_TYPE}
+            ${LIBDIR}/boost_bundled/nowide/iostream.cpp
         )
+        if(NOT SLIC3R_STATIC)
+            target_compile_definitions(boost-nowide PRIVATE BOOST_NOWIDE_SOURCE)
+        endif()
+
         if(MSVC)
             target_compile_definitions(boost-nowide PUBLIC BOOST_NOWIDE_NO_LIB)
         endif()    
+        target_include_directories(boost-nowide PRIVATE ${LIBDIR}/boost_bundled)
         target_link_libraries(slic3r boost-nowide)
         # Link to libslic3r so tests inherit it too
         target_link_libraries(libslic3r PUBLIC boost-nowide)

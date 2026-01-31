@@ -27,11 +27,11 @@ void Plate3D::mouse_up(wxMouseEvent &e){
     if(moving){
         //translate object
         moving = false;
-        uint i = 0;
+        unsigned int i = 0;
         for(const PlaterObject &object: objects){
             const auto &modelobj = model->objects.at(object.identifier);
             for(ModelInstance *instance: modelobj->instances){
-                uint size = modelobj->volumes.size();
+                unsigned int size = modelobj->volumes.size();
                 if(i <= moving_volume && moving_volume < i+size){
                     instance->offset.translate(volumes.at(i).origin);
                     modelobj->update_bounding_box();
@@ -57,11 +57,11 @@ void Plate3D::mouse_move(wxMouseEvent &e){
         const auto current = mouse_ray(p).intersect_plane(0);
         const auto old = mouse_ray(move_start).intersect_plane(0);
         move_start = p;
-        uint i = 0;
+        unsigned int i = 0;
         for(const PlaterObject &object: objects){
             const auto &modelobj = model->objects.at(object.identifier);
             for(ModelInstance *instance: modelobj->instances){
-                uint size = modelobj->volumes.size();
+                unsigned int size = modelobj->volumes.size();
                 if(i <= moving_volume && moving_volume < i+size){
                     for(ModelVolume* volume: modelobj->volumes){
                         volumes.at(i).origin.translate(old.vector_to(current));
@@ -98,7 +98,7 @@ void Plate3D::update(){
 }
 
 void Plate3D::color_volumes(){
-    uint i = 0;
+    unsigned int i = 0;
     for(const PlaterObject &object: objects){
         const auto &modelobj = model->objects.at(object.identifier);
         bool hover_object = hover && i <= hover_volume && hover_volume < i+modelobj->instances.size()*modelobj->volumes.size();
@@ -128,7 +128,7 @@ void Plate3D::before_render(){
     
     //glDisable(GL_MULTISAMPLE) if ($self->{can_multisample});
     glDisable(GL_LIGHTING);
-    uint i = 1;
+    unsigned int i = 1;
     for(Volume &volume : volumes){
         volume.color = wxColor((i>>16)&0xFF,(i>>8)&0xFF,i&0xFF);
         i++;
@@ -140,14 +140,14 @@ void Plate3D::before_render(){
     glReadPixels(pos.x, GetSize().GetHeight()-  pos.y, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, color);
 
     // Handle the hovered volume
-    uint index = (color[0]<<16) + (color[1]<<8) + color[2];
+    unsigned int index = (color[0]<<16) + (color[1]<<8) + color[2];
     hover = false;
     ///*$self->_hover_volume_idx(undef);
     //$_->hover(0) for @{$self->volumes};
     if (index != 0 && index <= volumes.size()) {
         hover = true;
         hover_volume = index - 1;
-        uint k = 0;
+        unsigned int k = 0;
         for(const PlaterObject &object: objects){
             const auto &modelobj = model->objects.at(object.identifier);
             if(k <= hover_volume && hover_volume < k+modelobj->instances.size()*modelobj->volumes.size()){

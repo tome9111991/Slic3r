@@ -1,3 +1,8 @@
+#ifdef _WIN32
+    #define WIN32_LEAN_AND_MEAN
+    #define NOMINMAX
+#endif
+
 #include "slic3r.hpp"
 #include "GCodeSender.hpp"
 #include "Geometry.hpp"
@@ -15,6 +20,7 @@
 #include <cstring>
 #include <iomanip>
 #include <iostream>
+#include <fstream>
 #include <math.h>
 #include <boost/filesystem.hpp>
 #include <boost/nowide/args.hpp>

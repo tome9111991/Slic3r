@@ -54,7 +54,7 @@ echo [INFO] Configuring CMake and installing dependencies...
 if not exist "%CMAKE_BUILD_DIR%" mkdir "%CMAKE_BUILD_DIR%"
 
 :: Simple PowerShell wrapper for live log + error exit code
-powershell -Command "& { cmake -S '%SOURCE_DIR%' -B '%CMAKE_BUILD_DIR%' -G 'Ninja' -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE='%VCPKG_DIR%/scripts/buildsystems/vcpkg.cmake' -DVCPKG_TARGET_TRIPLET=x64-windows -DVCPKG_MANIFEST_DIR='%BASE_DIR%' -DEnable_GUI=ON -DSLIC3R_STATIC=ON 2>&1 | Tee-Object -FilePath '%LOG_FILE%'; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE } }"
+powershell -Command "& { cmake -S '%SOURCE_DIR%' -B '%CMAKE_BUILD_DIR%' -G 'Ninja' -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE='%VCPKG_DIR%/scripts/buildsystems/vcpkg.cmake' -DVCPKG_TARGET_TRIPLET=x64-windows -DVCPKG_MANIFEST_DIR='%BASE_DIR%' -DEnable_GUI=ON -DSLIC3R_STATIC=OFF 2>&1 | Tee-Object -FilePath '%LOG_FILE%'; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE } }"
 
 if %errorlevel% neq 0 (
     echo.

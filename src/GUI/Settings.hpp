@@ -8,6 +8,8 @@
 #include <map>
 #include <memory>
 #include <tuple>
+#include <vector>
+#include <array>
 
 #include "libslic3r.h"
 #include "ColorScheme.hpp"
