@@ -215,6 +215,34 @@ ConfigOptionDef::~ConfigOptionDef()
     delete this->default_value;
 }
 
+ConfigOptionDef& ConfigOptionDef::operator=(ConfigOptionDef other)
+{
+    std::swap(this->type, other.type);
+    std::swap(this->default_value, other.default_value);
+    std::swap(this->gui_type, other.gui_type);
+    std::swap(this->gui_flags, other.gui_flags);
+    std::swap(this->label, other.label);
+    std::swap(this->full_label, other.full_label);
+    std::swap(this->category, other.category);
+    std::swap(this->tooltip, other.tooltip);
+    std::swap(this->sidetext, other.sidetext);
+    std::swap(this->cli, other.cli);
+    std::swap(this->ratio_over, other.ratio_over);
+    std::swap(this->multiline, other.multiline);
+    std::swap(this->full_width, other.full_width);
+    std::swap(this->readonly, other.readonly);
+    std::swap(this->height, other.height);
+    std::swap(this->width, other.width);
+    std::swap(this->min, other.min);
+    std::swap(this->max, other.max);
+    std::swap(this->aliases, other.aliases);
+    std::swap(this->shortcut, other.shortcut);
+    std::swap(this->enum_values, other.enum_values);
+    std::swap(this->enum_labels, other.enum_labels);
+    std::swap(this->enum_keys_map, other.enum_keys_map);
+    return *this;
+}
+
 std::vector<std::string>
 ConfigOptionDef::cli_args() const
 {

@@ -2,7 +2,8 @@
 #include "misc_ui.hpp"
 #include "GUI.hpp"
 #include <wx/bookctrl.h>
-
+#include "libslic3r/PrintConfig.hpp"
+#include "Log.hpp"
 
 namespace Slic3r { namespace GUI {
 
@@ -12,13 +13,12 @@ PresetEditor::PresetEditor(wxWindow* parent, t_config_option_keys options) :
     this->_sizer = new wxBoxSizer(wxHORIZONTAL);
     this->SetSizer(this->_sizer);
 
-    wxSizer* left_sizer { new wxBoxSizer(wxVERTICAL) };
+    wxSizer* left_sizer = new wxBoxSizer(wxVERTICAL);
 
     {
         // choice menu
         this->_presets_choice = new wxChoice(this, wxID_ANY, wxDefaultPosition, wxSize(left_col_width, -1));
         this->_presets_choice->SetFont(ui_settings->small_font());
-
 
         // buttons
         this->_btn_save_preset = new wxBitmapButton(this, wxID_ANY, wxBitmap(var("disk.png"), wxBITMAP_TYPE_PNG), wxDefaultPosition, wxDefaultSize, wxBORDER_NONE);
@@ -27,127 +27,157 @@ PresetEditor::PresetEditor(wxWindow* parent, t_config_option_keys options) :
         this->set_tooltips();
         this->_btn_delete_preset->Disable();
 
-        wxBoxSizer* hsizer {new wxBoxSizer(wxHORIZONTAL)};
+        wxBoxSizer* hsizer = new wxBoxSizer(wxHORIZONTAL);
         left_sizer->Add(hsizer, 0, wxEXPAND | wxBOTTOM, 5);
         hsizer->Add(this->_presets_choice, 1, wxRIGHT | wxALIGN_CENTER_VERTICAL, 3);
         hsizer->Add(this->_btn_save_preset, 0, wxALIGN_CENTER_VERTICAL);
         hsizer->Add(this->_btn_delete_preset, 0, wxALIGN_CENTER_VERTICAL);
 
+        this->_presets_choice->Bind(wxEVT_CHOICE, [this](wxCommandEvent&) {
+            this->_on_select_preset();
+        });
+
+        this->_btn_save_preset->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) {
+            this->save_preset();
+        });
     }
 
     // tree
     this->_treectrl = new wxTreeCtrl(this, wxID_ANY, wxDefaultPosition, wxSize(left_col_width, -1), wxTR_NO_BUTTONS | wxTR_HIDE_ROOT | wxTR_SINGLE | wxTR_NO_LINES | wxBORDER_SUNKEN | wxWANTS_CHARS);
 
     left_sizer->Add(this->_treectrl, 1, wxEXPAND);
+    
+    this->_sizer->Add(left_sizer, 0, wxEXPAND | wxALL, 5);
+
+    // Right side content area
+    // Usually handled by derived classes adding pages, but we need a container?
+    // PresetPage is a ScrolledWindow, so we just add them to _sizer?
+    // But we want to show only one at a time? 
+    // The TreeCtrl is supposed to switch pages. 
+    // For now, let's just add them to the sizer and hide/show them.
+    
     this->_icons = new wxImageList(16, 16, 1);
     this->_treectrl->AssignImageList(this->_icons);
     this->_iconcount = -1;
 
     this->_treectrl->AddRoot("root");
     this->_treectrl->SetIndent(0);
-    this->disable_tree_sel_changed_event = false;
+}
 
-    /// bind a lambda for the event EVT_TREE_SEL_CHANGED 
-   
-    /// bind a lambda for the event EVT_KEY_DOWN 
+PresetPage* PresetEditor::add_options_page(const wxString& _title, const wxString& _icon) {
+    auto* page = new PresetPage(this, _title); 
+    page->Hide(); // Hidden by default
+    this->_sizer->Add(page, 1, wxEXPAND | wxALL, 5);
+    _pages.push_back(page);
     
-    /// bind a lambda for the event EVT_CHOICE
+    // Add to tree
+    this->_treectrl->AppendItem(this->_treectrl->GetRootItem(), _title);
     
-    /// bind a lambda for the event EVT_KEY_DOWN 
+    // Bind Callback
+    page->on_change = [this](const std::string& key, boost::any value) {
+        if (!this->config) return;
+        
+        // Very basic type mapping
+        try {
+            if (value.type() == typeid(bool)) 
+                this->config->set(key, boost::any_cast<bool>(value));
+            else if (value.type() == typeid(int)) 
+                this->config->set(key, boost::any_cast<int>(value));
+            else if (value.type() == typeid(double)) 
+                this->config->set(key, boost::any_cast<double>(value));
+            else if (value.type() == typeid(std::string)) 
+                this->config->set(key, boost::any_cast<std::string>(value));
+            
+             Slic3r::Log::info(this->LogChannel(), "Updated config: " + key);
+             
+             // Visual feedback for dirty state
+             if (this->current_preset && this->current_preset->dirty()) {
+                 int sel = this->_presets_choice->GetSelection();
+                 if (sel != wxNOT_FOUND) {
+                     wxString label = this->_presets_choice->GetString(sel);
+                     if (!label.EndsWith(" *")) {
+                         this->_presets_choice->SetString(sel, label + " *");
+                     }
+                 }
+             }
+        } catch(std::exception& e) {
+             Slic3r::Log::error(this->LogChannel(), "Failed to update config for " + key + ": " + e.what());
+        }
+    };
     
-    /// bind a lambda for the event EVT_BUTTON from btn_save_preset 
-    
-    /// bind a lambda for the event EVT_BUTTON from btn_delete_preset 
-    
+    return page;
 }
 
 void PresetEditor::save_preset() {
-    // TODO: show save dialog if needed or just save
     if (this->current_preset) {
-        // Validation?
-        this->current_preset->save(this->current_preset->dirty_options());
-        this->load_presets();
+        this->current_preset->save();
+        // Reload presets list to reflect changes (if any)
+        // this->load_presets(); 
     }
 }
-
-// ... _on_value_change ...
 
 void PresetEditor::_on_select_preset(bool force) {
     int sel = this->_presets_choice->GetSelection();
     if (sel < 0) return;
     
-    // Get preset from app
     auto& presets = SLIC3RAPP->presets.at(this->typeId());
     if (sel >= presets.size()) return;
     
-    // Update current preset pointer
-    // We need shared_ptr, but presets storage is vector<Preset>.
-    // Usually Config wizard or App handles pointers.
-    // PresetEditor.hpp says: std::shared_ptr<Preset> current_preset;
-    // but vector stores objects.
-    // We should probably store a pointer or reference?
-    // Changing current_preset to raw pointer or index might be safer given vector resize?
-    // But vector resize invalidates pointers.
-    // Let's assume presets are stable for now or we key by name.
-    
-    // Actually SLIC3RAPP->presets is std::array<Presets, 3>; Presets = std::vector<Preset>;
-    // current_preset is std::shared_ptr<Preset> in header.
-    // This implies we make a copy or Presets stores shared_ptrs?
-    // Preset.hpp: using Presets = std::vector<Preset>; 
-    // So it stores OBJECTS.
-    // std::shared_ptr<Preset> current_preset is WRONG if it points to vector element.
-    // It should be Preset* current_preset (observer).
-    // Or we copy it.
-    
-    // Let's rely on name for now and getting address.
-    
     Preset* p = &presets[sel];
-    // We cannot assign address to shared_ptr unless we use aliasing constructor or empty deleter? 
-    // This logic seems flawed in header.
-    // For now I will assume I can't change the header type easily without checking usage.
-    // But I must.
-    
-    // Hack: make a shared_ptr with no-op deleter
+    // Hack for shared_ptr
     this->current_preset = std::shared_ptr<Preset>(p, [](Preset*){});
     
     this->config = this->current_preset->load_config();
     this->reload_config();
+    
+    // Show first page
+    if (!_pages.empty()) {
+        for(auto* p : _pages) p->Hide();
+        _pages[0]->Show();
+        this->Layout();
+    }
 }
-
 
 void PresetEditor::reload_config() {
     if (!this->config) return;
-    
-    // Iterate pages and update all options
     for (auto* page : _pages) {
          page->update_options(&this->config->config());
     }
 }
 
-// ...
-
-void PresetEditor::_update_tree() {
-    // Rebuild tree if needed
-}
-
-void PresetEditor::load_presets() {
-    this->_presets_choice->Clear();
-    auto& presets = SLIC3RAPP->presets.at(this->typeId());
-    for (size_t i = 0; i < presets.size(); ++i) {
-        this->_presets_choice->Append(presets[i].dropdown_name());
-    }
-    
-    if (this->_presets_choice->GetCount() > 0)
-        this->_presets_choice->SetSelection(0);
-}
-
 UI_Field* PresetEditor::get_ui_field(const std::string& key) {
     for (auto* page : _pages) {
-        if (auto* f = page->get_ui_field(key)) return f;
+         UI_Field* f = page->get_ui_field(key);
+         if (f) return f;
     }
     return nullptr;
 }
 
+void PresetEditor::_update(const std::string& opt_key) {}
+void PresetEditor::_build() {}
+void PresetEditor::_on_preset_loaded() {}
 
+void PresetEditor::_update_tree() {}
+
+void PresetEditor::load_presets() {
+    this->_presets_choice->Clear();
+    try {
+        auto& presets = SLIC3RAPP->presets.at(this->typeId());
+        for (size_t i = 0; i < presets.size(); ++i) {
+            this->_presets_choice->Append(presets[i].dropdown_name());
+        }
+        if (this->_presets_choice->GetCount() > 0) {
+            this->_presets_choice->SetSelection(0);
+            _on_select_preset();
+        }
+    } catch (...) {
+        // App might not be fully init
+    }
+}
+
+void PresetEditor::_on_value_change(std::string opt_key) {}
+
+void PresetEditor::reload_compatible_printers_widget() {}
+wxSizer* PresetEditor::compatible_printers_widget() { return nullptr; }
 
 }} // namespace Slic3r::GUI

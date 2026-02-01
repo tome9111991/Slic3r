@@ -2,6 +2,8 @@
 #include "Config.hpp"
 #include <regex>
 #include <algorithm>
+#include <wx/msgdlg.h>
+#include "Log.hpp"
 
 #include "Dialogs/PresetEditor.hpp"
 
@@ -34,6 +36,33 @@ Preset::Preset(std::string load_dir, std::string filename, preset_t p) : group(p
     this->_config = Slic3r::Config::new_from_ini(_file.GetFullPath().ToStdString());
 
 }
+
+void Preset::save() {
+    if (this->default_preset) {
+        Slic3r::Log::error("GUI", "Attempted to save default preset.");
+        return;
+    }
+    
+    if (!this->_file.IsOk() || this->name.empty()) {
+        Slic3r::Log::error("GUI", "Attempted to save preset without filename.");
+        return;
+    }
+
+    try {
+        this->_dirty_config->config().save(this->_file.GetFullPath().ToStdString());
+        this->_config->apply(this->_dirty_config);
+        Slic3r::Log::info("GUI", "Saved preset to " + this->_file.GetFullPath().ToStdString());
+    } catch (std::exception& e) {
+        wxMessageBox(wxString::Format("Error saving preset: %s", e.what()), "Error", wxICON_ERROR);
+    }
+}
+
+// Stubs to satisfy linker / header
+bool Preset::save_as(wxString name, t_config_option_keys opt_keys) { return false; }
+void Preset::delete_preset() {}
+bool Preset::prompt_unsaved_changes(wxWindow* parent) { return false; }
+void Preset::dismiss_changes() {}
+
 
 t_config_option_keys Preset::dirty_options() const {
     t_config_option_keys dirty;

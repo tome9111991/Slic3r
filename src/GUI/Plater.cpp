@@ -20,7 +20,7 @@
 #include "Dialogs/AnglePicker.hpp"
 #include "Dialogs/ObjectCutDialog.hpp"
 #include "Dialogs/ObjectSettingsDialog.hpp"
-
+#include "Dialogs/PresetEditor.hpp"
 
 namespace Slic3r { namespace GUI {
 
@@ -169,7 +169,7 @@ Plater::Plater(wxWindow* parent, const wxString& title) :
         {
             auto* sizer {new wxBoxSizer(wxHORIZONTAL)};
             object_info_sizer->Add(sizer, 0, wxEXPAND | wxBOTTOM, 5);
-            auto* text  {new wxStaticText(this, wxID_ANY, _("Object:"), wxDefaultPosition, wxDefaultSize, wxALIGN_LEFT)};
+            auto* text  {new wxStaticText(box, wxID_ANY, _("Object:"), wxDefaultPosition, wxDefaultSize, wxALIGN_LEFT)};
             text->SetFont(ui_settings->small_font());
             sizer->Add(text, 0, wxALIGN_CENTER_VERTICAL);
 
@@ -177,7 +177,7 @@ Plater::Plater(wxWindow* parent, const wxString& title) :
              * the control anyway), because if we leave the default (-1) it will stretch
              * too much according to the contents, and this is bad with long file names.
              */
-            this->object_info.choice = new wxChoice(this, wxID_ANY, wxDefaultPosition, wxSize(100, -1));
+            this->object_info.choice = new wxChoice(box, wxID_ANY, wxDefaultPosition, wxSize(100, -1));
             this->object_info.choice->SetFont(ui_settings->small_font());
             sizer->Add(this->object_info.choice, 1, wxALIGN_CENTER_VERTICAL);
 
@@ -191,21 +191,21 @@ Plater::Plater(wxWindow* parent, const wxString& title) :
         grid_sizer->AddGrowableCol(1, 1);
         grid_sizer->AddGrowableCol(3, 1);
 
-        add_info_field(this, this->object_info.copies, _("Copies"), grid_sizer);
-        add_info_field(this, this->object_info.size, _("Size"), grid_sizer);
-        add_info_field(this, this->object_info.volume, _("Volume"), grid_sizer);
-        add_info_field(this, this->object_info.facets, _("Facets"), grid_sizer);
-        add_info_field(this, this->object_info.materials, _("Materials"), grid_sizer);
+        add_info_field(box, this->object_info.copies, _("Copies"), grid_sizer);
+        add_info_field(box, this->object_info.size, _("Size"), grid_sizer);
+        add_info_field(box, this->object_info.volume, _("Volume"), grid_sizer);
+        add_info_field(box, this->object_info.facets, _("Facets"), grid_sizer);
+        add_info_field(box, this->object_info.materials, _("Materials"), grid_sizer);
         {
             wxString name {"Manifold:"};
-            auto* text {new wxStaticText(this, wxID_ANY, name, wxDefaultPosition, wxDefaultSize, wxALIGN_LEFT)};
+            auto* text {new wxStaticText(box, wxID_ANY, name, wxDefaultPosition, wxDefaultSize, wxALIGN_LEFT)};
             text->SetFont(ui_settings->small_font());
             grid_sizer->Add(text, 0);
 
-            this->object_info.manifold = new wxStaticText(this, wxID_ANY, "", wxDefaultPosition, wxDefaultSize, wxALIGN_LEFT);
+            this->object_info.manifold = new wxStaticText(box, wxID_ANY, "", wxDefaultPosition, wxDefaultSize, wxALIGN_LEFT);
             this->object_info.manifold->SetFont(ui_settings->small_font());
 
-            this->object_info.manifold_warning_icon = new wxStaticBitmap(this, wxID_ANY, wxBitmap(var("error.png"), wxBITMAP_TYPE_PNG));
+            this->object_info.manifold_warning_icon = new wxStaticBitmap(box, wxID_ANY, wxBitmap(var("error.png"), wxBITMAP_TYPE_PNG));
             this->object_info.manifold_warning_icon->Hide();
 
             auto* h_sizer {new wxBoxSizer(wxHORIZONTAL)};
@@ -1294,7 +1294,26 @@ void Plater::center_selected_object_on_bed() {
 }
 
 void Plater::show_preset_editor(preset_t group, unsigned int idx) {
+    wxWindow* editor = nullptr;
+    wxString title = "";
     
+    switch (group) {
+        case preset_t::Print:
+            editor = new PrintEditor(this->preview_notebook);
+            title = _("Print Settings");
+            break;
+        case preset_t::Material:
+            editor = new MaterialEditor(this->preview_notebook);
+            title = _("Filament Settings");
+            break;
+        case preset_t::Printer:
+            editor = new PrinterEditor(this->preview_notebook);
+            title = _("Printer Settings");
+            break;
+        default: return;
+    }
+    
+    this->preview_notebook->AddPage(editor, title);
 }
 
 
@@ -1450,5 +1469,4 @@ void Plater::slice() {
 }
 
 }} // Namespace Slic3r::GUI
-
 

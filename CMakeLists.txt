@@ -429,6 +429,7 @@ IF(wxWidgets_FOUND AND OPENGL_FOUND AND Enable_GUI)
     ${GUI_LIBDIR}/ProgressStatusBar.cpp
     ${GUI_LIBDIR}/Settings.cpp
     ${GUI_LIBDIR}/misc_ui.cpp
+    ${GUI_LIBDIR}/OptionsGroup.cpp
     ${GUI_LIBDIR}/OptionsGroup/UI_NumChoice.cpp
     ${GUI_LIBDIR}/OptionsGroup/UI_Choice.cpp
     ${GUI_LIBDIR}/OptionsGroup/UI_Point.cpp

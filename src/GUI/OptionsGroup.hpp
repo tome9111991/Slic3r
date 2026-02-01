@@ -86,9 +86,11 @@ public:
     // Create the widget for a specific option
     UI_Field* build_field(const t_config_option_key& opt_key);
 
-    void set_sizer(wxBoxSizer* s) { sizer = s; }
+    void set_sizer(wxBoxSizer* s);
 
     void update_options(const ConfigBase* config);
+
+    std::function<void(const std::string&, boost::any)> on_change {nullptr};
 
 protected:
     wxWindow* parent;

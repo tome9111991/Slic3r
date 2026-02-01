@@ -16,4 +16,8 @@ void PrinterEditor::_update(const std::string& opt_key) {
 
 void PrinterEditor::_build() {
 }
+
+void PrinterEditor::_on_preset_loaded() {
+    this->_update();
+}
 }} // namespace Slic3r::GUI

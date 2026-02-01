@@ -70,7 +70,7 @@ public:
     bool prompt_unsaved_changes(wxWindow* parent);
 
     /// Apply dirty config to config and save.
-    bool save(t_config_option_keys opt_keys);
+    void save();
 
     /// Apply dirty config to config and save with an alternate name.
     bool save_as(wxString name, t_config_option_keys opt_keys);

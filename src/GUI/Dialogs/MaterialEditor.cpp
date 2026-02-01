@@ -16,4 +16,8 @@ void MaterialEditor::_update(const std::string& opt_key) {
 
 void MaterialEditor::_build() {
 }
+
+void MaterialEditor::_on_preset_loaded() {
+    this->_update();
+}
 }} // namespace Slic3r::GUI

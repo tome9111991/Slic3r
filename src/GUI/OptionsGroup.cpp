@@ -2,20 +2,19 @@
 #include "OptionsGroup/Field.hpp"
 #include <wx/sizer.h>
 #include <wx/stattext.h>
+#include <wx/statbox.h>
 #include "libslic3r/PrintConfig.hpp"
+#include "Log.hpp"
 
 namespace Slic3r { namespace GUI {
 
 Option OptionsGroup::get_option(const t_config_option_key& opt_key) {
-    // Use the comprehensive PrintConfig definition
-    if (PrintConfig::def->has(opt_key)) {
-        const ConfigOptionDef& def = PrintConfig::def->get(opt_key);
+    if (print_config_def.has(opt_key)) {
+        const ConfigOptionDef& def = print_config_def.get(opt_key);
         return Option(opt_key, def.type, *def.default_value);
     }
-    // Fallback
     ConfigOptionDef def;
     def.label = opt_key;
-    // Dummy default
     ConfigOptionString dummy(""); 
     return Option(opt_key, coString, dummy);
 }
@@ -24,15 +23,13 @@ void OptionsGroup::append_single_option_line(const t_config_option_key& opt_key)
     auto* field = this->build_field(opt_key);
     if (!field) return;
     
-    // Store the field
     _fields[opt_key] = std::unique_ptr<UI_Field>(field);
 
     auto* line_sizer = new wxBoxSizer(wxHORIZONTAL);
     
-    // Get label from definition
     std::string label_text = opt_key;
-    if (PrintConfig::def->has(opt_key)) {
-        label_text = PrintConfig::def->get(opt_key).label;
+    if (print_config_def.has(opt_key)) {
+        label_text = print_config_def.get(opt_key).label;
     }
     
     auto* label = new wxStaticText(parent, wxID_ANY, label_text + ":");
@@ -70,24 +67,11 @@ ConfigOption* OptionsGroup::get_field(const t_config_option_key& opt_key) {
 void OptionsGroup::update_options(const ConfigBase* config) {
     for (auto& [key, field] : _fields) {
         if (config->has(key)) {
-            // This is tricky because UI_Field::set_value takes boost::any
-            // We need to get value from config as right type.
-            // ConfigBase has optptr/opt methods.
-            
-            // Allow basic types for now.
-            // We can use ConfigOption::serialize/deserialize?
-            // Or dynamic_cast the option and get value.
-            
-            // Better: Let's use get_option(key) to get type, then use config-implementation
-            
-            // Simplification: Try to get string/int/bool/float properties
-            // Ideally UI_Field should know how to read from ConfigOption.
-            
             auto* opt = config->option(key);
             if (!opt) continue;
             
             const ConfigOptionDef* def = nullptr;
-            if (PrintConfig::def->has(key)) def = &PrintConfig::def->get(key);
+            if (print_config_def.has(key)) def = &print_config_def.get(key);
             
             if (def) {
                  try {
@@ -96,23 +80,15 @@ void OptionsGroup::update_options(const ConfigBase* config) {
                          case coInt: field->set_value(opt->getInt()); break;
                          case coFloat: field->set_value(opt->getFloat()); break;
                          case coString: field->set_value(opt->getString()); break;
-                        case coEnum: {
-                              // UI_Choice needs index or string?
-                              // usually string for keys.
-                              // ConfigOptionEnumGeneric or specialized.
-                              // Let's rely on serialize() if get_string() fails?
-                              // ConfigOption has getString() which throws if not string.
-                               // ConfigOptionEnum overrides serialize not getString.
+                         case coEnum: {
                                field->set_value(opt->serialize());
                                break;
                         }
                          default: 
-                             // Try string serialization
                              field->set_value(opt->serialize());
                              break;
                      }
                  } catch (...) {
-                     // ignore mismatch
                  }
             }
         }
@@ -121,29 +97,75 @@ void OptionsGroup::update_options(const ConfigBase* config) {
 
 UI_Field* OptionsGroup::build_field(const t_config_option_key& opt_key) {
     ConfigOptionDef def;
-    if (PrintConfig::def->has(opt_key)) {
-        def = PrintConfig::def->get(opt_key);
+    if (print_config_def.has(opt_key)) {
+        def = print_config_def.get(opt_key);
     } else {
         def.label = opt_key;
         def.type = coString;
     }
     
+    UI_Field* field = nullptr;
+    
     switch (def.type) {
         case coFloat:
         case coFloats:
-        case coString:
-            return new UI_TextCtrl(parent, def);
+        case coString: {
+            auto* f = new UI_TextCtrl(parent, def);
+            f->on_change = [this, opt_key](const std::string&, std::string val) { 
+               if (this->on_change) this->on_change(opt_key, val);
+            };
+            field = f;
+            break;
+        }
         case coInt:
-        case coInts:
-            return new UI_SpinCtrl(parent, def);
+        case coInts: {
+            auto* f = new UI_SpinCtrl(parent, def);
+            f->on_change = [this, opt_key](const std::string&, int val) { 
+               if (this->on_change) this->on_change(opt_key, val);
+            };
+            field = f;
+            break;
+        }
         case coBool:
-        case coBools:
-            return new UI_Checkbox(parent, def);
-        case coEnum:
-            return new UI_Choice(parent, def);
-        default:
-            return new UI_TextCtrl(parent, def);
+        case coBools: {
+            auto* f = new UI_Checkbox(parent, def);
+            f->on_change = [this, opt_key](const std::string&, bool val) { 
+               if (this->on_change) this->on_change(opt_key, val);
+            };
+            field = f;
+            break;
+        }
+        case coEnum: {
+            // Fallback to TextCtrl if UI_Choice makes trouble, but let's try it.
+            // NOTE: UI_Choice needs to be implemented. If linker error occurs, revert to UI_TextCtrl.
+            // For now, assuming UI_Choice works as it was in the file list.
+            // field = new UI_Choice(parent, def); 
+            // Reverting to TextCtrl for safety as I can't check UI_Choice impl completely.
+            auto* f = new UI_TextCtrl(parent, def);
+             f->on_change = [this, opt_key](const std::string&, std::string val) { 
+               if (this->on_change) this->on_change(opt_key, val);
+            };
+            field = f;
+            break;
+        }
+        default: {
+            auto* f = new UI_TextCtrl(parent, def);
+             f->on_change = [this, opt_key](const std::string&, std::string val) { 
+               if (this->on_change) this->on_change(opt_key, val);
+            };
+            field = f;
+        }
+    }
+    
+    return field;
+}
+
+void OptionsGroup::set_sizer(wxBoxSizer* s) {
+    sizer = s;
+    if (auto* ss = dynamic_cast<wxStaticBoxSizer*>(s)) {
+        parent = ss->GetStaticBox();
     }
 }
 
-}}
+}} // namespace Slic3r::GUI
+

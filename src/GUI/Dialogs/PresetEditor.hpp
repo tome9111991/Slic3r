@@ -284,6 +284,8 @@ protected:
 
 class PresetPage : public wxScrolledWindow {
 public:
+    std::function<void(const std::string&, boost::any)> on_change;
+
     PresetPage(wxWindow* parent, wxString _title, int _iconID = 0) : 
         wxScrolledWindow(parent, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxTAB_TRAVERSAL),
         title(_title), iconID(_iconID) {
@@ -300,6 +302,7 @@ public:
         
         auto* og = new OptionsGroup(this);
         og->set_sizer(sbs);
+        og->on_change = this->on_change;
         _optgroups.push_back(std::unique_ptr<OptionsGroup>(og));
         return og;
     }
