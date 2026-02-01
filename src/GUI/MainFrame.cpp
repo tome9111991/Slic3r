@@ -154,11 +154,14 @@ void MainFrame::init_tabpanel()
         panel->AddPage(this->controller, _("Device")); // Rename Controller to Device like Orca
     }
 
+    // User requested to remove bottom tabs for settings
+    /*
     if (ui_settings->preset_editor_tabs) {
         this->plater->show_preset_editor(preset_t::Print,0);
         this->plater->show_preset_editor(preset_t::Material,0);
         this->plater->show_preset_editor(preset_t::Printer,0);
     }
+    */
 }
 
 void MainFrame::init_menubar()

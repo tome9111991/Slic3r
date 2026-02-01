@@ -269,7 +269,7 @@ PrintConfigDef::PrintConfigDef()
     def->shortcut.push_back("bottom_infill_pattern");
     
     def = this->add("external_perimeter_extrusion_width", coFloatOrPercent);
-    def->label = __TRANS("↳ external");
+    def->label = __TRANS("\xE2\x86\xB3 external");
     def->full_label = __TRANS("External perimeters extrusion width");
     def->gui_type = "f_enum_open";
     def->category = __TRANS("Extrusion Width");
@@ -282,7 +282,7 @@ PrintConfigDef::PrintConfigDef()
     def->default_value = new ConfigOptionFloatOrPercent(0, false);
 
     def = this->add("external_perimeter_speed", coFloatOrPercent);
-    def->label = __TRANS("↳ external");
+    def->label = __TRANS("\xE2\x86\xB3 external");
     def->full_label = __TRANS("External perimeters speed");
     def->gui_type = "f_enum_open";
     def->category = __TRANS("Speed");
@@ -628,7 +628,7 @@ PrintConfigDef::PrintConfigDef()
     }
     
     def = this->add("gap_fill_speed", coFloatOrPercent);
-    def->label = __TRANS("↳ gaps");
+    def->label = __TRANS("\xE2\x86\xB3 gaps");
     def->full_label = "Gap fill speed";
     def->gui_type = "f_enum_open";
     def->category = __TRANS("Speed");
@@ -1524,7 +1524,7 @@ PrintConfigDef::PrintConfigDef()
     def->default_value = new ConfigOptionFloat(0);
 
     def = this->add("support_material_interface_speed", coFloatOrPercent);
-    def->label = __TRANS("↳ interface");
+    def->label = __TRANS("\xE2\x86\xB3 interface");
     def->category = __TRANS("Support material interface speed");
     def->gui_type = "f_enum_open";
     def->category = __TRANS("Support material");
@@ -1646,7 +1646,7 @@ PrintConfigDef::PrintConfigDef()
     def->default_value = new ConfigOptionString("");
 
     def = this->add("top_infill_extrusion_width", coFloatOrPercent);
-    def->label = __TRANS("↳ top solid");
+    def->label = __TRANS("\xE2\x86\xB3 top solid");
     def->full_label = __TRANS("Top solid infill extrusion width");
     def->gui_type = "f_enum_open";
     def->category = __TRANS("Extrusion Width");
@@ -1667,7 +1667,7 @@ PrintConfigDef::PrintConfigDef()
     def->default_value = new ConfigOptionEnum<InfillPattern>(ipRectilinear);
 
     def = this->add("top_solid_infill_speed", coFloatOrPercent);
-    def->label = __TRANS("↳ top solid");
+    def->label = __TRANS("\xE2\x86\xB3 top solid");
     def->full_label = __TRANS("Top solid infill speed");
     def->gui_type = "f_enum_open";
     def->category = __TRANS("Speed");

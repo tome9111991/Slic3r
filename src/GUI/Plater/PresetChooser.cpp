@@ -1,6 +1,8 @@
 #include "PresetChooser.hpp"
 #include "misc_ui.hpp"
 
+#include "Plater.hpp"
+
 namespace Slic3r { namespace GUI {
 
 PresetChooser::PresetChooser(wxWindow* parent, std::weak_ptr<Print> print) : PresetChooser(parent, print, SLIC3RAPP->settings(), SLIC3RAPP->presets) {}
@@ -38,6 +40,11 @@ PresetChooser::PresetChooser(wxWindow* parent, std::weak_ptr<Print> print, Setti
 
         // Settings button
         auto* settings_btn {new wxBitmapButton(this, wxID_ANY, wxBitmap(var("cog.png"), wxBITMAP_TYPE_PNG), wxDefaultPosition, wxDefaultSize, wxBORDER_NONE)};
+        settings_btn->Bind(wxEVT_BUTTON, [this, group](wxCommandEvent& e) {
+             if (auto plater = dynamic_cast<Plater*>(this->GetParent())) {
+                 plater->show_preset_editor(group, 0); 
+             }
+        });
 
         this->_local_sizer->Add(text, 0, wxALIGN_RIGHT | wxALIGN_CENTER_VERTICAL | wxRIGHT, 4);
         this->_local_sizer->Add(choice, 1, wxALIGN_CENTER_VERTICAL | wxEXPAND | wxBOTTOM, 0);

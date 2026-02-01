@@ -1294,26 +1294,42 @@ void Plater::center_selected_object_on_bed() {
 }
 
 void Plater::show_preset_editor(preset_t group, unsigned int idx) {
-    wxWindow* editor = nullptr;
     wxString title = "";
+    switch (group) {
+        case preset_t::Print:    title = _("Print Settings"); break;
+        case preset_t::Material: title = _("Filament Settings"); break;
+        case preset_t::Printer:  title = _("Printer Settings"); break;
+        default: return;
+    }
+
+    wxDialog* dlg = new wxDialog(this, wxID_ANY, title, wxDefaultPosition, wxSize(900, 600), wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER);
+    wxWindow* editor = nullptr;
     
     switch (group) {
         case preset_t::Print:
-            editor = new PrintEditor(this->preview_notebook);
-            title = _("Print Settings");
+            editor = new PrintEditor(dlg);
             break;
         case preset_t::Material:
-            editor = new MaterialEditor(this->preview_notebook);
-            title = _("Filament Settings");
+            editor = new MaterialEditor(dlg);
             break;
         case preset_t::Printer:
-            editor = new PrinterEditor(this->preview_notebook);
-            title = _("Printer Settings");
+            editor = new PrinterEditor(dlg);
             break;
-        default: return;
+        default: 
+            dlg->Destroy();
+            return;
     }
     
-    this->preview_notebook->AddPage(editor, title);
+    if (editor) {
+        wxBoxSizer* sizer = new wxBoxSizer(wxVERTICAL);
+        // Add editor to dialog sizer
+        sizer->Add(editor, 1, wxEXPAND);
+        dlg->SetSizer(sizer);
+        dlg->Layout();
+        dlg->Center();
+        dlg->ShowModal();
+    }
+    dlg->Destroy();
 }
 
 

@@ -327,7 +327,11 @@ add_library(poly2tri STATIC
 target_include_directories(poly2tri PUBLIC ${COMMON_INCLUDES})
 target_compile_options(poly2tri PRIVATE -w)
 
-add_executable(slic3r src/slic3r.cpp)
+if(WIN32)
+    add_executable(slic3r src/slic3r.cpp package/win/slic3r.rc)
+else()
+    add_executable(slic3r src/slic3r.cpp)
+endif()
 target_compile_features(slic3r PUBLIC cxx_std_17)
 
 if (${CMAKE_MAJOR_VERSION}.${CMAKE_MINOR_VERSION} VERSION_GREATER 3.10)

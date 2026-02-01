@@ -32,7 +32,7 @@ void OptionsGroup::append_single_option_line(const t_config_option_key& opt_key)
         label_text = print_config_def.get(opt_key).label;
     }
     
-    auto* label = new wxStaticText(parent, wxID_ANY, label_text + ":");
+    auto* label = new wxStaticText(parent, wxID_ANY, wxString::FromUTF8(label_text + ":"));
     line_sizer->Add(label, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 5);
     line_sizer->Add(field->get_window(), 1, wxEXPAND);
     
@@ -44,7 +44,7 @@ void OptionsGroup::append_line(const Line& line) {
     auto* line_sizer = new wxBoxSizer(wxHORIZONTAL);
     
     if (!line.label.empty()) {
-        auto* label = new wxStaticText(parent, wxID_ANY, line.label + ":");
+        auto* label = new wxStaticText(parent, wxID_ANY, wxString::FromUTF8(line.label + ":"));
         line_sizer->Add(label, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 5);
     }
     

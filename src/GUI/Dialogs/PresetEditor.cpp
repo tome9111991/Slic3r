@@ -7,6 +7,12 @@
 
 namespace Slic3r { namespace GUI {
 
+class PageData : public wxTreeItemData {
+public:
+    PresetPage* page;
+    PageData(PresetPage* p) : page(p) {}
+};
+
 PresetEditor::PresetEditor(wxWindow* parent, t_config_option_keys options) : 
     wxPanel(parent, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxBK_LEFT | wxTAB_TRAVERSAL) {
 
@@ -43,6 +49,18 @@ PresetEditor::PresetEditor(wxWindow* parent, t_config_option_keys options) :
 
     // tree
     this->_treectrl = new wxTreeCtrl(this, wxID_ANY, wxDefaultPosition, wxSize(left_col_width, -1), wxTR_NO_BUTTONS | wxTR_HIDE_ROOT | wxTR_SINGLE | wxTR_NO_LINES | wxBORDER_SUNKEN | wxWANTS_CHARS);
+    
+    this->_treectrl->Bind(wxEVT_TREE_SEL_CHANGED, [this](wxTreeEvent& event) {
+        wxTreeItemId item = event.GetItem();
+        if (item.IsOk()) {
+             auto* data = dynamic_cast<PageData*>(this->_treectrl->GetItemData(item));
+             if (data && data->page) {
+                 for(auto* p : _pages) p->Hide();
+                 data->page->Show();
+                 this->Layout();
+             }
+        }
+    });
 
     left_sizer->Add(this->_treectrl, 1, wxEXPAND);
     
@@ -64,8 +82,16 @@ PresetPage* PresetEditor::add_options_page(const wxString& _title, const wxStrin
     this->_sizer->Add(page, 1, wxEXPAND | wxALL, 5);
     _pages.push_back(page);
     
+    int icon_idx = -1;
+    if (!_icon.empty()) {
+        wxBitmap bmp(var(_icon), wxBITMAP_TYPE_PNG);
+        if (bmp.IsOk()) {
+             icon_idx = this->_icons->Add(bmp);
+        }
+    }
+    
     // Add to tree
-    this->_treectrl->AppendItem(this->_treectrl->GetRootItem(), _title);
+    this->_treectrl->AppendItem(this->_treectrl->GetRootItem(), _title, icon_idx, icon_idx, new PageData(page));
     
     // Bind Callback
     page->on_change = [this](const std::string& key, boost::any value) {
