@@ -24,7 +24,6 @@ PresetEditor::PresetEditor(wxWindow* parent, t_config_option_keys options) :
         this->_btn_save_preset = new wxBitmapButton(this, wxID_ANY, wxBitmap(var("disk.png"), wxBITMAP_TYPE_PNG), wxDefaultPosition, wxDefaultSize, wxBORDER_NONE);
         this->_btn_delete_preset = new wxBitmapButton(this, wxID_ANY, wxBitmap(var("delete.png"), wxBITMAP_TYPE_PNG), wxDefaultPosition, wxDefaultSize, wxBORDER_NONE);
 
-        this->set_tooltips();
         this->_btn_delete_preset->Disable();
 
         wxBoxSizer* hsizer = new wxBoxSizer(wxHORIZONTAL);
@@ -50,11 +49,6 @@ PresetEditor::PresetEditor(wxWindow* parent, t_config_option_keys options) :
     this->_sizer->Add(left_sizer, 0, wxEXPAND | wxALL, 5);
 
     // Right side content area
-    // Usually handled by derived classes adding pages, but we need a container?
-    // PresetPage is a ScrolledWindow, so we just add them to _sizer?
-    // But we want to show only one at a time? 
-    // The TreeCtrl is supposed to switch pages. 
-    // For now, let's just add them to the sizer and hide/show them.
     
     this->_icons = new wxImageList(16, 16, 1);
     this->_treectrl->AssignImageList(this->_icons);
@@ -162,6 +156,7 @@ void PresetEditor::_update_tree() {}
 void PresetEditor::load_presets() {
     this->_presets_choice->Clear();
     try {
+        if (!SLIC3RAPP) return;
         auto& presets = SLIC3RAPP->presets.at(this->typeId());
         for (size_t i = 0; i < presets.size(); ++i) {
             this->_presets_choice->Append(presets[i].dropdown_name());

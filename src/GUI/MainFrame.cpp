@@ -149,15 +149,10 @@ void MainFrame::init_tabpanel()
     this->controller = new Slic3r::GUI::Controller(panel, _("Controller"));
 
     panel->AddPage(this->plater, _("Prepare"));
-    // Use "Preview" as the second page (Controller is usually the printer host/queue, maybe Plater handles preview?)
-    // In original code: Panel had Plater (idx 0) and Controller (idx 1).
-    // But Plater has internal tabs for "3D", "Preview", "Toolpaths".
-    // Wait, OrcaSlicer separates "Prepare" (3D Editor) and "Preview" (G-code viewer).
-    // Original Slic3r has them as tabs INSIDE Plater?
     
-    // Let's stick to original structure for now but just host them in Simplebook.
-    
-    if (ui_settings->show_host) panel->AddPage(this->controller, _("Device")); // Rename Controller to Device like Orca
+    if (ui_settings->show_host) {
+        panel->AddPage(this->controller, _("Device")); // Rename Controller to Device like Orca
+    }
 
     if (ui_settings->preset_editor_tabs) {
         this->plater->show_preset_editor(preset_t::Print,0);

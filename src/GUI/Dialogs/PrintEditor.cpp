@@ -1,9 +1,11 @@
 #include "Dialogs/PresetEditor.hpp"
+
 namespace Slic3r { namespace GUI {
 
 PrintEditor::PrintEditor(wxWindow* parent, t_config_option_keys options) : 
     PresetEditor(parent, options) {
     
+    this->set_tooltips();
     this->config = Slic3r::Config::new_from_defaults(this->my_options());
     this->_update_tree();
     this->load_presets();
@@ -32,22 +34,11 @@ void PrintEditor::_update(const std::string& opt_key) {
     if (auto* f = get_ui_field("layer_height")) f->toggle(!have_adaptive);
     
     // 3. Sequential printing (complete objects)
-    // Perl logic: line 905
     bool complete_objects = config->getBool("complete_objects");
     if (auto* f = get_ui_field("extruder_clearance_radius")) f->toggle(complete_objects);
     if (auto* f = get_ui_field("extruder_clearance_height")) f->toggle(complete_objects);
     
     // 4. Infill
-    // Perl logic: line 911
-    // If density is 0, disable pattern etc.
-    // int density = config->option("fill_density")->getInt(); // It's percent?
-    // In Perl it checks density > 0.
-    // ConfigOptionInt or Float? fill_density is Percent.
-    // Let's assume > 0 check works on float/int.
-    // Actually fill_density is usually a string "40%" or int.
-    // ConfigOptionPercent.
-    // method get_abs_value(1) returns value?
-    // Let's check type. It's usually double in C++ Config.
     double density = config->getFloat("fill_density");
     bool have_infill = (density > 0);
     
@@ -86,10 +77,6 @@ void PrintEditor::_update(const std::string& opt_key) {
     
     if (auto* f = get_ui_field("raft_layers")) {
         bool have_raft = (config->getInt("raft_layers") > 0);
-        // Raft enables options too?
-        // Perl: support options enabled if support OR raft.
-        // I toggled support options above based only on support_material.
-        // Need to OR it.
         if (have_raft) {
             for (const auto& key : support_opts) {
                 if (auto* f2 = get_ui_field(key)) f2->enable();
@@ -333,11 +320,6 @@ void PrintEditor::_build() {
             auto* optgroup = page->new_optgroup("Notes");
             optgroup->append_single_option_line("notes");
         }
-    }
-    
-    // Select the first page by default
-    if (!_pages.empty()) {
-        // TODO: tree selection
     }
 }
 }} // namespace Slic3r::GUI

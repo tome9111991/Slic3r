@@ -109,7 +109,9 @@ UI_Field* OptionsGroup::build_field(const t_config_option_key& opt_key) {
     switch (def.type) {
         case coFloat:
         case coFloats:
-        case coString: {
+        case coString:
+        case coFloatOrPercent:
+        case coPercent: {
             auto* f = new UI_TextCtrl(parent, def);
             f->on_change = [this, opt_key](const std::string&, std::string val) { 
                if (this->on_change) this->on_change(opt_key, val);
@@ -136,11 +138,6 @@ UI_Field* OptionsGroup::build_field(const t_config_option_key& opt_key) {
             break;
         }
         case coEnum: {
-            // Fallback to TextCtrl if UI_Choice makes trouble, but let's try it.
-            // NOTE: UI_Choice needs to be implemented. If linker error occurs, revert to UI_TextCtrl.
-            // For now, assuming UI_Choice works as it was in the file list.
-            // field = new UI_Choice(parent, def); 
-            // Reverting to TextCtrl for safety as I can't check UI_Choice impl completely.
             auto* f = new UI_TextCtrl(parent, def);
              f->on_change = [this, opt_key](const std::string&, std::string val) { 
                if (this->on_change) this->on_change(opt_key, val);
@@ -168,4 +165,3 @@ void OptionsGroup::set_sizer(wxBoxSizer* s) {
 }
 
 }} // namespace Slic3r::GUI
-

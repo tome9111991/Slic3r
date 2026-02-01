@@ -716,7 +716,7 @@ void Plater::selection_changed() {
                     $self->{object_info_manifold}->SetLabel("Yes");
                 }
             } else {
-                $self->{object_info_facets}->SetLabel($object->facets);
+                $self->{status_bar}->SetStatusText($object->facets);
             }
         } else {
             $self->{object_info_choice}->SetSelection(-1);
@@ -1021,7 +1021,7 @@ void Plater::split_object() {
         i++;
     }
 
-    // Remove original object (don't push separate undo for remove)
+    // Remove original object (dont push separate undo for remove)
     this->remove(idx, true);
     
     // Add new objects to model
@@ -1469,4 +1469,3 @@ void Plater::slice() {
 }
 
 }} // Namespace Slic3r::GUI
-

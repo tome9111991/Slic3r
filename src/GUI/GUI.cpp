@@ -24,120 +24,88 @@ namespace Slic3r { namespace GUI {
 /// Calls MainFrame and handles preset loading, etc.
 bool App::OnInit()
 {
-    this->SetAppName("Slic3r");
-    this->notifier = std::unique_ptr<Notifier>();
-    
-    if (datadir.empty())
-        datadir = decode_path(wxStandardPaths::Get().GetUserDataDir());
-    wxString enc_datadir = encode_path(datadir);
-    
-    const wxString& slic3r_ini  {datadir + "/slic3r.ini"};
-    this->preset_ini[static_cast<int>(preset_t::Print)] = {datadir + "/print"};
-    this->preset_ini[static_cast<int>(preset_t::Printer)] = {datadir + "/printer"};
-    this->preset_ini[static_cast<int>(preset_t::Material)] = {datadir + "/filament"};
-    const wxString& print_ini = this->preset_ini[static_cast<int>(preset_t::Print)];
-    const wxString& printer_ini = this->preset_ini[static_cast<int>(preset_t::Printer)];
-    const wxString& material_ini = this->preset_ini[static_cast<int>(preset_t::Material)];
-
-
-    // if we don't have a datadir or a slic3r.ini, prompt for wizard.
-    bool run_wizard = (wxDirExists(datadir) && wxFileExists(slic3r_ini));
-    
-    /* Check to make sure if datadir exists */
-    for (auto& dir : std::vector<wxString> { enc_datadir, print_ini, printer_ini, material_ini }) {
-        if (wxDirExists(dir)) continue;
-        if (!wxMkdir(dir)) {
-            Slic3r::Log::fatal_error(LogChannel, (_("Slic3r was unable to create its data directory at ")+ dir).ToStdWstring());
-        }
-    }
-
-    Slic3r::Log::info(LogChannel, (_("Data dir: ") + datadir).ToStdWstring());
-
-    ui_settings = Settings::init_settings();
-
-    // Load gui settings from slic3r.ini
-    if (wxFileExists(slic3r_ini)) {
-    /*
-        my $ini = eval { Slic3r::Config->read_ini("$datadir/slic3r.ini") };
-        if ($ini) {
-            $last_version = $ini->{_}{version};
-            $ini->{_}{$_} = $Settings->{_}{$_}
-                for grep !exists $ini->{_}{$_}, keys %{$Settings->{_}};
-            $Settings = $ini;
-        }
-        delete $Settings->{_}{mode};  # handle legacy
-    */
-    }
-
-    ui_settings->save_settings();
-
-    // Load presets
-    this->load_presets();
-
-
-    wxImage::AddHandler(new wxPNGHandler());
-    MainFrame *frame = new MainFrame( "Slic3r", wxDefaultPosition, wxDefaultSize);
-    this->SetTopWindow(frame);
-
-    // Load init bundle
-    //
-
-    // Run the wizard if we don't have an initial config
-    /*
-    $self->check_version
-        if $self->have_version_check
-            && ($Settings->{_}{version_check} // 1)
-            && (!$Settings->{_}{last_version_check} || (time - $Settings->{_}{last_version_check}) >= 86400);
-    */
-    
-    // run callback functions during idle on the main frame
-    this->Bind(wxEVT_IDLE, 
-        [this](wxIdleEvent& e) { 
-            std::function<void()> func {nullptr}; // 
-            // try to get the mutex. If we can't, just skip this idle event and get the next one.
-            if (!this->callback_register.try_lock()) return;
-            // pop callback
-            if (cb.size() >= 1) { 
-                func = cb.top();
-                cb.pop();
-            }
-            // unlock mutex
-            this->callback_register.unlock();
-            try { // call the function if it's not nullptr;
-                if (func != nullptr) func();
-            } catch (std::exception& e) { Slic3r::Log::error(LogChannel, LOG_WSTRING("Exception thrown: " <<  e.what())); }
-        });
-    /*
-    EVT_IDLE($frame, sub {
-        while (my $cb = shift @cb) {
-            $cb->();
-        }
-    });
-    */
-
-    // Handle custom version check event
-    /*
-    EVT_COMMAND($self, -1, $VERSION_CHECK_EVENT, sub {
-        my ($self, $event) = @_;
-        my ($success, $response, $manual_check) = @{$event->GetData};
+    try {
+        this->SetAppName("Slic3r");
+        this->notifier = std::unique_ptr<Notifier>();
         
-        if ($success) {
-            if ($response =~ /^obsolete ?= ?([a-z0-9.-]+,)*\Q$Slic3r::VERSION\E(?:,|$)/) {
-                my $res = Wx::MessageDialog->new(undef, "A new version is available. Do you want to open the Slic3r website now?",
-                    'Update', wxYES_NO | wxCANCEL | wxYES_DEFAULT | wxICON_INFORMATION | wxICON_ERROR)->ShowModal;
-                Wx::LaunchDefaultBrowser('https://slic3r.org/') if $res == wxID_YES;
-            } else {
-                Slic3r::GUI::show_info(undef, "You're using the latest version. No updates are available.") if $manual_check;
-            }
-            $Settings->{_}{last_version_check} = time();
-            $self->save_settings;
-        } else {
-            Slic3r::GUI::show_error(undef, "Failed to check for updates. Try later.") if $manual_check;
-        }
-    });
-    */
+        if (datadir.empty())
+            datadir = decode_path(wxStandardPaths::Get().GetUserDataDir());
+        wxString enc_datadir = encode_path(datadir);
+        
+        const wxString& slic3r_ini  {datadir + "/slic3r.ini"};
+        this->preset_ini[static_cast<int>(preset_t::Print)] = {datadir + "/print"};
+        this->preset_ini[static_cast<int>(preset_t::Printer)] = {datadir + "/printer"};
+        this->preset_ini[static_cast<int>(preset_t::Material)] = {datadir + "/filament"};
+        const wxString& print_ini = this->preset_ini[static_cast<int>(preset_t::Print)];
+        const wxString& printer_ini = this->preset_ini[static_cast<int>(preset_t::Printer)];
+        const wxString& material_ini = this->preset_ini[static_cast<int>(preset_t::Material)];
 
-    return true;
+
+        // if we don't have a datadir or a slic3r.ini, prompt for wizard.
+        bool run_wizard = (wxDirExists(datadir) && wxFileExists(slic3r_ini));
+        
+        /* Check to make sure if datadir exists */
+        for (auto& dir : std::vector<wxString> { enc_datadir, print_ini, printer_ini, material_ini }) {
+            if (wxDirExists(dir)) continue;
+            if (!wxMkdir(dir)) {
+                Slic3r::Log::fatal_error(LogChannel, (_("Slic3r was unable to create its data directory at ")+ dir).ToStdWstring());
+            }
+        }
+
+        Slic3r::Log::info(LogChannel, (_("Data dir: ") + datadir).ToStdWstring());
+
+        ui_settings = Settings::init_settings();
+
+        // Load gui settings from slic3r.ini
+        if (wxFileExists(slic3r_ini)) {
+        /*
+            my $ini = eval { Slic3r::Config->read_ini("$datadir/slic3r.ini") };
+            if ($ini) {
+                $last_version = $ini->{_}{version};
+                $ini->{_}{$_} = $Settings->{_}{$_}
+                    for grep !exists $ini->{_}{$_}, keys %{$Settings->{_}};
+                $Settings = $ini;
+            }
+            delete $Settings->{_}{mode};  # handle legacy
+        */
+        }
+
+        ui_settings->save_settings();
+
+        // Load presets
+        this->load_presets();
+
+
+        wxImage::AddHandler(new wxPNGHandler());
+        MainFrame *frame = new MainFrame( "Slic3r", wxDefaultPosition, wxDefaultSize);
+        this->SetTopWindow(frame);
+
+        // run callback functions during idle on the main frame
+        this->Bind(wxEVT_IDLE, 
+            [this](wxIdleEvent& e) { 
+                std::function<void()> func {nullptr}; // 
+                // try to get the mutex. If we can't, just skip this idle event and get the next one.
+                if (!this->callback_register.try_lock()) return;
+                // pop callback
+                if (cb.size() >= 1) { 
+                    func = cb.top();
+                    cb.pop();
+                }
+                // unlock mutex
+                this->callback_register.unlock();
+                try { // call the function if it's not nullptr;
+                    if (func != nullptr) func();
+                } catch (std::exception& e) { Slic3r::Log::error(LogChannel, LOG_WSTRING("Exception thrown: " <<  e.what())); }
+            });
+
+        return true;
+    } catch (const std::exception& e) {
+        Slic3r::Log::fatal_error(LogChannel, LOG_WSTRING("Exception in OnInit: " << e.what()));
+        return false;
+    } catch (...) {
+        Slic3r::Log::fatal_error(LogChannel, L"Unknown exception in OnInit");
+        return false;
+    }
 }
 
 void App::save_window_pos(const wxTopLevelWindow* window, const wxString& name ) {

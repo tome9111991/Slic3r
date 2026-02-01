@@ -426,7 +426,7 @@ int CLI::run(int argc, char **argv) {
             gui->datadir = GUI::home().ToStdString();
         }
         GUI::App::SetInstance(gui);
-        wxEntry(argc, argv);
+        return wxEntry(argc, argv);
 #else
         Slic3r::Log::error("CLI") << "GUI support has not been built." << "\n";
 #endif   

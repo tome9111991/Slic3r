@@ -149,10 +149,10 @@ public:
             "seam_position"s, "external_perimeters_first"s,
             "fill_density"s, "fill_pattern"s, "top_infill_pattern"s, "bottom_infill_pattern"s, "fill_gaps"s,
             "infill_every_layers"s, "infill_only_where_needed"s,
-            "solid_infill_every_layers"s, "fill_angle"s, "solid_infill_below_area"s, ""s,
+            "solid_infill_every_layers"s, "fill_angle"s, "solid_infill_below_area"s,
             "only_retract_when_crossing_perimeters"s, "infill_first"s,
             "max_print_speed"s, "max_volumetric_speed"s,
-            "perimeter_speed"s, "small_perimeter_speed"s, "external_perimeter_speed"s, "infill_speed"s, ""s,
+            "perimeter_speed"s, "small_perimeter_speed"s, "external_perimeter_speed"s, "infill_speed"s,
             "solid_infill_speed"s, "top_solid_infill_speed"s, "support_material_speed"s,
             "support_material_interface_speed"s, "bridge_speed"s, "gap_fill_speed"s,
             "travel_speed"s,
@@ -163,7 +163,7 @@ public:
             "brim_connections_width"s, "brim_ears"s, "brim_ears_max_angle"s, "brim_width"s, "interior_brim_width"s,
             "support_material"s, "support_material_threshold"s, "support_material_max_layers"s, "support_material_enforce_layers"s,
             "raft_layers"s,
-            "support_material_pattern"s, "support_material_spacing"s, "support_material_angle"s, ""s,
+            "support_material_pattern"s, "support_material_spacing"s, "support_material_angle"s,
             "support_material_interface_layers"s, "support_material_interface_spacing"s,
             "support_material_contact_distance"s, "support_material_buildplate_only"s, "dont_support_bridges"s,
             "notes"s,
@@ -174,7 +174,7 @@ public:
             "support_material_extruder"s, "support_material_interface_extruder"s,
             "ooze_prevention"s, "standby_temperature_delta"s,
             "interface_shells"s, "regions_overlap"s,
-            "extrusion_width"s, "first_layer_extrusion_width"s, "perimeter_extrusion_width"s, ""s,
+            "extrusion_width"s, "first_layer_extrusion_width"s, "perimeter_extrusion_width"s,
             "external_perimeter_extrusion_width"s, "infill_extrusion_width"s, "solid_infill_extrusion_width"s,
             "top_infill_extrusion_width"s, "support_material_extrusion_width"s,
             "support_material_interface_extrusion_width"s, "infill_overlap"s, "bridge_flow_ratio"s,
@@ -291,7 +291,6 @@ public:
         title(_title), iconID(_iconID) {
             this->vsizer = new wxBoxSizer(wxVERTICAL);
             this->SetSizer(this->vsizer);
-            // this->SetScrollRate(ui_settings->scroll_step(), ui_settings->scroll_step()); // UI Utils?
             this->SetScrollRate(10, 10);
         }
 
