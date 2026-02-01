@@ -63,10 +63,15 @@ if %errorlevel% neq 0 (
 )
 
 echo [INFO] Building Slic3r (Live Output)...
-powershell -Command "& { cmake --build '%CMAKE_BUILD_DIR%' --parallel 2>&1 | Tee-Object -FilePath '%LOG_FILE%' -Append; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE } }"
+powershell -Command "& { cmake --build '%CMAKE_BUILD_DIR%' --parallel --verbose 2>&1 | Tee-Object -FilePath '%LOG_FILE%' -Append; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE } }"
 
 if %errorlevel% neq 0 (
+    echo.
     echo [ERROR] Build failed.
+    echo.
+    echo ----- FOUND ERRORS IN LOG -----
+    powershell -Command "Get-Content '%LOG_FILE%' | Where-Object { $_ -match ':\s+error\s+' -or $_ -match 'fatal\s+error' -or $_ -match '^FAILED:' } | ForEach-Object { Write-Host $_ }"
+    echo -------------------------------
     goto :END
 )
 
