@@ -415,6 +415,7 @@ IF(wxWidgets_FOUND AND OPENGL_FOUND AND Enable_GUI)
     ${GUI_LIBDIR}/Dialogs/PrinterEditor.cpp
     ${GUI_LIBDIR}/Dialogs/MaterialEditor.cpp
     ${GUI_LIBDIR}/Dialogs/ObjectCutDialog.cpp
+    ${GUI_LIBDIR}/Dialogs/ObjectSettingsDialog.cpp
     ${GUI_LIBDIR}/GUI.cpp
     ${GUI_LIBDIR}/MainFrame.cpp
     ${GUI_LIBDIR}/Plater.cpp

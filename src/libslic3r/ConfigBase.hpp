@@ -724,8 +724,9 @@ class ConfigOptionDef
     /// Returns the alternative CLI arguments for the given option.
     std::vector<std::string> cli_args() const;
     
-    private:
     ConfigOptionDef& operator= (ConfigOptionDef other);
+
+    private:
 };
 
 /// Map from a config option name to its definition.

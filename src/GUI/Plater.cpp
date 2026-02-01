@@ -4,6 +4,7 @@
 #include <wx/progdlg.h>
 #include <wx/window.h> 
 #include <wx/numdlg.h> 
+#include <wx/textdlg.h>
 #include <wx/filedlg.h>
 #include <wx/msgdlg.h> 
 #include <wx/button.h> 
@@ -18,6 +19,7 @@
 #include "Geometry.hpp"
 #include "Dialogs/AnglePicker.hpp"
 #include "Dialogs/ObjectCutDialog.hpp"
+#include "Dialogs/ObjectSettingsDialog.hpp"
 
 
 namespace Slic3r { namespace GUI {
@@ -614,7 +616,21 @@ ObjRef Plater::selected_object() {
 void Plater::object_settings_dialog() { object_settings_dialog(this->selected_object()); }
 void Plater::object_settings_dialog(ObjIdx obj_idx) { object_settings_dialog(this->objects.begin() + obj_idx); }
 void Plater::object_settings_dialog(ObjRef obj) {
+    if (obj == this->objects.end()) return;
+    
+    int idx = this->get_object_index(obj->identifier);
+    if (idx < 0 || idx >= this->model->objects.size()) return;
 
+    auto* model_object = this->model->objects.at(idx);
+
+    ObjectSettingsDialog dlg(this, model_object);
+    if (dlg.ShowModal() == wxID_OK) {
+        // Changes applied to model_object in dlg.save_layers()
+        // We need to trigger updates
+        this->stop_background_process();
+        this->print->reload_object(idx); // Reload object in Print
+        this->on_model_change();
+    }
 }
 
 void Plater::select_object(ObjRef obj) {
@@ -958,11 +974,124 @@ void Plater::rotate(double angle, Axis axis, bool dont_push) {
 } 
 
 void Plater::split_object() {
-    //TODO
+    ObjRef obj {this->selected_object()};
+    if (obj == this->objects.end()) return;
+
+    this->pause_background_process();
+
+    const auto obj_idx = obj->identifier;
+    int idx = this->get_object_index(obj_idx);
+    
+    if (idx < 0 || idx >= this->model->objects.size()) {
+         this->resume_background_process();
+         return;
+    }
+    
+    auto* current_model_object = this->model->objects.at(idx);
+
+    // Check if object can be split
+    // Logic from Plater.pm: if (current_model_object->volumes_count > 1) warning...
+    // In C++, volumes is vector.
+    if (current_model_object->volumes.size() > 1) {
+        wxMessageBox(_("The selected object can't be split because it contains more than one volume/material."), _("Split Object"), wxICON_WARNING);
+        this->resume_background_process();
+        return;
+    }
+
+    // Attempt to split
+    ModelObjectPtrs new_objects;
+    current_model_object->split(&new_objects);
+    
+    if (new_objects.size() < 2) {
+         // Cleanup
+         for (auto* ptr : new_objects) delete ptr;
+
+         wxMessageBox(_("The selected object couldn't be split because it contains only one part."), _("Split Object"), wxICON_WARNING);
+         this->resume_background_process();
+         return;
+    }
+    
+    // Offset and center new objects
+    int i = 0;
+    for (auto* object : new_objects) {
+        for (auto* instance : object->instances) {
+            instance->offset.translate(i * 10, i * 10);
+        }
+        object->center_around_origin();
+        i++;
+    }
+
+    // Remove original object (don't push separate undo for remove)
+    this->remove(idx, true);
+    
+    // Add new objects to model
+    this->load_model_objects(new_objects);
+    
+    // Cleanup temporary objects (load_model_objects copies them)
+    for (auto* ptr : new_objects) delete ptr; 
+    
+    // TODO: Add Undo operation for SPLIT
+    // this->add_undo_operation(UndoCmd::Split, ...);
+
+    this->resume_background_process();
 } 
 
 void Plater::changescale() {
-    //TODO
+    ObjRef obj {this->selected_object()};
+    if (obj == this->objects.end()) return;
+    
+    int idx = this->get_object_index(obj->identifier);
+    if (idx < 0 || idx >= this->model->objects.size()) return;
+
+    auto* model_object = this->model->objects.at(idx);
+    if (model_object->instances.empty()) return;
+
+    auto* model_instance = model_object->instances.front();
+    double current_scale_percent = model_instance->scaling_factor * 100.0;
+    
+    // Ask user for percentage
+    wxTextEntryDialog dlg(this, _("Enter the scale % for the selected object:"), _("Scale"), wxString::Format("%.2f", current_scale_percent));
+    if (dlg.ShowModal() != wxID_OK) return;
+    
+    wxString val = dlg.GetValue();
+    if (val.IsEmpty()) return;
+    
+    double new_scale_percent;
+    if (!val.ToDouble(&new_scale_percent) || new_scale_percent < 0) {
+        return;
+    }
+
+    double scale_factor = new_scale_percent / 100.0;
+    
+    this->stop_background_process();
+    
+    // Apply uniformly
+    double variation = scale_factor / model_instance->scaling_factor;
+    // Update layer height ranges if any
+    // Update layer height ranges if any
+    t_layer_height_ranges new_ranges;
+    for (const auto& kv : model_object->layer_height_ranges) {
+        t_layer_height_range new_range = kv.first;
+        new_range.first *= variation;
+        new_range.second *= variation;
+        new_ranges[new_range] = kv.second * variation;
+    }
+    model_object->layer_height_ranges = new_ranges;
+    
+    for (auto* instance : model_object->instances) {
+        instance->scaling_factor = scale_factor;
+    }
+    
+    obj->transform_thumbnail(this->model, idx);
+    
+    model_object->update_bounding_box();
+    this->print->add_model_object(model_object, idx);
+    
+    // TODO: Undo op
+    // this->add_undo_operation(...);
+
+    this->selection_changed();
+    this->on_model_change();
 }
 
 void Plater::object_cut_dialog() {
@@ -977,9 +1106,13 @@ void Plater::object_cut_dialog() {
 }
 
 void Plater::object_layers_dialog() {
-    //TODO
+    // For now, just open settings dialog. 
+    // Ideally, pass a flag to select Layers tab. 
+    // Since our ObjectSettingsDialog defaults to first tab (Parts) or we can make it default to Layers if we want.
+    // The current implementation of ObjectSettingsDialog has Parts (0) and Layers (1).
+    // We can just call object_settings_dialog() for now, or update it to take a tab index.
+    this->object_settings_dialog();
 }
-
 void Plater::add_undo_operation(UndoCmd cmd, std::vector<int>& obj_ids, Slic3r::Model& model) {
     //TODO
 }

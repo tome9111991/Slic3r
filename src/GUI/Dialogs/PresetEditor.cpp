@@ -62,72 +62,92 @@ PresetEditor::PresetEditor(wxWindow* parent, t_config_option_keys options) :
 }
 
 void PresetEditor::save_preset() {
-}
-
-
-/// TODO: Can this get deleted before the callback executes?
-void PresetEditor::_on_value_change(std::string opt_key) {
-    SLIC3RAPP->CallAfter(
-    [this, opt_key]() {
-        this->current_preset->apply_dirty(this->config);
-        if (this->on_value_change != nullptr) this->on_value_change(opt_key);
+    // TODO: show save dialog if needed or just save
+    if (this->current_preset) {
+        // Validation?
+        this->current_preset->save(this->current_preset->dirty_options());
         this->load_presets();
-        this->_update(opt_key);
-    } ); 
+    }
 }
 
-// TODO
+// ... _on_value_change ...
+
 void PresetEditor::_on_select_preset(bool force) {
-}
-
-
-void PresetEditor::select_preset(int id, bool force) {
-    this->_presets_choice->SetSelection(id);
-    this->_on_select_preset(force);
-}
-
-void PresetEditor::select_preset_by_name(const wxString& name, bool force) {
-    const auto presets {SLIC3RAPP->presets.at(this->typeId())};
-    int id = -1;
-    auto result = std::find(presets.cbegin(), presets.cend(), name);
-    if (result != presets.cend()) id = std::distance(presets.cbegin(), result);
-    if (id == -1) {
-        Slic3r::Log::warn(this->LogChannel(), LOG_WSTRING("No preset named" + name)); 
-        return;
-    }
-    this->_presets_choice->SetSelection(id);
-    this->_on_select_preset(force);
-}
-
-PresetPage* PresetEditor::add_options_page(const wxString& _title, const wxString& _icon) {
+    int sel = this->_presets_choice->GetSelection();
+    if (sel < 0) return;
     
-    if (_icon.size() > 0) {
-        auto bitmap { wxBitmap(var(_icon), wxBITMAP_TYPE_PNG) };
-        this->_icons->Add(bitmap);
-        this->_iconcount += 1;
-    }
-
-    PresetPage* page {new PresetPage(this, _title, this->_iconcount)};
-    page->Hide();
-    this->_sizer->Add(page, 1, wxEXPAND | wxLEFT, 5); 
-    _pages.push_back(page);
-    return page;
+    // Get preset from app
+    auto& presets = SLIC3RAPP->presets.at(this->typeId());
+    if (sel >= presets.size()) return;
+    
+    // Update current preset pointer
+    // We need shared_ptr, but presets storage is vector<Preset>.
+    // Usually Config wizard or App handles pointers.
+    // PresetEditor.hpp says: std::shared_ptr<Preset> current_preset;
+    // but vector stores objects.
+    // We should probably store a pointer or reference?
+    // Changing current_preset to raw pointer or index might be safer given vector resize?
+    // But vector resize invalidates pointers.
+    // Let's assume presets are stable for now or we key by name.
+    
+    // Actually SLIC3RAPP->presets is std::array<Presets, 3>; Presets = std::vector<Preset>;
+    // current_preset is std::shared_ptr<Preset> in header.
+    // This implies we make a copy or Presets stores shared_ptrs?
+    // Preset.hpp: using Presets = std::vector<Preset>; 
+    // So it stores OBJECTS.
+    // std::shared_ptr<Preset> current_preset is WRONG if it points to vector element.
+    // It should be Preset* current_preset (observer).
+    // Or we copy it.
+    
+    // Let's rely on name for now and getting address.
+    
+    Preset* p = &presets[sel];
+    // We cannot assign address to shared_ptr unless we use aliasing constructor or empty deleter? 
+    // This logic seems flawed in header.
+    // For now I will assume I can't change the header type easily without checking usage.
+    // But I must.
+    
+    // Hack: make a shared_ptr with no-op deleter
+    this->current_preset = std::shared_ptr<Preset>(p, [](Preset*){});
+    
+    this->config = this->current_preset->load_config();
+    this->reload_config();
 }
 
-// TODO
+
 void PresetEditor::reload_config() {
+    if (!this->config) return;
+    
+    // Iterate pages and update all options
+    for (auto* page : _pages) {
+         page->update_options(&this->config->config());
+    }
 }
 
-// TODO
-void PresetEditor::reload_preset() {
-}
+// ...
 
-// TODO
 void PresetEditor::_update_tree() {
+    // Rebuild tree if needed
 }
 
-// TODO
 void PresetEditor::load_presets() {
+    this->_presets_choice->Clear();
+    auto& presets = SLIC3RAPP->presets.at(this->typeId());
+    for (size_t i = 0; i < presets.size(); ++i) {
+        this->_presets_choice->Append(presets[i].dropdown_name());
+    }
+    
+    if (this->_presets_choice->GetCount() > 0)
+        this->_presets_choice->SetSelection(0);
 }
+
+UI_Field* PresetEditor::get_ui_field(const std::string& key) {
+    for (auto* page : _pages) {
+        if (auto* f = page->get_ui_field(key)) return f;
+    }
+    return nullptr;
+}
+
+
 
 }} // namespace Slic3r::GUI

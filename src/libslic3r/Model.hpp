@@ -21,6 +21,10 @@ class ModelMaterial;
 class ModelObject;
 class ModelVolume;
 
+namespace GUI {
+    class Plater;
+}
+
 typedef std::string t_model_material_id;
 typedef std::string t_model_material_attribute;
 typedef std::map<t_model_material_attribute,std::string> t_model_material_attributes;
@@ -255,6 +259,7 @@ class ModelMaterial
 class ModelObject
 {
     friend class Model;
+    friend class GUI::Plater;
     public:
     std::string name;
     ///< This ModelObject name.

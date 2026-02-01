@@ -13,6 +13,7 @@
 // GUI
 #include "misc_ui.hpp"
 #include "Preset.hpp"
+#include "OptionsGroup.hpp"
 
 // Wx
 #include <wx/treectrl.h>
@@ -63,6 +64,7 @@ public:
     config_ptr config;
     void reload_config();
     void reload_preset();
+    UI_Field* get_ui_field(const std::string& key);
     PresetPage* add_options_page(const wxString& _title, const wxString& _icon = "");
 
     virtual wxString title() = 0;
@@ -282,17 +284,45 @@ protected:
 
 class PresetPage : public wxScrolledWindow {
 public:
-    PresetPage(wxWindow* parent, wxString _title, int _iconID) : 
+    PresetPage(wxWindow* parent, wxString _title, int _iconID = 0) : 
         wxScrolledWindow(parent, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxTAB_TRAVERSAL),
         title(_title), iconID(_iconID) {
             this->vsizer = new wxBoxSizer(wxVERTICAL);
             this->SetSizer(this->vsizer);
-            this->SetScrollRate(ui_settings->scroll_step(), ui_settings->scroll_step());
+            // this->SetScrollRate(ui_settings->scroll_step(), ui_settings->scroll_step()); // UI Utils?
+            this->SetScrollRate(10, 10);
         }
+
+    OptionsGroup* new_optgroup(const wxString& title) {
+        auto* sb = new wxStaticBox(this, wxID_ANY, title);
+        auto* sbs = new wxStaticBoxSizer(sb, wxVERTICAL);
+        this->vsizer->Add(sbs, 0, wxEXPAND | wxALL, 5);
+        
+        auto* og = new OptionsGroup(this);
+        og->set_sizer(sbs);
+        _optgroups.push_back(std::unique_ptr<OptionsGroup>(og));
+        return og;
+    }
+
+    void update_options(const ConfigBase* config) {
+        for (auto& og : _optgroups) {
+            og->update_options(config);
+        }
+    }
+
+    UI_Field* get_ui_field(const std::string& key) {
+        for (auto& og : _optgroups) {
+             UI_Field* f = og->get_ui_field(key);
+             if (f) return f;
+        }
+        return nullptr;
+    }
+
 protected:
     wxSizer* vsizer {nullptr};
     wxString title {""};
     int iconID {0};
+    std::vector<std::unique_ptr<OptionsGroup>> _optgroups;
 };
 
 }} // namespace Slic3r::GUI
