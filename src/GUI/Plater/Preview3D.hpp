@@ -20,12 +20,16 @@ public:
     void load_print_toolpaths(std::shared_ptr<Slic3r::Print> print);
     void set_toolpaths_range(float min_z, float max_z);
     
+    // Expose set_bed_shape
+    using Scene3D::set_bed_shape;
+
     void resetObjects(){
         volumes.clear();
         layers.clear();
     }
     
 protected:
+    virtual void before_render() override;
     virtual void after_render() override;
 
 private:
@@ -41,10 +45,11 @@ private:
 class Preview3D : public wxPanel {
 public:
     void reload_print();
+    void load_print();
+    void set_bed_shape(const std::vector<Point>& shape);
     Preview3D(wxWindow* parent, const wxSize& size, std::shared_ptr<Slic3r::Print> _print, std::vector<PlaterObject>& _objects, std::shared_ptr<Model> _model, std::shared_ptr<Config> _config);
     void enabled(bool enable = true) {}
 private:
-    void load_print();
     void set_z(float z);
     bool loaded = false, _enabled = false;
     std::vector<float> layers_z;

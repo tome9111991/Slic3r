@@ -10,17 +10,9 @@ _3DScene::_extrusionentity_to_verts_do(const Lines &lines, const std::vector<dou
 {
     if (lines.empty()) return;
     
-    /* It looks like it's faster without reserving capacity...
-    // each segment has 4 quads, thus 16 vertices; + 2 caps
-    qverts->reserve_more(3 * 4 * (4 * lines.size() + 2));
-    
-    // two triangles for each corner
-    tverts->reserve_more(3 * 3 * 2 * (lines.size() + 1));
-    */
-    
     Line prev_line;
-    Pointf prev_b1, prev_b2;
-    Vectorf3 prev_xy_left_normal, prev_xy_right_normal;
+    Pointf prev_TR, prev_TL, prev_BR, prev_BL;
+    Pointf prev_center_top, prev_center_bot;
     
     // loop once more in case of closed loops
     bool first_done = false;
@@ -34,24 +26,30 @@ _3DScene::_extrusionentity_to_verts_do(const Lines &lines, const std::vector<dou
         double unscaled_len = unscale(len);
         
         double bottom_z = top_z - heights.at(i);
-        double middle_z = (top_z + bottom_z) / 2;
         double dist = widths.at(i)/2;  // scaled
         
         Vectorf v = Vectorf::new_unscale(line.vector());
         v.scale(1/unscaled_len);
         
+        // Calculate points for the start (a) and end (b) of the segment
         Pointf a = Pointf::new_unscale(line.a);
         Pointf b = Pointf::new_unscale(line.b);
-        Pointf a1 = a;
-        Pointf a2 = a;
-        a1.translate(+dist*v.y, -dist*v.x);
-        a2.translate(-dist*v.y, +dist*v.x);
-        Pointf b1 = b;
-        Pointf b2 = b;
-        b1.translate(+dist*v.y, -dist*v.x);
-        b2.translate(-dist*v.y, +dist*v.x);
         
-        // calculate new XY normals
+        // Displacements
+        Vectorf right_vec = Vectorf(v.y, -v.x);
+        Vectorf left_vec = Vectorf(-v.y, v.x);
+        
+        Pointf a_TR = a; a_TR.translate(right_vec.x * dist, right_vec.y * dist);
+        Pointf a_TL = a; a_TL.translate(left_vec.x * dist, left_vec.y * dist);
+        Pointf a_BR = a_TR;
+        Pointf a_BL = a_TL;
+        
+        Pointf b_TR = b; b_TR.translate(right_vec.x * dist, right_vec.y * dist);
+        Pointf b_TL = b; b_TL.translate(left_vec.x * dist, left_vec.y * dist);
+        Pointf b_BR = b_TR;
+        Pointf b_BL = b_TL;
+
+        // Normals
         Vector n = line.normal();
         Vectorf3 xy_right_normal = Vectorf3::new_unscale(n.x, n.y, 0);
         xy_right_normal.scale(1/unscaled_len);
@@ -59,170 +57,115 @@ _3DScene::_extrusionentity_to_verts_do(const Lines &lines, const std::vector<dou
         xy_left_normal.scale(-1);
         
         if (first_done) {
-            // if we're making a ccw turn, draw the triangles on the right side, otherwise draw them on the left side
+            // Corner handling
             double ccw = line.b.ccw(prev_line);
             if (ccw > EPSILON) {
-                // top-right vertex triangle between previous line and this one
-                {
-                    // use the normal going to the right calculated for the previous line
-                    tverts->push_norm(prev_xy_right_normal);
-                    tverts->push_vert((float)prev_b1.x, (float)prev_b1.y, (float)middle_z);
-            
-                    // use the normal going to the right calculated for this line
-                    tverts->push_norm(xy_right_normal);
-                    tverts->push_vert((float)a1.x, (float)a1.y, (float)middle_z);
-            
-                    // normal going upwards
-                    tverts->push_norm(0,0,1);
-                    tverts->push_vert((float)a.x, (float)a.y, (float)top_z);
-                }
-                // bottom-right vertex triangle between previous line and this one
-                {
-                    // use the normal going to the right calculated for the previous line
-                    tverts->push_norm(prev_xy_right_normal);
-                    tverts->push_vert((float)prev_b1.x, (float)prev_b1.y, (float)middle_z);
-            
-                    // normal going downwards
-                    tverts->push_norm(0,0,-1);
-                    tverts->push_vert((float)a.x, (float)a.y, (float)bottom_z);
-            
-                    // use the normal going to the right calculated for this line
-                    tverts->push_norm(xy_right_normal);
-                    tverts->push_vert((float)a1.x, (float)a1.y, (float)middle_z);
-                }
+                // Left Turn - Outer is Right side
+                // Fill Top Gap
+                tverts->push_norm(0,0,1); tverts->push_vert((float)prev_center_top.x, (float)prev_center_top.y, (float)top_z);
+                tverts->push_norm(0,0,1); tverts->push_vert((float)prev_TR.x, (float)prev_TR.y, (float)top_z);
+                tverts->push_norm(0,0,1); tverts->push_vert((float)a_TR.x, (float)a_TR.y, (float)top_z);
+
+                // Fill Bottom Gap
+                tverts->push_norm(0,0,-1); tverts->push_vert((float)prev_center_bot.x, (float)prev_center_bot.y, (float)bottom_z);
+                tverts->push_norm(0,0,-1); tverts->push_vert((float)a_BR.x, (float)a_BR.y, (float)bottom_z);
+                tverts->push_norm(0,0,-1); tverts->push_vert((float)prev_BR.x, (float)prev_BR.y, (float)bottom_z);
+                
+                // Fill Side Wall Gap (Right) - Quad as 2 triangles
+                // Triangle 1
+                Vectorf3 n1((float)(prev_TR.x - prev_center_top.x), (float)(prev_TR.y - prev_center_top.y), 0); // Approx normal
+                tverts->push_norm(n1); tverts->push_vert((float)prev_TR.x, (float)prev_TR.y, (float)top_z);
+                tverts->push_norm(n1); tverts->push_vert((float)prev_BR.x, (float)prev_BR.y, (float)bottom_z);
+                tverts->push_norm(n1); tverts->push_vert((float)a_BR.x, (float)a_BR.y, (float)bottom_z);
+                // Triangle 2
+                Vectorf3 n2((float)(a_TR.x - a.x), (float)(a_TR.y - a.y), 0); // Approx normal
+                tverts->push_norm(n2); tverts->push_vert((float)a_BR.x, (float)a_BR.y, (float)bottom_z);
+                tverts->push_norm(n2); tverts->push_vert((float)a_TR.x, (float)a_TR.y, (float)top_z);
+                tverts->push_norm(n2); tverts->push_vert((float)prev_TR.x, (float)prev_TR.y, (float)top_z);
+
             } else if (ccw < -EPSILON) {
-                // top-left vertex triangle between previous line and this one
-                {
-                    // use the normal going to the left calculated for the previous line
-                    tverts->push_norm(prev_xy_left_normal);
-                    tverts->push_vert((float)prev_b2.x, (float)prev_b2.y, (float)middle_z);
-            
-                    // normal going upwards
-                    tverts->push_norm(0,0,1);
-                    tverts->push_vert((float)a.x, (float)a.y, (float)top_z);
-            
-                    // use the normal going to the right calculated for this line
-                    tverts->push_norm(xy_left_normal);
-                    tverts->push_vert((float)a2.x, (float)a2.y, (float)middle_z);
-                }
-                // bottom-left vertex triangle between previous line and this one
-                {
-                    // use the normal going to the left calculated for the previous line
-                    tverts->push_norm(prev_xy_left_normal);
-                    tverts->push_vert((float)prev_b2.x, (float)prev_b2.y, (float)middle_z);
-            
-                    // use the normal going to the right calculated for this line
-                    tverts->push_norm(xy_left_normal);
-                    tverts->push_vert((float)a2.x, (float)a2.y, (float)middle_z);
-            
-                    // normal going downwards
-                    tverts->push_norm(0,0,-1);
-                    tverts->push_vert((float)a.x, (float)a.y, (float)bottom_z);
-                }
+                // Right Turn - Outer is Left side
+                // Fill Top Gap
+                tverts->push_norm(0,0,1); tverts->push_vert((float)prev_center_top.x, (float)prev_center_top.y, (float)top_z);
+                tverts->push_norm(0,0,1); tverts->push_vert((float)a_TL.x, (float)a_TL.y, (float)top_z);
+                tverts->push_norm(0,0,1); tverts->push_vert((float)prev_TL.x, (float)prev_TL.y, (float)top_z);
+
+                // Fill Bottom Gap
+                tverts->push_norm(0,0,-1); tverts->push_vert((float)prev_center_bot.x, (float)prev_center_bot.y, (float)bottom_z);
+                tverts->push_norm(0,0,-1); tverts->push_vert((float)prev_BL.x, (float)prev_BL.y, (float)bottom_z);
+                tverts->push_norm(0,0,-1); tverts->push_vert((float)a_BL.x, (float)a_BL.y, (float)bottom_z);
+                
+                // Fill Side Wall Gap (Left)
+                // Triangle 1
+                Vectorf3 n1((float)(prev_TL.x - prev_center_top.x), (float)(prev_TL.y - prev_center_top.y), 0);
+                tverts->push_norm(n1); tverts->push_vert((float)prev_TL.x, (float)prev_TL.y, (float)top_z);
+                tverts->push_norm(n1); tverts->push_vert((float)a_BL.x, (float)a_BL.y, (float)bottom_z);
+                tverts->push_norm(n1); tverts->push_vert((float)prev_BL.x, (float)prev_BL.y, (float)bottom_z);
+                // Triangle 2
+                Vectorf3 n2((float)(a_TL.x - a.x), (float)(a_TL.y - a.y), 0);
+                tverts->push_norm(n2); tverts->push_vert((float)a_BL.x, (float)a_BL.y, (float)bottom_z);
+                tverts->push_norm(n2); tverts->push_vert((float)prev_TL.x, (float)prev_TL.y, (float)top_z);
+                tverts->push_norm(n2); tverts->push_vert((float)a_TL.x, (float)a_TL.y, (float)top_z);
             }
         }
         
-        // if this was the extra iteration we were only interested in the triangles
         if (first_done && i == 0) break;
         
         prev_line = line;
-        prev_b1 = b1;
-        prev_b2 = b2;
-        prev_xy_right_normal = xy_right_normal;
-        prev_xy_left_normal  = xy_left_normal;
+        prev_TR = b_TR;
+        prev_TL = b_TL;
+        prev_BR = b_BR;
+        prev_BL = b_BL;
+        prev_center_top = b;
+        prev_center_bot = b;
         
         if (!closed) {
-            // terminate open paths with caps
-            if (i == 0) {
-                // normal pointing downwards
-                qverts->push_norm(0,0,-1);
-                qverts->push_vert((float)a.x, (float)a.y, (float)bottom_z);
-            
-                // normal pointing to the right
-                qverts->push_norm(xy_right_normal);
-                qverts->push_vert((float)a1.x, (float)a1.y, (float)middle_z);
-            
-                // normal pointing upwards
-                qverts->push_norm(0,0,1);
-                qverts->push_vert((float)a.x, (float)a.y, (float)top_z);
-            
-                // normal pointing to the left
-                qverts->push_norm(xy_left_normal);
-                qverts->push_vert((float)a2.x, (float)a2.y, (float)middle_z);
+             if (i == 0) {
+                // Start Cap (Back) - CCW
+                qverts->push_norm(0,0,-1); qverts->push_vert((float)a_BL.x, (float)a_BL.y, (float)bottom_z);
+                qverts->push_norm(0,0,-1); qverts->push_vert((float)a_BR.x, (float)a_BR.y, (float)bottom_z);
+                qverts->push_norm(0,0,-1); qverts->push_vert((float)a_TR.x, (float)a_TR.y, (float)top_z);
+                qverts->push_norm(0,0,-1); qverts->push_vert((float)a_TL.x, (float)a_TL.y, (float)top_z);
             }
-            // we don't use 'else' because both cases are true if we have only one line
             if (i == lines.size()-1) {
-                // normal pointing downwards
-                qverts->push_norm(0,0,-1);
-                qverts->push_vert((float)b.x, (float)b.y, (float)bottom_z);
-            
-                // normal pointing to the left
-                qverts->push_norm(xy_left_normal);
-                qverts->push_vert((float)b2.x, (float)b2.y, (float)middle_z);
-            
-                // normal pointing upwards
-                qverts->push_norm(0,0,1);
-                qverts->push_vert((float)b.x, (float)b.y, (float)top_z);
-            
-                // normal pointing to the right
-                qverts->push_norm(xy_right_normal);
-                qverts->push_vert((float)b1.x, (float)b1.y, (float)middle_z);
+                // End Cap (Front) - CCW
+                qverts->push_norm(0,0,-1); qverts->push_vert((float)b_TR.x, (float)b_TR.y, (float)top_z);
+                qverts->push_norm(0,0,-1); qverts->push_vert((float)b_BR.x, (float)b_BR.y, (float)bottom_z);
+                qverts->push_norm(0,0,-1); qverts->push_vert((float)b_BL.x, (float)b_BL.y, (float)bottom_z);
+                qverts->push_norm(0,0,-1); qverts->push_vert((float)b_TL.x, (float)b_TL.y, (float)top_z);
             }
         }
         
-        // bottom-right face
+        // Top Face (Up) - CCW: a_TL -> a_TR -> b_TR -> b_TL
         {
-            // normal going downwards
-            qverts->push_norm(0,0,-1);
-            qverts->push_norm(0,0,-1);
-            qverts->push_vert((float)a.x, (float)a.y, (float)bottom_z);
-            qverts->push_vert((float)b.x, (float)b.y, (float)bottom_z);
-            
-            qverts->push_norm(xy_right_normal);
-            qverts->push_norm(xy_right_normal);
-            qverts->push_vert((float)b1.x, (float)b1.y, (float)middle_z);
-            qverts->push_vert((float)a1.x, (float)a1.y, (float)middle_z);
+            qverts->push_norm(0,0,1); qverts->push_vert((float)a_TL.x, (float)a_TL.y, (float)top_z);
+            qverts->push_norm(0,0,1); qverts->push_vert((float)a_TR.x, (float)a_TR.y, (float)top_z);
+            qverts->push_norm(0,0,1); qverts->push_vert((float)b_TR.x, (float)b_TR.y, (float)top_z);
+            qverts->push_norm(0,0,1); qverts->push_vert((float)b_TL.x, (float)b_TL.y, (float)top_z);
+        }
+
+        // Bottom Face (Down) - CCW: a_BR -> a_BL -> b_BL -> b_BR
+        {
+            qverts->push_norm(0,0,-1); qverts->push_vert((float)a_BR.x, (float)a_BR.y, (float)bottom_z);
+            qverts->push_norm(0,0,-1); qverts->push_vert((float)a_BL.x, (float)a_BL.y, (float)bottom_z);
+            qverts->push_norm(0,0,-1); qverts->push_vert((float)b_BL.x, (float)b_BL.y, (float)bottom_z);
+            qverts->push_norm(0,0,-1); qverts->push_vert((float)b_BR.x, (float)b_BR.y, (float)bottom_z);
         }
         
-        // top-right face
+        // Right Face (Right) - CCW: a_TR -> a_BR -> b_BR -> b_TR
         {
-            qverts->push_norm(xy_right_normal);
-            qverts->push_norm(xy_right_normal);
-            qverts->push_vert((float)a1.x, (float)a1.y, (float)middle_z);
-            qverts->push_vert((float)b1.x, (float)b1.y, (float)middle_z);
-            
-            // normal going upwards
-            qverts->push_norm(0,0,1);
-            qverts->push_norm(0,0,1);
-            qverts->push_vert((float)b.x, (float)b.y, (float)top_z);
-            qverts->push_vert((float)a.x, (float)a.y, (float)top_z);
+            qverts->push_norm(xy_right_normal); qverts->push_vert((float)a_TR.x, (float)a_TR.y, (float)top_z);
+            qverts->push_norm(xy_right_normal); qverts->push_vert((float)a_BR.x, (float)a_BR.y, (float)bottom_z);
+            qverts->push_norm(xy_right_normal); qverts->push_vert((float)b_BR.x, (float)b_BR.y, (float)bottom_z);
+            qverts->push_norm(xy_right_normal); qverts->push_vert((float)b_TR.x, (float)b_TR.y, (float)top_z);
         }
-         
-        // top-left face
+
+        // Left Face (Left) - CCW: a_TL -> b_TL -> b_BL -> a_BL
         {
-            qverts->push_norm(0,0,1);
-            qverts->push_norm(0,0,1);
-            qverts->push_vert((float)a.x, (float)a.y, (float)top_z);
-            qverts->push_vert((float)b.x, (float)b.y, (float)top_z);
-            
-            qverts->push_norm(xy_left_normal);
-            qverts->push_norm(xy_left_normal);
-            qverts->push_vert((float)b2.x, (float)b2.y, (float)middle_z);
-            qverts->push_vert((float)a2.x, (float)a2.y, (float)middle_z);
-        }
-        
-        // bottom-left face
-        {
-            qverts->push_norm(xy_left_normal);
-            qverts->push_norm(xy_left_normal);
-            qverts->push_vert((float)a2.x, (float)a2.y, (float)middle_z);
-            qverts->push_vert((float)b2.x, (float)b2.y, (float)middle_z);
-            
-            // normal going downwards
-            qverts->push_norm(0,0,-1);
-            qverts->push_norm(0,0,-1);
-            qverts->push_vert((float)b.x, (float)b.y, (float)bottom_z);
-            qverts->push_vert((float)a.x, (float)a.y, (float)bottom_z);
+            qverts->push_norm(xy_left_normal); qverts->push_vert((float)a_TL.x, (float)a_TL.y, (float)top_z);
+            qverts->push_norm(xy_left_normal); qverts->push_vert((float)b_TL.x, (float)b_TL.y, (float)top_z);
+            qverts->push_norm(xy_left_normal); qverts->push_vert((float)b_BL.x, (float)b_BL.y, (float)bottom_z);
+            qverts->push_norm(xy_left_normal); qverts->push_vert((float)a_BL.x, (float)a_BL.y, (float)bottom_z);
         }
         
         first_done = true;

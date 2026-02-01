@@ -239,6 +239,9 @@ void Scene3D::init_gl(){
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     
+    // Fix normals after scaling
+    glEnable(GL_NORMALIZE);
+
     // Set antialiasing/multisampling
     glDisable(GL_LINE_SMOOTH);
     glDisable(GL_POLYGON_SMOOTH);

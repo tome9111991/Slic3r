@@ -1,5 +1,6 @@
 #include <memory>
 #include <climits>
+#include <fstream>
 
 #include <wx/progdlg.h>
 #include <wx/window.h> 
@@ -105,9 +106,25 @@ Plater::Plater(wxWindow* parent, const wxString& title) :
     
     preview3D = new Preview3D(preview_notebook, wxDefaultSize, print, objects, model, config);
     preview_notebook->AddPage(preview3D, _("Preview"));
+    
+    // Set initial bed shape for preview
+    if(config) {
+        auto bed_poly = Slic3r::Polygon::new_scale(config->get<ConfigOptionPoints>("bed_shape").values);
+        preview3D->set_bed_shape(bed_poly.points);
+    }
 
-    preview2D = new Preview2D(preview_notebook, wxDefaultSize, objects, model, config);
-    preview_notebook->AddPage(preview2D, _("Toolpaths"));
+    preview_notebook->Bind(wxEVT_NOTEBOOK_PAGE_CHANGED, [this](wxBookCtrlEvent& e) {
+        int sel = e.GetSelection();
+        if (sel != wxNOT_FOUND) {
+            wxTheApp->CallAfter([this, sel]() {
+                wxString page_text = preview_notebook->GetPageText(sel);
+                if (page_text == _("Preview") && preview3D) {
+                     preview3D->load_print();
+                }
+            });
+        }
+        e.Skip();
+    });
 
     /*
     previewDLP = new PreviewDLP(preview_notebook, wxDefaultSize, objects, model, config);
@@ -285,8 +302,8 @@ void Plater::select_view(Direction dir) {
 }
 
 void Plater::select_view_preview() {
-    // Index 2 is Toolpaths (2D Preview with G-code)
-    if (this->preview_notebook) this->preview_notebook->SetSelection(2);
+    // Index 1 is Preview (3D G-code)
+    if (this->preview_notebook) this->preview_notebook->SetSelection(1);
 }
 
 void Plater::add() {
@@ -553,13 +570,6 @@ void Plater::refresh_canvases() {
         this->canvas3D->update();
     if (this->preview3D != nullptr)
         this->preview3D->reload_print();
-    if (this->preview2D != nullptr)
-        this->preview2D->reload_print();
-
-    /*
-    if (this->previewDLP != nullptr)
-        this->previewDLP->reload_print();
-    */
 
 }
 
@@ -785,8 +795,6 @@ void Plater::remove(int obj_idx, bool dont_push) {
     // TODO: $self->stop_background_process;
     
     // Prevent toolpaths preview from rendering while we modify the Print object
-    if (this->preview2D != nullptr) 
-        this->preview2D->enabled(false);
 
     if (this->preview3D != nullptr) 
         this->preview3D->enabled(false);
@@ -847,8 +855,6 @@ void Plater::reset(bool dont_push) {
     // TODO: $self->stop_background_process;
     
     // Prevent toolpaths preview from rendering while we modify the Print object
-    if (this->preview2D != nullptr) 
-        this->preview2D->enabled(false);
 
     if (this->preview3D != nullptr) 
         this->preview3D->enabled(false);
@@ -1380,11 +1386,18 @@ void Plater::export_gcode() {
         // Ensure Print object has the latest Model state
         this->print->reload_model_instances();
 
+        std::ofstream log("slicing_debug.log", std::ios::app);
+        log << "Starting process()" << std::endl;
+
         // Process
         this->print->process();
+
+        log << "Finished process(), starting export_gcode()" << std::endl;
         
         // Export
         this->print->export_gcode(output_file);
+
+        log << "Finished export_gcode()" << std::endl;
         
         wxMessageBox(_("G-code exported successfully."), _("Done"), wxICON_INFORMATION);
 
@@ -1467,10 +1480,9 @@ void Plater::slice() {
                 
                 // Update Preview
                 if(this->preview3D) this->preview3D->reload_print();
-                if(this->preview2D) this->preview2D->reload_print();
 
                 // Switch execution to Preview tab
-                this->preview_notebook->SetSelection(2); 
+                this->preview_notebook->SetSelection(1); 
                 
                 // Optional: Flash notification or simple message
                 // wxMessageBox(_("Slicing Complete"), _("Done"), wxICON_INFORMATION);

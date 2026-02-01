@@ -3,150 +3,166 @@
 #include "libslic3r.h"
 #include "ExtrusionEntity.hpp"
 #include "Layer.hpp"
+#include <fstream>
+#include "../../slic3r/GUI/3DScene.hpp"
+#include "ExtrusionEntityCollection.hpp"
 
 namespace Slic3r { namespace GUI {
 
-#include "ExtrusionEntityCollection.hpp"
-
 void PreviewScene3D::load_print_toolpaths(std::shared_ptr<Slic3r::Print> print) {
+    this->volumes.clear();
     this->layers.clear();
     
-    // Check for empty objects
-    if(print->objects.empty()) return;
+    if(!print || print->objects.empty()) return;
 
-    for (auto* object : print->objects) {
-        // Iterate over specific copies (instances)
-        for(const auto& copy : object->_shifted_copies) {
-            
-            for (auto* layer : object->layers) {
-                LayerData layer_data;
-                layer_data.z = layer->print_z;
-                
-                auto add_line = [&](const Point& a, const Point& b, unsigned char r, unsigned char g, unsigned char bl) {
-                    Point p1 = a; p1.translate(copy);
-                    Point p2 = b; p2.translate(copy);
-                    
-                    layer_data.verts.push_back(unscale(p1.x)); layer_data.verts.push_back(unscale(p1.y)); layer_data.verts.push_back(layer->print_z);
-                    layer_data.verts.push_back(unscale(p2.x)); layer_data.verts.push_back(unscale(p2.y)); layer_data.verts.push_back(layer->print_z);
-                    
-                    layer_data.colors.push_back(r); layer_data.colors.push_back(g); layer_data.colors.push_back(bl); layer_data.colors.push_back(255);
-                    layer_data.colors.push_back(r); layer_data.colors.push_back(g); layer_data.colors.push_back(bl); layer_data.colors.push_back(255);
-                };
+    // Helper to get color for role
+    auto get_color = [&](int role) -> wxColor {
+        // Simple color mapping for now
+        // 0: Perimeter (Yellow), 1: Infill (Red), 2: Support (Green)
+        switch(role) {
+            case 0: return wxColor(250, 200, 50);
+            case 1: return wxColor(200, 80, 80);
+            case 2: return wxColor(80, 200, 80);
+            default: return wxColor(128, 128, 128);
+        }
+    };
 
-                // Recursive lambda need std::function or proper auto generic lambda with 'this' or decltype
-                // We use a fix-point combinator or just standard recursion with a std::function wrapper
-                // Simpler: define standard recursive function (not lambda) or std::function.
-                std::function<void(const ExtrusionEntityCollection&, unsigned char, unsigned char, unsigned char)> process_collection;
-                
-                process_collection = [&](const ExtrusionEntityCollection& collection, unsigned char r, unsigned char g, unsigned char bl) {
-                    for(const auto* m_ent : collection.entities) {
-                         if (const auto* loop = dynamic_cast<const ExtrusionLoop*>(m_ent)) {
-                             for(const auto& path : loop->paths) {
-                                 for(size_t i=0; i<path.polyline.points.size()-1; ++i) 
-                                     add_line(path.polyline.points[i], path.polyline.points[i+1], r,g,bl);
-                                 // Close loop
-                                 add_line(path.polyline.points.back(), path.polyline.points.front(), r,g,bl);
-                             }
-                         } else if (const auto* path = dynamic_cast<const ExtrusionPath*>(m_ent)) {
-                                 for(size_t i=0; i<path->polyline.points.size()-1; ++i) 
-                                     add_line(path->polyline.points[i], path->polyline.points[i+1], r,g,bl);
-                         } else if (const auto* sub_collection = dynamic_cast<const ExtrusionEntityCollection*>(m_ent)) {
-                                 process_collection(*sub_collection, r, g, bl);
-                         }
-                    }
-                };
+    // Helper to process extrusion collection recursively
+    std::function<void(const ExtrusionEntityCollection&, const Point&, double, ::Slic3r::GLVertexArray&, ::Slic3r::GLVertexArray&)> process_collection;
+    process_collection = [&](const ExtrusionEntityCollection& collection, const Point& copy, double top_z, ::Slic3r::GLVertexArray& qverts_out, ::Slic3r::GLVertexArray& tverts_out) {
+        for(const auto* entity : collection.entities) {
+            Lines lines;
+            std::vector<double> widths;
+            std::vector<double> heights;
+            bool closed = false;
 
-                // Loop regions
-                for (auto* region : layer->regions) {
-                    // Perimeters (Yellow)
-                    process_collection(region->perimeters, 255, 255, 0);
-
-                    // Infill (Red)
-                    process_collection(region->fills, 255, 0, 0);
+            if (const auto* path = dynamic_cast<const ExtrusionPath*>(entity)) {
+                Polyline polyline = path->polyline;
+                polyline.remove_duplicate_points();
+                polyline.translate(copy);
+                lines = polyline.lines();
+                widths.assign(lines.size(), path->width);
+                heights.assign(lines.size(), path->height);
+                closed = false;
+            } else if (const auto* loop = dynamic_cast<const ExtrusionLoop*>(entity)) {
+                for(const auto& path : loop->paths) {
+                    Polyline polyline = path.polyline;
+                    polyline.remove_duplicate_points();
+                    polyline.translate(copy);
+                    Lines path_lines = polyline.lines();
+                    lines.insert(lines.end(), path_lines.begin(), path_lines.end());
+                    widths.insert(widths.end(), path_lines.size(), path.width);
+                    heights.insert(heights.end(), path_lines.size(), path.height);
                 }
-                
-                if(!layer_data.verts.empty())
-                    this->layers.push_back(layer_data);
+                closed = true;
+            } else if (const auto* sub = dynamic_cast<const ExtrusionEntityCollection*>(entity)) {
+                process_collection(*sub, copy, top_z, qverts_out, tverts_out);
+                continue;
             }
-            
-            // Support Layers
-            for (auto* layer : object->support_layers) {
-                LayerData layer_data;
-                layer_data.z = layer->print_z;
-                
-                 auto add_line = [&](const Point& a, const Point& b, unsigned char r, unsigned char g, unsigned char bl) {
-                    Point p1 = a; p1.translate(copy);
-                    Point p2 = b; p2.translate(copy);
-                    
-                    layer_data.verts.push_back(unscale(p1.x)); layer_data.verts.push_back(unscale(p1.y)); layer_data.verts.push_back(layer->print_z);
-                    layer_data.verts.push_back(unscale(p2.x)); layer_data.verts.push_back(unscale(p2.y)); layer_data.verts.push_back(layer->print_z);
-                    
-                    layer_data.colors.push_back(r); layer_data.colors.push_back(g); layer_data.colors.push_back(bl); layer_data.colors.push_back(255);
-                    layer_data.colors.push_back(r); layer_data.colors.push_back(g); layer_data.colors.push_back(bl); layer_data.colors.push_back(255);
-                };
-                
-                std::function<void(const ExtrusionEntityCollection&, unsigned char, unsigned char, unsigned char)> process_collection;
-                process_collection = [&](const ExtrusionEntityCollection& collection, unsigned char r, unsigned char g, unsigned char bl) {
-                    for(const auto* m_ent : collection.entities) {
-                         if (const auto* path = dynamic_cast<const ExtrusionPath*>(m_ent)) {
-                                 for(size_t i=0; i<path->polyline.points.size()-1; ++i) 
-                                     add_line(path->polyline.points[i], path->polyline.points[i+1], r,g,bl);
-                         } else if (const auto* loop = dynamic_cast<const ExtrusionLoop*>(m_ent)) {
-                             for(const auto& path : loop->paths) {
-                                 for(size_t i=0; i<path.polyline.points.size()-1; ++i) 
-                                     add_line(path.polyline.points[i], path.polyline.points[i+1], r,g,bl);
-                                 add_line(path.polyline.points.back(), path.polyline.points.front(), r,g,bl);
-                             }
-                         } else if (const auto* sub_collection = dynamic_cast<const ExtrusionEntityCollection*>(m_ent)) {
-                                 process_collection(*sub_collection, r, g, bl);
-                         }
-                    }
-                };
-                // Support fills (Green)
-                process_collection(layer->support_fills, 0, 255, 0);
-                process_collection(layer->support_interface_fills, 0, 255, 0);
 
-                if(!layer_data.verts.empty())
-                    this->layers.push_back(layer_data);
+            if(!lines.empty()) {
+                ::Slic3r::_3DScene::_extrusionentity_to_verts_do(lines, widths, heights, closed, top_z, Point(0,0), &qverts_out, &tverts_out);
             }
         }
+    };
+
+    // Temporary storage for volume data by color
+    struct VolData {
+        ::Slic3r::GLVertexArray qverts;
+        ::Slic3r::GLVertexArray tverts;
+        BoundingBoxf3 bb;
+    };
+    std::map<unsigned long, VolData> vol_map; // Key: RGB value
+
+    auto add_to_volume = [&](int role, const ExtrusionEntityCollection& collection, const Point& copy, double z) {
+        wxColor c = get_color(role);
+        unsigned long color_key = c.GetRGB();
+        process_collection(collection, copy, z, vol_map[color_key].qverts, vol_map[color_key].tverts);
+    };
+
+    for (auto* object : print->objects) {
+        for(const auto& copy : object->_shifted_copies) {
+            for (auto* layer : object->layers) {
+                for (auto* region : layer->regions) {
+                    add_to_volume(0, region->perimeters, copy, layer->print_z);
+                    add_to_volume(1, region->fills, copy, layer->print_z);
+                }
+            }
+            for (auto* layer : object->support_layers) {
+                add_to_volume(2, layer->support_fills, copy, layer->print_z);
+                add_to_volume(2, layer->support_interface_fills, copy, layer->print_z);
+            }
+        }
+    }
+
+    // Finalize volumes
+    for(auto& pair : vol_map) {
+        Volume vol;
+        vol.color.SetRGB(pair.first);
+        vol.origin = Pointf3(0,0,0);
+        
+        // Convert qverts (Quads) to Triangles and merge with tverts
+        ::Slic3r::GLVertexArray& q = pair.second.qverts;
+        ::Slic3r::GLVertexArray& t = pair.second.tverts;
+        
+        vol.model.verts = t.verts;
+        vol.model.norms = t.norms;
+        
+        // Append quads as triangles
+        for(size_t i=0; i < q.verts.size(); i += 12) {
+             // Quad Verts indices: i, i+1, i+2, i+3 (relative to quad start, each is 3 floats)
+             
+             if(i+11 >= q.verts.size()) break; // Safety check
+
+             // Triangle 1: V0, V1, V2
+             for(int k=0; k<3; ++k) vol.model.verts.push_back(q.verts[i+k]);
+             for(int k=0; k<3; ++k) vol.model.norms.push_back(q.norms[i+k]); // n0
+             
+             for(int k=0; k<3; ++k) vol.model.verts.push_back(q.verts[i+3+k]);
+             for(int k=0; k<3; ++k) vol.model.norms.push_back(q.norms[i+3+k]); // n1
+
+             for(int k=0; k<3; ++k) vol.model.verts.push_back(q.verts[i+6+k]);
+             for(int k=0; k<3; ++k) vol.model.norms.push_back(q.norms[i+6+k]); // n2
+             
+             // Triangle 2: V0, V2, V3
+             for(int k=0; k<3; ++k) vol.model.verts.push_back(q.verts[i+k]);
+             for(int k=0; k<3; ++k) vol.model.norms.push_back(q.norms[i+k]); // n0
+
+             for(int k=0; k<3; ++k) vol.model.verts.push_back(q.verts[i+6+k]);
+             for(int k=0; k<3; ++k) vol.model.norms.push_back(q.norms[i+6+k]); // n2
+
+             for(int k=0; k<3; ++k) vol.model.verts.push_back(q.verts[i+9+k]);
+             for(int k=0; k<3; ++k) vol.model.norms.push_back(q.norms[i+9+k]); // n3
+        }
+        
+        // Compute BB
+        if(!vol.model.verts.empty()) {
+            for(size_t i=0; i<vol.model.verts.size(); i+=3) {
+                vol.bb.merge(Pointf3(vol.model.verts[i], vol.model.verts[i+1], vol.model.verts[i+2]));
+            }
+        }
+        
+        this->volumes.push_back(vol);
     }
 }
 
 
 void PreviewScene3D::set_toolpaths_range(float min_z, float max_z) {
     m_max_z = max_z;
+    Refresh(); // Trigger redraw
+}
+
+void PreviewScene3D::before_render() {
+    glEnable(GL_CLIP_PLANE0);
+    // Clip points where (x,y,z,w) dot eqn < 0.
+    // Eqn: 0x + 0y - 1z + max_z = 0
+    // Visible if -z + max_z >= 0 => z <= max_z
+    GLdouble eqn[] = {0.0, 0.0, -1.0, (double)m_max_z};
+    glClipPlane(GL_CLIP_PLANE0, eqn);
 }
 
 void PreviewScene3D::after_render() {
-    glDisable(GL_LIGHTING);
-    glDisable(GL_TEXTURE_2D);
-    glLineWidth(2.0f);
-
-    glEnableClientState(GL_VERTEX_ARRAY);
-    glEnableClientState(GL_COLOR_ARRAY);
-
-    for (const auto& layer : layers) {
-        if (layer.z > m_max_z) continue;
-
-        glVertexPointer(3, GL_FLOAT, 0, layer.verts.data());
-        glColorPointer(4, GL_UNSIGNED_BYTE, 0, layer.colors.data());
-        
-        // Draw arrays
-        // Since we pushed individual line segments for infill, using GL_LINES is safest if we organized it that way.
-        // But for perimeters we pushed points. 
-        // For simplicity in this first pass, let's assume GL_LINES and hope the perimeters strictly follow. 
-        // Actually for perimeters I pushed all points of polyline. GL_LINE_STRIP would be better but batching is hard.
-        // Let's assume GL_POINTS for valid debug? No that's ugly.
-        // Let's refactor load to always push GL_LINES pairs.
-        
-        if (!layer.verts.empty())
-            glDrawArrays(GL_LINES, 0, layer.verts.size() / 3);
-    }
-
-    glDisableClientState(GL_COLOR_ARRAY);
-    glDisableClientState(GL_VERTEX_ARRAY);
-    glEnable(GL_LIGHTING);
+    glDisable(GL_CLIP_PLANE0);
 }
 
 
@@ -181,22 +197,13 @@ Preview3D::Preview3D(wxWindow* parent, const wxSize& size, std::shared_ptr<Slic3
     sizer->Add(vsizer, 0, wxTOP | wxBOTTOM | wxEXPAND, 5);
 
     this->Bind(wxEVT_SLIDER, [this](wxCommandEvent &e){ 
-        //$self->set_z($self->{layers_z}[$slider->GetValue])
-        //  if $self->enabled;
+        if (_enabled && !layers_z.empty()) {
+             int idx = slider->GetValue();
+             if(idx >= 0 && idx < layers_z.size())
+                 set_z(layers_z[idx]);
+        }
     }); 
     this->Bind(wxEVT_CHAR, [this](wxKeyEvent &e) {
-        /*my ($s, $event) = @_;
-        
-        my $key = $event->GetKeyCode;
-        if ($key == 85 || $key == 315) {
-            $slider->SetValue($slider->GetValue + 1);
-            $self->set_z($self->{layers_z}[$slider->GetValue]);
-        } elsif ($key == 68 || $key == 317) {
-            $slider->SetValue($slider->GetValue - 1);
-            $self->set_z($self->{layers_z}[$slider->GetValue]);
-        } else {
-            $event->Skip;
-        }*/
     });
     
     SetSizer(sizer);
@@ -215,17 +222,24 @@ void Preview3D::reload_print(){
 }
 
 void Preview3D::load_print() {
-    if(loaded) return;
+    std::ofstream log("preview_debug.log", std::ios::app);
+    log << "Preview3D::load_print called" << std::endl;
+    if(loaded) {
+        log << "Already loaded" << std::endl;
+        return;
+    }
     
     // we require that there's at least one object and the posSlice step
     // is performed on all of them (this ensures that _shifted_copies was
     // populated and we know the number of layers)
     if(!print->step_done(posSlice)) {
+        log << "Slice step NOT done" << std::endl;
         _enabled = false;
         slider->Hide();
         canvas.Refresh();  // clears canvas
         return;
     }
+    log << "Slice step DONE" << std::endl;
     
     size_t z_idx = 0;
     {
@@ -254,22 +268,7 @@ void Preview3D::load_print() {
         Layout();
     }
     if (IsShown()) {
-        // set colors
-        /*canvas.color_toolpaths_by($Slic3r::GUI::Settings->{_}{color_toolpaths_by});
-        if ($self->canvas->color_toolpaths_by eq 'extruder') {
-            my @filament_colors = map { s/^#//; [ map $_/255, (unpack 'C*', pack 'H*', $_), 255 ] }
-                @{$self->print->config->filament_colour};
-            $self->canvas->colors->[$_] = $filament_colors[$_] for 0..$#filament_colors;
-        } else {
-            $self->canvas->colors([ $self->canvas->default_colors ]);
-        }*/
-        
-        // load skirt and brim
-        // TODO: skirt/brim
-        //canvas.load_print_toolpaths(print);
-        
         canvas.load_print_toolpaths(print);
-        
         loaded = true;
     }
     
@@ -282,12 +281,8 @@ void Preview3D::set_z(float z) {
     if(IsShown())canvas.Refresh();
 }
 
-/*
-void set_bed_shape() {
-    my ($self, $bed_shape) = @_;
-    $self->canvas->set_bed_shape($bed_shape);
+void Preview3D::set_bed_shape(const std::vector<Point>& shape) {
+    canvas.set_bed_shape(shape);
 }
-*/
 
 } } // Namespace Slic3r::GUI
-
