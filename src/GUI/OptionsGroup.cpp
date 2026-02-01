@@ -119,8 +119,7 @@ UI_Field* OptionsGroup::build_field(const t_config_option_key& opt_key) {
             field = f;
             break;
         }
-        case coInt:
-        case coInts: {
+        case coInt: {
             auto* f = new UI_SpinCtrl(parent, def);
             f->on_change = [this, opt_key](const std::string&, int val) { 
                if (this->on_change) this->on_change(opt_key, val);
@@ -128,8 +127,7 @@ UI_Field* OptionsGroup::build_field(const t_config_option_key& opt_key) {
             field = f;
             break;
         }
-        case coBool:
-        case coBools: {
+        case coBool: {
             auto* f = new UI_Checkbox(parent, def);
             f->on_change = [this, opt_key](const std::string&, bool val) { 
                if (this->on_change) this->on_change(opt_key, val);
