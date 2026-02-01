@@ -277,6 +277,13 @@ void Plater::select_view_3d() {
     if (this->preview_notebook) this->preview_notebook->SetSelection(0);
 }
 
+void Plater::select_view(Direction dir) {
+    if (this->canvas3D) {
+        this->canvas3D->set_camera_view(dir);
+    }
+    this->select_view_3d();
+}
+
 void Plater::select_view_preview() {
     // Index 2 is Toolpaths (2D Preview with G-code)
     if (this->preview_notebook) this->preview_notebook->SetSelection(2);

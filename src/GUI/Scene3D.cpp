@@ -434,6 +434,20 @@ void Scene3D::draw_volumes(){
     glDisable(GL_BLEND);
 }
 
+void Scene3D::set_camera_view(Direction dir) {
+    switch(dir) {
+        case Direction::Top:      theta = 0.0f;   phi = 0.0f;   break;
+        case Direction::Bottom:   theta = 180.0f; phi = 0.0f;   break;
+        case Direction::Front:    theta = 90.0f;  phi = 0.0f;   break;
+        case Direction::Back:     theta = 90.0f;  phi = 180.0f; break;
+        case Direction::Left:     theta = 90.0f;  phi = -90.0f; break;
+        case Direction::Right:    theta = 90.0f;  phi = 90.0f;  break;
+        case Direction::Diagonal: theta = 45.0f;  phi = 45.0f;  break;
+    }
+    dirty = true;
+    Refresh();
+}
+
 void Scene3D::repaint(wxPaintEvent& e) {
     if(!this->IsShownOnScreen())return;
     // There should be a context->IsOk check once wx is updated

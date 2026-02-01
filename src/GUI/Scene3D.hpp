@@ -14,6 +14,8 @@
 
 namespace Slic3r { namespace GUI {
 
+enum class Direction { Top, Bottom, Left, Right, Front, Back, Diagonal };
+
 struct Volume {
     wxColor color;
     Pointf3 origin;
@@ -24,6 +26,9 @@ struct Volume {
 class Scene3D : public wxGLCanvas {
 public:
     Scene3D(wxWindow* parent, const wxSize& size);
+    
+    void set_camera_view(Direction dir);
+
 private:
     wxGLContext* glContext;
     
