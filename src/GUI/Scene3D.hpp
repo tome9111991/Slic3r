@@ -21,6 +21,7 @@ struct Volume {
     Pointf3 origin;
     GLVertexArray model;
     BoundingBoxf3 bb;
+    std::vector<float> tube_coords;
 };
 
 class Scene3D : public wxGLCanvas {
@@ -52,11 +53,23 @@ private:
     
     bool init = false;             // Has opengl been initted
     void init_gl();                // Handles lights and materials
+    void init_shaders();           // Compiles and links the shaders
     
-    // Useded in repaint
+    // Shader data
+    unsigned int m_shader_program = 0;
+    int m_u_clipping_z = -1;
+    int m_u_light_pos = -1;
+    int m_u_view_pos = -1;
+    int m_a_tube_x = -1;
+    float m_clipping_z = 10000.0f;
+    
+    // Used in repaint
     void draw_background();
     void draw_ground();
     void draw_axes(Pointf3 center, float length, int width, bool alwaysvisible);
+    
+public:
+    void set_z_clipping(float z) { m_clipping_z = z; Refresh(); }
     
 protected:
     Linef3 mouse_ray(Point win); // Utility for backtracking from window coordinates

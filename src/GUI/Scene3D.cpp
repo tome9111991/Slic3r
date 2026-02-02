@@ -2,6 +2,7 @@
 #include "Line.hpp"
 #include "ClipperUtils.hpp"
 #include "misc_ui.hpp"
+#include "Log.hpp"
 #ifdef __APPLE__
 #include <OpenGL/glu.h>
 #else
@@ -9,18 +10,125 @@
 #endif
 namespace Slic3r { namespace GUI {
 
+#ifndef GL_MULTISAMPLE
+#define GL_MULTISAMPLE 0x809D
+#endif
+
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
+// OpenGL Function Pointers
+typedef char GLchar;
+typedef ptrdiff_t GLsizeiptr;
+typedef ptrdiff_t GLintptr;
+
+#define GL_COMPILE_STATUS 0x8B81
+#define GL_LINK_STATUS 0x8B82
+#define GL_INFO_LOG_LENGTH 0x8B84
+#define GL_FRAGMENT_SHADER 0x8B30
+#define GL_VERTEX_SHADER 0x8B31
+
+typedef void (APIENTRY *PFNGLUSEPROGRAMPROC) (GLuint program);
+typedef void (APIENTRY *PFNGLSHADERSOURCEPROC) (GLuint shader, GLsizei count, const GLchar *const*string, const GLint *length);
+typedef GLuint (APIENTRY *PFNGLCREATESHADERPROC) (GLenum type);
+typedef void (APIENTRY *PFNGLCOMPILESHADERPROC) (GLuint shader);
+typedef GLuint (APIENTRY *PFNGLCREATEPROGRAMPROC) (void);
+typedef void (APIENTRY *PFNGLATTACHSHADERPROC) (GLuint program, GLuint shader);
+typedef void (APIENTRY *PFNGLLINKPROGRAMPROC) (GLuint program);
+typedef void (APIENTRY *PFNGLGETSHADERIVPROC) (GLuint shader, GLenum pname, GLint *params);
+typedef void (APIENTRY *PFNGLGETPROGRAMIVPROC) (GLuint program, GLenum pname, GLint *params);
+typedef void (APIENTRY *PFNGLGETSHADERINFOLOGPROC) (GLuint shader, GLsizei bufSize, GLsizei *length, GLchar *infoLog);
+typedef void (APIENTRY *PFNGLGETPROGRAMINFOLOGPROC) (GLuint program, GLsizei bufSize, GLsizei *length, GLchar *infoLog);
+typedef GLint (APIENTRY *PFNGLGETUNIFORMLOCATIONPROC) (GLuint program, const GLchar *name);
+typedef void (APIENTRY *PFNGLUNIFORM1FPROC) (GLint location, GLfloat v0);
+typedef void (APIENTRY *PFNGLUNIFORM3FPROC) (GLint location, GLfloat v0, GLfloat v1, GLfloat v2);
+typedef void (APIENTRY *PFNGLENABLEVERTEXATTRIBARRAYPROC) (GLuint index);
+typedef void (APIENTRY *PFNGLDISABLEVERTEXATTRIBARRAYPROC) (GLuint index);
+typedef void (APIENTRY *PFNGLVERTEXATTRIBPOINTERPROC) (GLuint index, GLint size, GLenum type, GLboolean normalized, GLsizei stride, const void *pointer);
+typedef GLint (APIENTRY *PFNGLGETATTRIBLOCATIONPROC) (GLuint program, const GLchar *name);
+typedef void (APIENTRY *PFNGLVERTEXATTRIB1FPROC) (GLuint index, GLfloat x);
+
+static PFNGLUSEPROGRAMPROC glUseProgram = nullptr;
+static PFNGLSHADERSOURCEPROC glShaderSource = nullptr;
+static PFNGLCREATESHADERPROC glCreateShader = nullptr;
+static PFNGLCOMPILESHADERPROC glCompileShader = nullptr;
+static PFNGLCREATEPROGRAMPROC glCreateProgram = nullptr;
+static PFNGLATTACHSHADERPROC glAttachShader = nullptr;
+static PFNGLLINKPROGRAMPROC glLinkProgram = nullptr;
+static PFNGLGETSHADERIVPROC glGetShaderiv = nullptr;
+static PFNGLGETPROGRAMIVPROC glGetProgramiv = nullptr;
+static PFNGLGETSHADERINFOLOGPROC glGetShaderInfoLog = nullptr;
+static PFNGLGETPROGRAMINFOLOGPROC glGetProgramInfoLog = nullptr;
+static PFNGLGETUNIFORMLOCATIONPROC glGetUniformLocation = nullptr;
+static PFNGLUNIFORM1FPROC glUniform1f = nullptr;
+static PFNGLUNIFORM3FPROC glUniform3f = nullptr;
+static PFNGLENABLEVERTEXATTRIBARRAYPROC glEnableVertexAttribArray = nullptr;
+static PFNGLDISABLEVERTEXATTRIBARRAYPROC glDisableVertexAttribArray = nullptr;
+static PFNGLVERTEXATTRIBPOINTERPROC glVertexAttribPointer = nullptr;
+static PFNGLGETATTRIBLOCATIONPROC glGetAttribLocation = nullptr;
+static PFNGLVERTEXATTRIB1FPROC glVertexAttrib1f = nullptr;
+
+static bool extensions_loaded = false;
+
+static void load_gl_extensions() {
+    if (extensions_loaded) return;
+    
+    #ifdef _WIN32
+    glUseProgram = (PFNGLUSEPROGRAMPROC)wglGetProcAddress("glUseProgram");
+    glShaderSource = (PFNGLSHADERSOURCEPROC)wglGetProcAddress("glShaderSource");
+    glCreateShader = (PFNGLCREATESHADERPROC)wglGetProcAddress("glCreateShader");
+    glCompileShader = (PFNGLCOMPILESHADERPROC)wglGetProcAddress("glCompileShader");
+    glCreateProgram = (PFNGLCREATEPROGRAMPROC)wglGetProcAddress("glCreateProgram");
+    glAttachShader = (PFNGLATTACHSHADERPROC)wglGetProcAddress("glAttachShader");
+    glLinkProgram = (PFNGLLINKPROGRAMPROC)wglGetProcAddress("glLinkProgram");
+    glGetShaderiv = (PFNGLGETSHADERIVPROC)wglGetProcAddress("glGetShaderiv");
+    glGetProgramiv = (PFNGLGETPROGRAMIVPROC)wglGetProcAddress("glGetProgramiv");
+    glGetShaderInfoLog = (PFNGLGETSHADERINFOLOGPROC)wglGetProcAddress("glGetShaderInfoLog");
+    glGetProgramInfoLog = (PFNGLGETPROGRAMINFOLOGPROC)wglGetProcAddress("glGetProgramInfoLog");
+    glGetUniformLocation = (PFNGLGETUNIFORMLOCATIONPROC)wglGetProcAddress("glGetUniformLocation");
+    glUniform1f = (PFNGLUNIFORM1FPROC)wglGetProcAddress("glUniform1f");
+    glUniform3f = (PFNGLUNIFORM3FPROC)wglGetProcAddress("glUniform3f");
+    glEnableVertexAttribArray = (PFNGLENABLEVERTEXATTRIBARRAYPROC)wglGetProcAddress("glEnableVertexAttribArray");
+    glDisableVertexAttribArray = (PFNGLDISABLEVERTEXATTRIBARRAYPROC)wglGetProcAddress("glDisableVertexAttribArray");
+    glVertexAttribPointer = (PFNGLVERTEXATTRIBPOINTERPROC)wglGetProcAddress("glVertexAttribPointer");
+    glGetAttribLocation = (PFNGLGETATTRIBLOCATIONPROC)wglGetProcAddress("glGetAttribLocation");
+    glVertexAttrib1f = (PFNGLVERTEXATTRIB1FPROC)wglGetProcAddress("glVertexAttrib1f");
+    
+    if (!glUseProgram) {
+        Slic3r::Log::error("GUI", "Failed to load OpenGL extensions.");
+    } else {
+        Slic3r::Log::info("GUI", "OpenGL extensions loaded successfully.");
+        extensions_loaded = true;
+    }
+    #endif
+}
+
+// Define attributes as a static array to avoid C4576 (non-standard C++ extension)
+static const int gl_attrs[] = {
+    WX_GL_RGBA, 
+    WX_GL_DOUBLEBUFFER, 
+    WX_GL_DEPTH_SIZE, 16,
+    WX_GL_SAMPLE_BUFFERS, 1,
+    WX_GL_SAMPLES, 4,
+    0
+};
+
 Scene3D::Scene3D(wxWindow* parent, const wxSize& size) :
-    wxGLCanvas(parent, wxID_ANY, nullptr, wxDefaultPosition, size)
+    wxGLCanvas(parent, wxID_ANY, gl_attrs, wxDefaultPosition, size)
 { 
 
-    this->glContext = new wxGLContext(this);
+
+    wxGLContextAttrs ctxAttrs;
+    ctxAttrs.PlatformDefaults().OGLVersion(4, 6).CompatibilityProfile().EndList();
+    this->glContext = new wxGLContext(this, nullptr, &ctxAttrs);
     this->Bind(wxEVT_PAINT, [this](wxPaintEvent &e) { this->repaint(e); });
     this->Bind(wxEVT_SIZE, [this](wxSizeEvent &e ){
         dirty = true;
         Refresh();
     });
-
-
+    
+    
     // Bind the varying mouse events
     this->Bind(wxEVT_MOTION, [this](wxMouseEvent &e) { this->mouse_move(e); });
     this->Bind(wxEVT_LEFT_UP, [this](wxMouseEvent &e) { this->mouse_up(e); });
@@ -230,6 +338,10 @@ void Scene3D::init_gl(){
     if(this->init)return;
     this->init = true;
 
+    if (const GLubyte* version = glGetString(GL_VERSION)) {
+        Slic3r::Log::info("GUI", std::string("OpenGL Version: ") + (const char*)version);
+    }
+
     glClearColor(0, 0, 0, 1);
     glColor3f(1, 0, 0);
     glEnable(GL_DEPTH_TEST);
@@ -243,38 +355,273 @@ void Scene3D::init_gl(){
     glEnable(GL_NORMALIZE);
 
     // Set antialiasing/multisampling
-    glDisable(GL_LINE_SMOOTH);
-    glDisable(GL_POLYGON_SMOOTH);
-    //glEnable(GL_MULTISAMPLE) if ($self->{can_multisample});
+    glEnable(GL_LINE_SMOOTH);
+    glEnable(GL_POLYGON_SMOOTH);
+    glEnable(GL_MULTISAMPLE);
     
-    // ambient lighting
-    GLfloat ambient[] = {0.1f, 0.1f, 0.1f, 1.0f};
+    // ambient lighting - Soft ambient
+    GLfloat ambient[] = {0.3f, 0.3f, 0.3f, 1.0f};
     glLightModelfv(GL_LIGHT_MODEL_AMBIENT, ambient);
     
     glEnable(GL_LIGHTING);
     glEnable(GL_LIGHT0);
     glEnable(GL_LIGHT1);
     
-    // light from camera
-    GLfloat pos[] = {1.0f, 0.0f, 1.0f, 0.0f}, spec[] = {0.8f, 0.8f, 0.8f, 1.0f}, diff[] = {0.4f, 0.4f, 0.4f, 1.0f};
+    // light from camera - Warmer key light
+    GLfloat pos[] = {1.0f, 0.0f, 1.0f, 0.0f};
+    GLfloat spec[] = {0.6f, 0.6f, 0.6f, 1.0f};
+    GLfloat diff[] = {0.7f, 0.7f, 0.7f, 1.0f};
     glLightfv(GL_LIGHT1, GL_POSITION, pos);
     glLightfv(GL_LIGHT1, GL_SPECULAR, spec);
     glLightfv(GL_LIGHT1, GL_DIFFUSE,  diff);
     
-    // Enables Smooth Color Shading; try GL_FLAT for (lack of) fun. Default: GL_SMOOTH
+    // Enables Smooth Color Shading
     glShadeModel(GL_SMOOTH);
     
-    GLfloat fbdiff[] = {0.3f, 0.3f, 0.3f,1}, fbspec[] = {1.0f, 1.0f, 1.0f, 1.0f}, fbemis[] = {0.1f,0.1f,0.1f,0.9f};
+    // Material settings - brighter, less plastic
+    GLfloat fbdiff[] = {0.6f, 0.6f, 0.6f, 1.0f};
+    GLfloat fbspec[] = {0.5f, 0.5f, 0.5f, 1.0f};
+    GLfloat fbemis[] = {0.0f, 0.0f, 0.0f, 1.0f};
     glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE, fbdiff);
     glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, fbspec);
-    glMaterialf(GL_FRONT_AND_BACK, GL_SHININESS, 50);
+    glMaterialf(GL_FRONT_AND_BACK, GL_SHININESS, 60);
     glMaterialfv(GL_FRONT_AND_BACK, GL_EMISSION, fbemis);
     
     // A handy trick -- have surface material mirror the color.
     glColorMaterial(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE);
     glEnable(GL_COLOR_MATERIAL);
     //glEnable(GL_MULTISAMPLE) if ($self->{can_multisample});
+    
+    load_gl_extensions();
+    if(extensions_loaded) {
+        init_shaders();
+    }
 }
+
+void Scene3D::init_shaders() {
+    if (m_shader_program != 0) return;
+    
+    const char* vertex_src = R"(
+#version 120
+varying vec3 v_frag_pos;
+varying vec3 v_normal;
+varying vec4 v_color;
+
+void main() {
+    v_frag_pos = vec3(gl_ModelViewMatrix * gl_Vertex);
+    v_normal = gl_NormalMatrix * gl_Normal;
+    v_color = gl_Color;
+    gl_Position = gl_ModelViewProjectionMatrix * gl_Vertex;
+}
+)";
+
+    const char* fragment_src = R"(
+#version 120
+varying vec3 v_frag_pos;
+varying vec3 v_normal;
+varying vec4 v_color;
+
+uniform float u_clipping_z;
+uniform vec3 u_light_pos;
+
+void main() {
+    // Clipping (Check Z in world space? No, u_clipping_z is likely world space Z. 
+    // We need world space pos in vertex shader to do this strictly correct, 
+    // but typically simple clipping is done in view space or passed world pos.
+    // Let's assume we can get world Z relatively easily.)
+    // Wait, gl_Vertex in VS is object space. ModelView puts it in View Space.
+    // To clip by "Z height" of the print, we usually mean Object Space Z (since model is usually at 0,0,0).
+    // Let's pass object space Z to FS.
+    // Re-writing Vertex Shader part below implicitly for clarity of thought:
+    // v_obj_pos = gl_Vertex;
+    
+    // NOTE: We need to update the Vertex shader to pass object position.
+}
+)";
+
+    // CORRECTED SHADERS with Tube Profile
+    const char* v_src = R"(
+#version 120
+attribute float a_tube_x;
+varying vec3 v_frag_pos; // View space
+varying vec3 v_normal;   // View space
+varying vec4 v_color;
+varying float v_z_height; // Object space Z
+varying float v_tube_x;
+
+void main() {
+    v_frag_pos = vec3(gl_ModelViewMatrix * gl_Vertex);
+    v_normal = gl_NormalMatrix * gl_Normal;
+    v_color = gl_Color;
+    v_z_height = gl_Vertex.z; // Object space Z is what we clip against
+    v_tube_x = a_tube_x;
+    gl_Position = gl_ModelViewProjectionMatrix * gl_Vertex;
+}
+)";
+
+    const char* f_src = R"(
+#version 120
+// Enable derivatives
+#extension GL_ARB_fragment_shader_derivative : enable
+
+varying vec3 v_frag_pos;
+varying vec3 v_normal;
+varying vec4 v_color;
+varying float v_z_height;
+varying float v_tube_x;
+
+uniform float u_clipping_z;
+
+void main() {
+    if (v_z_height > u_clipping_z) discard;
+
+    vec3 orig_norm = normalize(v_normal);
+    vec3 N = orig_norm;
+    
+    // Auto-calculate Tube Normal using derivatives
+    // We need 'tubeGradient' = direction in view space corresponding to increasing v_tube_x
+    // dFdx return change per pixel X.
+    
+    vec3 dPosdx = dFdx(v_frag_pos);
+    vec3 dPosdy = dFdy(v_frag_pos);
+    
+    // We can't trust normal from cross product of dPos if geometric normal is flat.
+    // But we CAN calculate the gradient of v_tube_x in screen space.
+    float dXdx = dFdx(v_tube_x);
+    float dXdy = dFdy(v_tube_x);
+    
+    // Gradient vector in View Space:
+    // This part is tricky. 
+    // Simplified: We assume surface is flat.
+    // 'tangent' is the direction on the surface where v_tube_x increases.
+    // We can solve this with a system of equations but let's approximate.
+    // gradient = (dPosdx * dXdx + dPosdy * dXdy) / (dXdx^2 + dXdy^2) ... no.
+    
+    // Let's use the cheap trick: Darken edges.
+    // Authentic layers also cast shadows on each other (Ambient Occlusion).
+    // The darkening of edges matches AO.
+    
+    // Improved Normal Mapping:
+    // If v_tube_x is -1..1 across the width.
+    // We want N to tilt.
+    // The tilt direction should be 'across' the tube.
+    // 'across' is perpendicular to 'along'.
+    // If we assume the tube is roughly horizontal (Top View),
+    // We can just guess the cross direction.
+    
+    // Let's fall back to a robust derivative approach if possible.
+    // tube_dir = normalize( dPosdx * dXdx + dPosdy * dXdy ); // This is direction of change
+    
+    float sigma = dXdx*dXdx + dXdy*dXdy;
+    if (sigma > 0.000001) {
+        vec3 T = normalize( dPosdx * dXdx + dPosdy * dXdy ); // Vector pointing towards +1
+        // T is View Space vector of increasing X.
+        // We want N to be Mix(FaceNormal, T).
+        // At v_tube_x = 0, N = FaceNormal.
+        // At v_tube_x = 1, N = T (roughly).
+        
+    // Circular profile:
+        // x = v_tube_x (sin theta)
+        // z = sqrt(1-x^2) (cos theta)
+        // Normal = FaceNormal * z + T * x
+        
+        float x = clamp(v_tube_x, -0.99, 0.99); // Clamp to avoid NaN
+        float z = sqrt(1.0 - x*x);
+        
+    // Anti-aliasing / LOD for Normal Mapping
+        // If the frequency of v_tube_x is too high (zoomed out), fade effect.
+        float delta = fwidth(v_tube_x);
+        float lod_fade = 1.0 - smoothstep(0.8, 1.5, delta);
+        
+        // Blend between Geometric Normal (flat) and Tube Normal based on LOD
+        vec3 tube_normal = normalize(orig_norm * z + T * x);
+        N = normalize(mix(orig_norm, tube_normal, lod_fade));
+    }
+
+    vec3 light_dir = normalize(vec3(0.5, 0.5, 1.0)); // Light from top-right-front
+    
+    // Material Properties - Matte Finish
+    float shininess = 12.0; // Broad, soft highlight
+    float ambientStrength = 0.4; // Reduced to prevent "glow"
+    float specularStrength = 0.1; // Very low specular
+    
+    // Gamma Correction: Convert input color to Linear Space
+    vec3 albedo = pow(v_color.rgb, vec3(2.2));
+    
+    // Ambient
+    vec3 ambient = ambientStrength * vec3(1.0);
+    
+    // Diffuse
+    float diff = max(dot(N, light_dir), 0.0);
+    vec3 diffuse = diff * vec3(1.0);
+    
+    // Specular (Blinn-Phong)
+    vec3 viewDir = normalize(-v_frag_pos);
+    vec3 halfwayDir = normalize(light_dir + viewDir);
+    float spec = pow(max(dot(N, halfwayDir), 0.0), shininess);
+    vec3 specular = specularStrength * spec * vec3(1.0);
+    
+    vec3 lighting = (ambient + diffuse + specular) * albedo;
+    
+    // Edge darkening/AO effect
+    // Stronger strength (0.6) for deep grooves
+    float ao_base = 1.0 - (v_tube_x * v_tube_x) * 0.6; 
+    
+    // Anti-aliasing for AO
+    // Fade AO later to keep layers visible when zoomed out
+    float delta_ao = fwidth(v_tube_x);
+    // Push the fade threshold higher to keep texture at distance
+    float ao_fade = 1.0 - smoothstep(0.8, 1.5, delta_ao);
+    float ao = mix(1.0, ao_base, ao_fade); // mix(no_ao, full_ao, fade_factor)
+    
+    lighting *= ao;
+
+    // Gamma Correction: Back to sRGB
+    lighting = pow(lighting, vec3(1.0/2.2));
+
+    gl_FragColor = vec4(lighting, v_color.a);
+}
+)";
+    
+    GLuint vs = glCreateShader(GL_VERTEX_SHADER);
+    glShaderSource(vs, 1, &v_src, NULL);
+    glCompileShader(vs);
+    
+    GLint success;
+    glGetShaderiv(vs, GL_COMPILE_STATUS, &success);
+    if (!success) {
+        char infoLog[512];
+        glGetShaderInfoLog(vs, 512, NULL, infoLog);
+        Slic3r::Log::error("GUI", std::string("Vertex Shader Compilation Failed: ") + infoLog);
+    }
+    
+    GLuint fs = glCreateShader(GL_FRAGMENT_SHADER);
+    glShaderSource(fs, 1, &f_src, NULL);
+    glCompileShader(fs);
+    
+    glGetShaderiv(fs, GL_COMPILE_STATUS, &success);
+    if (!success) {
+        char infoLog[512];
+        glGetShaderInfoLog(fs, 512, NULL, infoLog);
+        Slic3r::Log::error("GUI", std::string("Fragment Shader Compilation Failed: ") + infoLog);
+    }
+    
+    m_shader_program = glCreateProgram();
+    glAttachShader(m_shader_program, vs);
+    glAttachShader(m_shader_program, fs);
+    glLinkProgram(m_shader_program);
+    
+    glGetProgramiv(m_shader_program, GL_LINK_STATUS, &success);
+    if (!success) {
+         char infoLog[512];
+         glGetProgramInfoLog(m_shader_program, 512, NULL, infoLog);
+         Slic3r::Log::error("GUI", std::string("Shader Linking Failed: ") + infoLog);
+    }
+    
+    m_u_clipping_z = glGetUniformLocation(m_shader_program, "u_clipping_z");
+    m_a_tube_x = glGetAttribLocation(m_shader_program, "a_tube_x");
+}
+
 
 void Scene3D::draw_background(){
     glDisable(GL_LIGHTING);
@@ -415,11 +762,21 @@ void Scene3D::draw_axes (Pointf3 center, float length, int width, bool always_vi
     glEnable(GL_DEPTH_TEST);
 }
 void Scene3D::draw_volumes(){
+    if (extensions_loaded && m_shader_program != 0) {
+        glUseProgram(m_shader_program);
+        if (m_u_clipping_z != -1) {
+            glUniform1f(m_u_clipping_z, m_clipping_z);
+        }
+    } else {
+        // Fallback for no shader support? Or just rely on fixed function
+    }
+
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     
     glEnableClientState(GL_VERTEX_ARRAY);
     glEnableClientState(GL_NORMAL_ARRAY);
+    if (m_a_tube_x != -1) glEnableVertexAttribArray(m_a_tube_x);
     
     for(const Volume &volume : volumes){
         glPushMatrix();
@@ -427,14 +784,25 @@ void Scene3D::draw_volumes(){
         glCullFace(GL_BACK);
         glVertexPointer(3, GL_FLOAT, 0, volume.model.verts.data());
         glNormalPointer(GL_FLOAT, 0, volume.model.norms.data());
+        if (m_a_tube_x != -1 && !volume.tube_coords.empty()) {
+            glVertexAttribPointer(m_a_tube_x, 1, GL_FLOAT, GL_FALSE, 0, volume.tube_coords.data());
+        } else if (m_a_tube_x != -1) {
+             // Disable or set default?
+             glVertexAttrib1f(m_a_tube_x, 0.0f);
+        }
         glColor4ub(volume.color.Red(), volume.color.Green(), volume.color.Blue(), volume.color.Alpha());
         glDrawArrays(GL_TRIANGLES, 0, volume.model.verts.size()/3);
         glPopMatrix();
     }
     
+    if (m_a_tube_x != -1) glDisableVertexAttribArray(m_a_tube_x);
     glDisableClientState(GL_NORMAL_ARRAY);
     glDisableClientState(GL_VERTEX_ARRAY);
     glDisable(GL_BLEND);
+    
+    if (extensions_loaded && m_shader_program != 0) {
+        glUseProgram(0);
+    }
 }
 
 void Scene3D::set_camera_view(Direction dir) {

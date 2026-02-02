@@ -20,10 +20,10 @@ void PreviewScene3D::load_print_toolpaths(std::shared_ptr<Slic3r::Print> print) 
         // Simple color mapping for now
         // 0: Perimeter (Yellow), 1: Infill (Red), 2: Support (Green)
         switch(role) {
-            case 0: return wxColor(250, 200, 50);
-            case 1: return wxColor(200, 80, 80);
-            case 2: return wxColor(80, 200, 80);
-            default: return wxColor(128, 128, 128);
+            case 0: return wxColor(240, 180, 50); // Softer Gold
+            case 1: return wxColor(200, 100, 70); // Terracotta (Less jarring vs Gold)
+            case 2: return wxColor(100, 200, 120); // Mint Green
+            default: return wxColor(150, 150, 160); // Neutral Grey
         }
     };
 
@@ -70,6 +70,8 @@ void PreviewScene3D::load_print_toolpaths(std::shared_ptr<Slic3r::Print> print) 
     struct VolData {
         ::Slic3r::GLVertexArray qverts;
         ::Slic3r::GLVertexArray tverts;
+        std::vector<float> q_tube_x;
+        std::vector<float> t_tube_x;
         BoundingBoxf3 bb;
     };
     std::map<unsigned long, VolData> vol_map; // Key: RGB value
@@ -107,6 +109,8 @@ void PreviewScene3D::load_print_toolpaths(std::shared_ptr<Slic3r::Print> print) 
         
         vol.model.verts = t.verts;
         vol.model.norms = t.norms;
+        // Init tube coords for tverts (triangles - usually caps) with 0
+        vol.tube_coords.assign(t.verts.size()/3, 0.0f);
         
         // Append quads as triangles
         for(size_t i=0; i < q.verts.size(); i += 12) {
@@ -114,25 +118,59 @@ void PreviewScene3D::load_print_toolpaths(std::shared_ptr<Slic3r::Print> print) 
              
              if(i+11 >= q.verts.size()) break; // Safety check
 
+             // Analyze Quad to determine tube coords
+             float tube_x[4] = {0,0,0,0};
+             float nz = q.norms[i+2]; // Normal Z of first vertex
+             
+             if (abs(nz) > 0.9f) {
+                 // Top or Bottom face (-1, 1, 1, -1) pattern usually works for TL, TR, BR, BL winding
+                 tube_x[0] = -1.0f;
+                 tube_x[1] = 1.0f;
+                 tube_x[2] = 1.0f;
+                 tube_x[3] = -1.0f;
+             } else {
+                 // Side face - Use Z height to determine -1 (bottom) vs 1 (top)
+                 float zs[4] = {q.verts[i+2], q.verts[i+5], q.verts[i+8], q.verts[i+11]};
+                 float min_z = zs[0], max_z = zs[0];
+                 for(int k=1; k<4; ++k) {
+                     if(zs[k] < min_z) min_z = zs[k];
+                     if(zs[k] > max_z) max_z = zs[k];
+                 }
+                 float range = max_z - min_z;
+                 if (range < 0.001f) range = 0.001f; // Avoid divide by zero
+                 
+                 for(int k=0; k<4; ++k) {
+                     // Normalize to 0..1 then map to -1..1
+                     float h = (zs[k] - min_z) / range;
+                     tube_x[k] = h * 2.0f - 1.0f;
+                 }
+             }
+
              // Triangle 1: V0, V1, V2
              for(int k=0; k<3; ++k) vol.model.verts.push_back(q.verts[i+k]);
-             for(int k=0; k<3; ++k) vol.model.norms.push_back(q.norms[i+k]); // n0
+             for(int k=0; k<3; ++k) vol.model.norms.push_back(q.norms[i+k]);
+             vol.tube_coords.push_back(tube_x[0]);
              
              for(int k=0; k<3; ++k) vol.model.verts.push_back(q.verts[i+3+k]);
-             for(int k=0; k<3; ++k) vol.model.norms.push_back(q.norms[i+3+k]); // n1
+             for(int k=0; k<3; ++k) vol.model.norms.push_back(q.norms[i+3+k]);
+             vol.tube_coords.push_back(tube_x[1]);
 
              for(int k=0; k<3; ++k) vol.model.verts.push_back(q.verts[i+6+k]);
-             for(int k=0; k<3; ++k) vol.model.norms.push_back(q.norms[i+6+k]); // n2
+             for(int k=0; k<3; ++k) vol.model.norms.push_back(q.norms[i+6+k]);
+             vol.tube_coords.push_back(tube_x[2]);
              
              // Triangle 2: V0, V2, V3
              for(int k=0; k<3; ++k) vol.model.verts.push_back(q.verts[i+k]);
-             for(int k=0; k<3; ++k) vol.model.norms.push_back(q.norms[i+k]); // n0
+             for(int k=0; k<3; ++k) vol.model.norms.push_back(q.norms[i+k]);
+             vol.tube_coords.push_back(tube_x[0]); // V0
 
              for(int k=0; k<3; ++k) vol.model.verts.push_back(q.verts[i+6+k]);
-             for(int k=0; k<3; ++k) vol.model.norms.push_back(q.norms[i+6+k]); // n2
+             for(int k=0; k<3; ++k) vol.model.norms.push_back(q.norms[i+6+k]);
+             vol.tube_coords.push_back(tube_x[2]); // V2
 
              for(int k=0; k<3; ++k) vol.model.verts.push_back(q.verts[i+9+k]);
-             for(int k=0; k<3; ++k) vol.model.norms.push_back(q.norms[i+9+k]); // n3
+             for(int k=0; k<3; ++k) vol.model.norms.push_back(q.norms[i+9+k]);
+             vol.tube_coords.push_back(tube_x[3]); // V3
         }
         
         // Compute BB
@@ -149,20 +187,16 @@ void PreviewScene3D::load_print_toolpaths(std::shared_ptr<Slic3r::Print> print) 
 
 void PreviewScene3D::set_toolpaths_range(float min_z, float max_z) {
     m_max_z = max_z;
+    set_z_clipping(max_z);
     Refresh(); // Trigger redraw
 }
 
 void PreviewScene3D::before_render() {
-    glEnable(GL_CLIP_PLANE0);
-    // Clip points where (x,y,z,w) dot eqn < 0.
-    // Eqn: 0x + 0y - 1z + max_z = 0
-    // Visible if -z + max_z >= 0 => z <= max_z
-    GLdouble eqn[] = {0.0, 0.0, -1.0, (double)m_max_z};
-    glClipPlane(GL_CLIP_PLANE0, eqn);
+    // Shader handles clipping now
 }
 
 void PreviewScene3D::after_render() {
-    glDisable(GL_CLIP_PLANE0);
+    // Shader handles clipping now
 }
 
 
