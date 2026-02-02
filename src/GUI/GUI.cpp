@@ -14,6 +14,7 @@
 #include "misc_ui.hpp"
 #include "Settings.hpp"
 #include "Preset.hpp"
+#include "ConfigWizard.hpp"
 
 // Logging mechanism
 #include "Log.hpp"
@@ -42,7 +43,18 @@ bool App::OnInit()
 
 
         // if we don't have a datadir or a slic3r.ini, prompt for wizard.
-        bool run_wizard = (wxDirExists(datadir) && wxFileExists(slic3r_ini));
+        bool run_wizard = (!wxDirExists(datadir) || !wxFileExists(slic3r_ini));
+        
+        if (run_wizard) {
+             // Ensure datadir exists at least
+             if (!wxDirExists(datadir)) wxMkdir(datadir);
+             
+             ConfigWizard wizard(nullptr);
+             if (wizard.run()) {
+                 // Save initial config
+                 // wizard.config.save(slic3r_ini); // TODO: Properly save wizard result to presets
+             }
+        }
         
         /* Check to make sure if datadir exists */
         for (auto& dir : std::vector<wxString> { enc_datadir, print_ini, printer_ini, material_ini }) {

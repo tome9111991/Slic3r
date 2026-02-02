@@ -87,8 +87,10 @@ class Settings {
         wxFont _small_bold_font;
         wxFont _medium_font;
 
-        int _scroll_step {0};
+    int _scroll_step {0};
 };
+
+extern std::unique_ptr<Settings> ui_settings;
 
 }} //namespace Slic3r::GUI
 

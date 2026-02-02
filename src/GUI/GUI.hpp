@@ -11,6 +11,7 @@
 
 
 #include "Preset.hpp"
+#include "Settings.hpp"
 
 namespace Slic3r { namespace GUI {
 
@@ -45,6 +46,7 @@ public:
 
 private:
     std::unique_ptr<Notifier> notifier {nullptr};
+    // std::unique_ptr<Settings> ui_settings {nullptr}; // Removed to use global
 
     void load_presets();
 

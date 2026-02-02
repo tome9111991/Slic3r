@@ -69,6 +69,17 @@ protected:
     virtual void _on_change(std::string opt_id) = 0; 
 
     wxSize _default_size() { return wxSize((opt.width >= 0 ? opt.width : 60), (opt.height != -1 ? opt.height : -1)); }
+    
+public:
+    virtual void set_dirty_status(bool dirty) {
+        if (!this->window) return;
+        if (dirty) {
+             this->window->SetForegroundColour(wxColour(255, 128, 0)); // Orange
+        } else {
+             this->window->SetForegroundColour(wxNullColour); // Reset to default
+        }
+        this->window->Refresh();
+    }
 };
 
 
@@ -139,7 +150,12 @@ public:
         window = _spin;
 
         _spin->Bind(wxEVT_SPINCTRL, [this](wxCommandEvent& e) { this->_on_change(""); e.Skip(); });
-        _spin->Bind(wxEVT_KILL_FOCUS, [this](wxFocusEvent& e) { if (this->on_kill_focus != nullptr) { this->_on_change(""); this->on_kill_focus("");} e.Skip(); });
+        _spin->Bind(wxEVT_TEXT, [this](wxCommandEvent& e) { this->_on_change(""); e.Skip(); });
+        _spin->Bind(wxEVT_KILL_FOCUS, [this](wxFocusEvent& e) { 
+            if (this->on_kill_focus != nullptr) this->on_kill_focus("");
+            this->_on_change(""); 
+            e.Skip(); 
+        });
     }
     ~UI_SpinCtrl() { }
     int get_int() { return this->_spin->GetValue(); }
@@ -190,7 +206,12 @@ public:
         if (!opt.multiline) {
             _text->Bind(wxEVT_TEXT_ENTER, [this](wxCommandEvent& e) { this->_on_change(""); e.Skip(); });
         }
-        _text->Bind(wxEVT_KILL_FOCUS, [this](wxFocusEvent& e) { if (this->on_kill_focus != nullptr) {this->on_kill_focus(""); this->_on_change("");} e.Skip(); });
+        _text->Bind(wxEVT_TEXT, [this](wxCommandEvent& e) { this->_on_change(""); e.Skip(); });
+        _text->Bind(wxEVT_KILL_FOCUS, [this](wxFocusEvent& e) { 
+            if (this->on_kill_focus != nullptr) this->on_kill_focus(""); 
+            this->_on_change(""); 
+            e.Skip(); 
+        });
     }
     ~UI_TextCtrl() { }
     std::string get_string() { return this->_text->GetValue().ToStdString(); }
@@ -230,6 +251,22 @@ public:
 
     void set_value(boost::any value) override;
 
+    void set_dirty_status(bool dirty) override {
+        if (this->_combo) {
+             if (dirty) this->_combo->SetForegroundColour(wxColour(255, 128, 0));
+             else this->_combo->SetForegroundColour(wxNullColour);
+             this->_combo->Refresh();
+        } else if (this->_choice) {
+             if (dirty) this->_choice->SetForegroundColour(wxColour(255, 128, 0));
+             else this->_choice->SetForegroundColour(wxNullColour);
+             this->_choice->Refresh();
+        }
+        else {
+            // base fallback
+            UI_Field::set_dirty_status(dirty);
+        }
+    }
+
     std::function<void (const std::string&, std::string value)> on_change {nullptr};
 
     wxChoice* choice() { return this->_choice; }
@@ -263,6 +300,16 @@ public:
     wxComboBox* choice() { return this->_choice; }
 
     void set_value(boost::any value) override;
+
+    void set_dirty_status(bool dirty) override {
+        if (this->_choice) {
+             if (dirty) this->_choice->SetForegroundColour(wxColour(255, 128, 0));
+             else this->_choice->SetForegroundColour(wxNullColour);
+             this->_choice->Refresh();
+        } else {
+             UI_Field::set_dirty_status(dirty);
+        }
+    }
 
     std::function<void (const std::string&, std::string value)> on_change {nullptr};
 
@@ -427,6 +474,14 @@ public:
     std::function<void (const std::string&, const double&)> on_change {nullptr};
 protected:
     virtual std::string LogChannel() override { return "UI_Slider"s; }
+    void set_dirty_status(bool dirty) override {
+        if (this->_textctrl) {
+             if (dirty) this->_textctrl->SetForegroundColour(wxColour(255, 128, 0));
+             else this->_textctrl->SetForegroundColour(wxNullColour);
+             this->_textctrl->Refresh();
+        }
+    }
+
 private:
     void _on_change(std::string opt_id) override {
         if (!this->disable_change_event && this->_slider->IsEnabled() && this->on_change != nullptr) {

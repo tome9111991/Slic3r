@@ -49,6 +49,9 @@ void OptionsGroup::append_line(const Line& line) {
     }
     
     for (const auto& opt : line.options) {
+        // Store the option definition so build_field can find it
+        _options[opt.opt_id] = std::make_unique<Option>(opt);
+
         auto* field = this->build_field(opt.opt_id);
         if (field) {
             _fields[opt.opt_id] = std::unique_ptr<UI_Field>(field);
@@ -64,14 +67,19 @@ ConfigOption* OptionsGroup::get_field(const t_config_option_key& opt_key) {
     return nullptr; 
 }
 
-void OptionsGroup::update_options(const ConfigBase* config) {
+void OptionsGroup::update_options(const ConfigBase* config, const std::vector<std::string>& dirty_keys) {
     for (auto& [key, field] : _fields) {
         if (config->has(key)) {
             auto* opt = config->option(key);
             if (!opt) continue;
             
             const ConfigOptionDef* def = nullptr;
-            if (print_config_def.has(key)) def = &print_config_def.get(key);
+            // Check local options first
+            if (_options.count(key)) {
+                def = &_options[key]->desc;
+            } else if (print_config_def.has(key)) {
+                def = &print_config_def.get(key);
+            }
             
             if (def) {
                  try {
@@ -81,8 +89,8 @@ void OptionsGroup::update_options(const ConfigBase* config) {
                          case coFloat: field->set_value(opt->getFloat()); break;
                          case coString: field->set_value(opt->getString()); break;
                          case coEnum: {
-                               field->set_value(opt->serialize());
-                               break;
+                                field->set_value(opt->serialize());
+                                break;
                         }
                          default: 
                              field->set_value(opt->serialize());
@@ -91,13 +99,23 @@ void OptionsGroup::update_options(const ConfigBase* config) {
                  } catch (...) {
                  }
             }
+
+            // Update Dirty Status
+            bool is_dirty = std::find(dirty_keys.begin(), dirty_keys.end(), key) != dirty_keys.end();
+            field->set_dirty_status(is_dirty);
         }
     }
 }
 
 UI_Field* OptionsGroup::build_field(const t_config_option_key& opt_key) {
     ConfigOptionDef def;
-    if (print_config_def.has(opt_key)) {
+    
+    // Check local defined options first
+    if (_options.count(opt_key)) {
+        def = _options[opt_key]->desc;
+    } 
+    // Then check global print config
+    else if (print_config_def.has(opt_key)) {
         def = print_config_def.get(opt_key);
     } else {
         def.label = opt_key;

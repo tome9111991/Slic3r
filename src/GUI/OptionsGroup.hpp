@@ -1,3 +1,6 @@
+#ifndef SLIC3R_GUI_OPTIONSGROUP_HPP
+#define SLIC3R_GUI_OPTIONSGROUP_HPP
+
 #include "ConfigBase.hpp"
 #include "Config.hpp"
 #include "OptionsGroup/Field.hpp"
@@ -88,7 +91,7 @@ public:
 
     void set_sizer(wxBoxSizer* s);
 
-    void update_options(const ConfigBase* config);
+    void update_options(const ConfigBase* config, const std::vector<std::string>& dirty_keys = {});
 
     std::function<void(const std::string&, boost::any)> on_change {nullptr};
 
@@ -108,3 +111,5 @@ protected:
 };
 
 }} // namespace Slic3r::GUI
+
+#endif // SLIC3R_GUI_OPTIONSGROUP_HPP

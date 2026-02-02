@@ -422,8 +422,9 @@ int CLI::run(int argc, char **argv) {
         try {
             gui->datadir  = this->config.getString("datadir");
         } catch(Slic3r::UnknownOptionException &e) {
-            // if no datadir on the CLI, set a default.
-            gui->datadir = GUI::home().ToStdString();
+            // if no datadir on the CLI, leave it empty.
+            // GUI::App will resolve it to the standard system user data directory (e.g. AppData on Windows).
+            // gui->datadir = GUI::home().ToStdString(); 
         }
         GUI::App::SetInstance(gui);
         return wxEntry(argc, argv);

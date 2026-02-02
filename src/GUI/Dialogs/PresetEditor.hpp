@@ -306,9 +306,9 @@ public:
         return og;
     }
 
-    void update_options(const ConfigBase* config) {
+    void update_options(const ConfigBase* config, const std::vector<std::string>& dirty_keys = {}) {
         for (auto& og : _optgroups) {
-            og->update_options(config);
+            og->update_options(config, dirty_keys);
         }
     }
 

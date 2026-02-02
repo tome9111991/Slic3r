@@ -4,6 +4,8 @@
 #include <wx/bookctrl.h>
 #include "libslic3r/PrintConfig.hpp"
 #include "Log.hpp"
+#include <wx/textdlg.h>
+#include <wx/msgdlg.h>
 
 namespace Slic3r { namespace GUI {
 
@@ -44,6 +46,15 @@ PresetEditor::PresetEditor(wxWindow* parent, t_config_option_keys options) :
 
         this->_btn_save_preset->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) {
             this->save_preset();
+        });
+        
+        this->_btn_delete_preset->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) {
+            if (this->current_preset && !this->current_preset->default_preset) {
+                if (wxMessageBox(_("Are you sure you want to delete this preset?"), _("Confirm Deletion"), wxYES_NO | wxICON_QUESTION) == wxYES) {
+                    this->current_preset->delete_preset();
+                    this->load_presets();
+                }
+            }
         });
     }
 
@@ -111,13 +122,47 @@ PresetPage* PresetEditor::add_options_page(const wxString& _title, const wxStrin
              Slic3r::Log::info(this->LogChannel(), "Updated config: " + key);
              
              // Visual feedback for dirty state
-             if (this->current_preset && this->current_preset->dirty()) {
-                 int sel = this->_presets_choice->GetSelection();
-                 if (sel != wxNOT_FOUND) {
-                     wxString label = this->_presets_choice->GetString(sel);
-                     if (!label.EndsWith(" *")) {
-                         this->_presets_choice->SetString(sel, label + " *");
+             if (this->current_preset) {
+                 // Check if the overall preset is dirty (for the * in the name)
+                 if (this->current_preset->dirty()) {
+                     int sel = this->_presets_choice->GetSelection();
+                     if (sel != wxNOT_FOUND) {
+                         wxString label = this->_presets_choice->GetString(sel);
+                         if (!label.EndsWith(" *")) {
+                             this->_presets_choice->SetString(sel, label + " *");
+                         }
                      }
+                 }
+                 
+                 // Check if THIS specific option is dirty
+                 // Manual check:
+                 bool is_dirty = false;
+                 
+                 // Get safe pointers to the configs
+                 auto pristine_cfg = this->current_preset->config().lock();
+                 auto current_cfg = this->config; // The one we are editing right now
+
+                 if (pristine_cfg && current_cfg && pristine_cfg->has(key)) {
+                      auto opt_pristine = pristine_cfg->config().option(key);
+                      auto opt_current = current_cfg->config().option(key);
+                      
+                      if (opt_pristine && opt_current) {
+                          auto val_pristine = opt_pristine->serialize();
+                          auto val_current = opt_current->serialize();
+                          is_dirty = (val_pristine != val_current);
+                          Slic3r::Log::info(this->LogChannel(), "Dirty Check for " + key + ": IsDirty=" + (is_dirty?"Yes":"No") + " Pristine='" + val_pristine + "' Current='" + val_current + "'");
+                      }
+                 } else {
+                      is_dirty = true;
+                      Slic3r::Log::info(this->LogChannel(), "Dirty Check for " + key + ": IsDirty=Yes (Missing in pristine or invalid pointers)");
+                 }
+                 
+                 UI_Field* field = this->get_ui_field(key);
+                 if (field) {
+                     field->set_dirty_status(is_dirty);
+                     Slic3r::Log::info(this->LogChannel(), "Set visual status for " + key);
+                 } else {
+                     Slic3r::Log::warn(this->LogChannel(), "Field not found for " + key);
                  }
              }
         } catch(std::exception& e) {
@@ -129,11 +174,110 @@ PresetPage* PresetEditor::add_options_page(const wxString& _title, const wxStrin
 }
 
 void PresetEditor::save_preset() {
-    if (this->current_preset) {
-        this->current_preset->save();
-        // Reload presets list to reflect changes (if any)
-        // this->load_presets(); 
+    // 1. Commit pending changes manually.
+    //    We simulate KILL_FOCUS and TEXT_ENTER events on the active widget to force Slic3r
+    //    to update the configuration from the UI value immediately.
+    wxWindow* focus = wxWindow::FindFocus();
+    if (focus) {
+        // Trigger KillFocus (most fields update here)
+        wxFocusEvent killFocusEvent(wxEVT_KILL_FOCUS, focus->GetId());
+        killFocusEvent.SetEventObject(focus);
+        focus->GetEventHandler()->ProcessEvent(killFocusEvent);
+        
+        // Trigger TextEnter (for text fields that rely on Enter)
+        wxCommandEvent enterEvent(wxEVT_TEXT_ENTER, focus->GetId());
+        enterEvent.SetEventObject(focus);
+        focus->GetEventHandler()->ProcessEvent(enterEvent);
     }
+    
+    // Process any asynchronous updates triggered by the above handlers
+    wxYield();
+
+    if (!this->current_preset) return;
+
+    // 2. Defer saving via CallAfter to ensure even slower event handlers are finished.
+    //    We capture 'this' safely. Be aware that 'current_preset' pointer stability is reliable 
+    //    as long as we don't manipulate the preset vector before this runs.
+    SLIC3RAPP->CallAfter([this]() {
+        if (!this->current_preset) return;
+
+        // Use a unified Save/Save As dialog.
+        wxString prompt = (this->current_preset->default_preset) 
+            ? _("Enter a name for the new preset:") 
+            : _("Enter a name to save as (leave empty to update current):");
+
+        wxTextEntryDialog dlg(this, prompt, _("Save Preset"));
+        
+        if (dlg.ShowModal() != wxID_OK) return;
+
+        wxString name = dlg.GetValue();
+        name.Trim(true).Trim(false);
+
+        Slic3r::Log::info("GUI", "Save Preset: Input Name='" + name.ToStdString() + "', IsDefault=" + (this->current_preset->default_preset ? "yes" : "no"));
+
+        // Case 1: Empty Name
+        if (name.IsEmpty()) {
+            if (this->current_preset->default_preset) {
+                 // Cannot overwrite default preset with empty name
+                 wxMessageBox(_("You cannot overwrite a default preset. Please enter a name to create a new preset."), _("Error"), wxICON_ERROR);
+                 return;
+            } else {
+                 // Update current user preset
+                 this->current_preset->save();
+                 
+                 // Capture name before reloading (which invalidates current_preset)
+                 std::string saved_name = this->current_preset->name.ToStdString();
+
+                 // Reload from disk to verify save and update UI
+                 this->load_presets();
+
+                 // Re-select the saved preset
+                 int n = this->_presets_choice->FindString(saved_name);
+                 if (n != wxNOT_FOUND) {
+                     this->_presets_choice->SetSelection(n);
+                     this->_on_select_preset();
+                 }
+                 return;
+            }
+        }
+
+        // Case 2: Name Provided
+        
+        // Check if name is identical to current (Update)
+        if (!this->current_preset->default_preset && name == this->current_preset->name) {
+             this->current_preset->save();
+             int sel = this->_presets_choice->GetSelection();
+             if (sel != wxNOT_FOUND) {
+                 this->_presets_choice->SetString(sel, this->current_preset->dropdown_name());
+             }
+             return;
+        }
+
+        // Case 3: New Name (Save As)
+        Preset new_preset(false, name, this->current_preset->group);
+        
+        // Deep copy of configs
+        new_preset._config = std::make_shared<Config>(*this->current_preset->_config);
+        new_preset._dirty_config = std::make_shared<Config>(*this->current_preset->_dirty_config);
+
+        if (new_preset.save_as(name, {})) {
+            // Safe to access group before push_back potentially invalidates current_preset
+            auto group_idx = static_cast<int>(this->current_preset->group);
+            
+            // Add to Global App Presets
+             SLIC3RAPP->presets.at(group_idx).push_back(new_preset);
+             
+             // Reload the list
+             this->load_presets();
+             
+             // Select the new preset
+             int n = this->_presets_choice->FindString(new_preset.dropdown_name());
+             if (n != wxNOT_FOUND) {
+                 this->_presets_choice->SetSelection(n);
+                 this->_on_select_preset();
+             }
+        }
+    });
 }
 
 void PresetEditor::_on_select_preset(bool force) {
@@ -147,6 +291,10 @@ void PresetEditor::_on_select_preset(bool force) {
     // Hack for shared_ptr
     this->current_preset = std::shared_ptr<Preset>(p, [](Preset*){});
     
+    // Toggle delete button
+    if (this->_btn_delete_preset) {
+        this->_btn_delete_preset->Enable(!p->default_preset);
+    }    
     this->config = this->current_preset->load_config();
     this->reload_config();
     
@@ -160,8 +308,15 @@ void PresetEditor::_on_select_preset(bool force) {
 
 void PresetEditor::reload_config() {
     if (!this->config) return;
+    
+    // Retrieve dirty options to pass to update logic
+    std::vector<std::string> dirty_keys;
+    if (this->current_preset) {
+        dirty_keys = this->current_preset->dirty_options();
+    }
+    
     for (auto* page : _pages) {
-         page->update_options(&this->config->config());
+         page->update_options(&this->config->config(), dirty_keys);
     }
 }
 

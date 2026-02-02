@@ -441,6 +441,8 @@ IF(wxWidgets_FOUND AND OPENGL_FOUND AND Enable_GUI)
     ${GUI_LIBDIR}/OptionsGroup/UI_Color.cpp
     ${GUI_LIBDIR}/OptionsGroup/UI_Slider.cpp
     ${LIBDIR}/slic3r/GUI/3DScene.cpp
+    ${GUI_LIBDIR}/ConfigWizard.cpp
+    ${GUI_LIBDIR}/Preferences.cpp
     )
     target_compile_features(slic3r_gui PUBLIC cxx_std_17)
     target_include_directories(slic3r_gui PUBLIC ${SLIC3R_GUI_INCLUDES} ${SLIC3R_INCLUDES} )

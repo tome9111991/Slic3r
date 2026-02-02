@@ -6,6 +6,7 @@
 #include "Log.hpp"
 
 #include "Dialogs/PresetEditor.hpp"
+#include "GUI.hpp"
 
 using namespace std::literals::string_literals;
 using namespace boost;
@@ -49,17 +50,117 @@ void Preset::save() {
     }
 
     try {
-        this->_dirty_config->config().save(this->_file.GetFullPath().ToStdString());
-        this->_config->apply(this->_dirty_config);
-        Slic3r::Log::info("GUI", "Saved preset to " + this->_file.GetFullPath().ToStdString());
+        // Write to a temporary file first to avoid locking issues (read/write conflict)
+        std::string target_path = this->_file.GetFullPath().ToStdString();
+        std::string temp_path = target_path + ".tmp";
+        
+        // Save to temp file
+        this->_dirty_config->config().save(temp_path);
+        
+        // Safe replace logic
+        if (wxFileExists(target_path)) {
+            if (!wxRemoveFile(target_path)) {
+                 Slic3r::Log::error("GUI", "Failed to remove existing preset file before update: " + target_path);
+                 // Fallback: Try to move anyway (OS might handle it if not locked)
+            }
+        }
+        
+        if (!wxRenameFile(temp_path, target_path)) {
+            // If rename fails, try copy and delete
+             if (!wxCopyFile(temp_path, target_path)) {
+                  throw std::runtime_error("Failed to atomic move/copy preset file.");
+             }
+             wxRemoveFile(temp_path);
+        }
+
+        // Reload the config from disk to ensure consistency
+        // This verifies the save meant what we thought it meant, and handles FP truncation etc.
+        config_ptr loaded_cfg = Slic3r::Config::new_from_ini(target_path);
+        if (loaded_cfg && !loaded_cfg->empty()) {
+            this->_config = loaded_cfg;
+            // Overwrite dirty config with the loaded file content so they are identical
+            this->_dirty_config->apply(this->_config);
+        } else {
+            // Fallback
+             this->_config->apply(this->_dirty_config);
+        }
+        
+        Slic3r::Log::info("GUI", "Saved preset to " + target_path);
     } catch (std::exception& e) {
         wxMessageBox(wxString::Format("Error saving preset: %s", e.what()), "Error", wxICON_ERROR);
     }
 }
 
 // Stubs to satisfy linker / header
-bool Preset::save_as(wxString name, t_config_option_keys opt_keys) { return false; }
-void Preset::delete_preset() {}
+bool Preset::save_as(wxString new_name, t_config_option_keys opt_keys) {
+    if (new_name.empty()) return false;
+
+    // Determine directory
+    wxString dir;
+    if (_file.IsOk() && _file.DirExists()) {
+        dir = _file.GetPath();
+    } else {
+        // Use global app datadir - requires GUI.hpp
+        if (SLIC3RAPP) {
+             wxString datadir = SLIC3RAPP->datadir;
+             switch (this->group) {
+                case preset_t::Print: dir = datadir + "/print"; break;
+                // Note: 'filament' is the legacy folder name for Material
+                case preset_t::Material: dir = datadir + "/filament"; break; 
+                case preset_t::Printer: dir = datadir + "/printer"; break;
+                default: return false;
+            }
+        } else {
+            return false;
+        }
+    }
+    
+    if (!wxDirExists(dir)) {
+        if (!wxMkdir(dir)) {
+             Slic3r::Log::error("GUI", "Could not create directory for preset: " + dir.ToStdString());
+             return false;
+        }
+    }
+
+    wxFileName new_file(dir, new_name, "ini");
+    
+    // Save
+    try {
+        // If opt_keys is provided, we might want to filter, but for now we save the whole dirty config
+        // which mimics standard Slic3r behavior for "Save As". 
+        this->_dirty_config->config().save(new_file.GetFullPath().ToStdString());
+        
+        // Update self to point to new file
+        this->name = new_name;
+        this->_file = new_file;
+        this->default_preset = false;
+        this->external = false;
+        
+        // Sync config
+        this->_config->apply(this->_dirty_config);
+        
+        Slic3r::Log::info("GUI", "Saved preset as " + new_file.GetFullPath().ToStdString());
+        return true;
+    } catch (std::exception& e) {
+        wxMessageBox(wxString::Format("Error saving preset: %s", e.what()), "Error", wxICON_ERROR);
+        return false;
+    }
+}
+
+void Preset::delete_preset() {
+    if (this->default_preset) {
+        wxMessageBox(_("You cannot delete a default preset."), _("Error"), wxICON_ERROR);
+        return;
+    }
+    
+    if (this->_file.FileExists()) {
+        if (wxRemoveFile(this->_file.GetFullPath())) {
+            Slic3r::Log::info("GUI", "Deleted preset: " + this->_file.GetFullPath().ToStdString());
+        } else {
+            Slic3r::Log::error("GUI", "Failed to delete preset: " + this->_file.GetFullPath().ToStdString());
+        }
+    }
+}
 bool Preset::prompt_unsaved_changes(wxWindow* parent) { return false; }
 void Preset::dismiss_changes() {}
 

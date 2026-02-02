@@ -1,71 +1,57 @@
-# Slic3r Project Context
+# Slic3r C++ Porting Project
 
 ## Project Overview
-Slic3r is a G-code generator for 3D printers, converting 3D models (STL, OBJ, AMF, 3MF) into printing instructions.
-This codebase represents the **Slic3r** project, featuring a hybrid architecture:
-- **Core Logic & GUI:** Modern C++ (C++17) using wxWidgets, located in `src/`.
-- **Scripting/Legacy:** Perl with XS bindings (`xs/` directory) and legacy UI components (`lib/`).
+This project is an active effort to port the original Perl-based Slic3r application to a pure **Modern C++ (C++17)** application.
+The goal is to eliminate the Perl dependency entirely, resulting in a faster, more maintainable, and self-contained executable.
 
-## Environment & Prerequisites (Windows)
-- **OS:** Windows 11
-- **Shell:** PowerShell 7 (`pwsh`) or 5.1.
-- **Compilers:** Visual Studio 2022 (MSVC).
-- **Build Tools:** CMake, Ninja.
-- **Dependencies:** Managed via **vcpkg** (manifest mode).
+*   **Current Status:** Core slicing engine (`libslic3r`) is fully ported. The GUI is approximately 50% complete.
+*   **Active Development:** `src/` (C++).
+*   **Legacy Reference:** `port/` (Perl/XS code moved here for reference).
 
-## Building & Running
+## Porting Strategy
+The project follows a strict porting roadmap defined in `port/PORTING_PLAN.md`.
+The legacy Perl code in `port/lib/` and `port/xs/` serves as the "source of truth" for logic that needs to be reimplemented in `src/`.
 
-### Automated Build (Recommended)
-The project uses `build_vs2022.bat` as the primary build script. This script handles:
-1.  Visual Studio 2022 environment setup (`vcvars64.bat`).
-2.  **vcpkg** setup (cloning & bootstrapping if missing).
-3.  Dependency installation and CMake configuration.
-4.  Compilation (Release mode).
-
-```powershell
-.\build_vs2022.bat
-```
-*   **Logs:** `build_log.txt`
-*   **Output:** `build/target/slic3r.exe`
-
-### Manual Build (CMake)
-If you prefer to run CMake manually (e.g., for IDE integration):
-
-1.  **Configure:**
-    ```powershell
-    cmake -S src -B build/target -G "Ninja" `
-        -DCMAKE_BUILD_TYPE=Release `
-        -DCMAKE_TOOLCHAIN_FILE="build/deps/vcpkg/scripts/buildsystems/vcpkg.cmake" `
-        -DVCPKG_TARGET_TRIPLET=x64-windows `
-        -DVCPKG_MANIFEST_DIR="." `
-        -DEnable_GUI=ON `
-        -DSLIC3R_STATIC=OFF
-    ```
-2.  **Build:**
-    ```powershell
-    cmake --build build/target --parallel
-    ```
-
-### Running
-- **C++ Executable:** `.\build\target\slic3r.exe`
-- **Perl Wrapper:** `perl slic3r.pl` (Requires Perl environment setup, usually for legacy or headless use).
+**Key Gaps (To-Do):**
+1.  **Preset Management:** Saving/Loading config profiles (`.ini`).
+2.  **Configuration Wizard:** First-run setup logic.
+3.  **Undo/Redo:** History stack for the Plater.
+4.  **2D/3D Interaction:** Advanced object manipulation (Cut, Mirror, etc.).
 
 ## Directory Structure
 
 | Directory | Description |
 | :--- | :--- |
-| **`src/`** | Main C++ source code (Core logic + GUI). |
-| **`xs/`** | Perl XS bindings connecting C++ core to Perl. |
-| **`lib/`** | Perl modules (`.pm`). |
-| **`t/`** | Test suite (Perl-based). |
-| **`package/`** | Packaging scripts (AppVeyor, Travis, etc.). |
-| **`utils/`** | Helper scripts (e.g., `amf-to-stl.pl`). |
-| **`var/`** | Assets (icons, images, resources). |
-| **`build/`** | Build artifacts (created by `build_auto.bat`). |
+| **`src/`** | **ACTIVE** C++ source code. Contains `libslic3r` (core) and `GUI` (wxWidgets). |
+| **`port/`** | **LEGACY** Perl/XS code. Use this for reference when reimplementing features. |
+| **`port/lib/`** | Legacy Perl modules (GUI logic often found here). |
+| **`port/xs/`** | Legacy XS bindings. |
+| **`build/`** | Build artifacts. |
+| **`package/`** | Packaging scripts. |
+| **`var/`** | Application resources (icons, models). |
 
-## Development Conventions
-- **Language:** C++17 for new development; Perl for existing scripting/tests.
-- **Style:** Adhere to existing indentation (spaces vs tabs) in the file being edited.
-- **Testing:** 
-    -   C++ Tests: `ctest` in the build directory.
-    -   Perl Tests: `prove t/` (requires full Perl dev environment).
+## Building & Running
+
+### Prerequisites (Windows)
+- Visual Studio 2022
+- PowerShell 7 or 5.1
+- CMake & Ninja (installed via VS or separately)
+
+### Build Command
+Use the provided batch script to build the C++ version:
+```powershell
+.\build_vs2022.bat
+```
+This script handles `vcpkg` dependencies and CMake configuration automatically.
+
+*   **Executable:** `build\target\slic3r.exe`
+
+## Development Guidelines
+1.  **Read Legacy:** When tasked to "fix" or "implement" a feature, first locate the corresponding Perl implementation in `port/lib/Slic3r/`.
+2.  **Implement C++:** Reimplement the logic in `src/` using C++17 and wxWidgets.
+3.  **Verify:** Ensure the C++ behavior matches the legacy Perl behavior.
+4.  **Style:** Follow the surrounding C++ code style (indentation, naming).
+
+## Useful References
+- **Perl GUI:** `port/lib/Slic3r/GUI/`
+- **C++ GUI:** `src/GUI/`
