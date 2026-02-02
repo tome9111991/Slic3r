@@ -9,6 +9,7 @@
 #include <wx/filedlg.h>
 #include <wx/msgdlg.h> 
 #include <wx/button.h> 
+#include <wx/statline.h>
 #include <thread> 
 
 
@@ -58,6 +59,8 @@ Plater::Plater(wxWindow* parent, const wxString& title) :
     });
     */
     _presets->load();
+
+    this->preview_notebook = new wxSimplebook(this, wxID_ANY);
 
     // Initialize handlers for canvases
     auto on_select_object {[this](ObjIdx obj_idx) { this->select_object(obj_idx); }};
@@ -113,7 +116,7 @@ Plater::Plater(wxWindow* parent, const wxString& title) :
         preview3D->set_bed_shape(bed_poly.points);
     }
 
-    preview_notebook->Bind(wxEVT_NOTEBOOK_PAGE_CHANGED, [this](wxBookCtrlEvent& e) {
+    preview_notebook->Bind(wxEVT_BOOKCTRL_PAGE_CHANGED, [this](wxBookCtrlEvent& e) {
         int sel = e.GetSelection();
         if (sel != wxNOT_FOUND) {
             wxTheApp->CallAfter([this, sel]() {
@@ -272,8 +275,13 @@ Plater::Plater(wxWindow* parent, const wxString& title) :
 //    $right_sizer->Hide($print_info_sizer);
 
     auto hsizer {new wxBoxSizer(wxHORIZONTAL)};
-    hsizer->Add(this->preview_notebook, 1, wxEXPAND | wxTOP, 1);
     hsizer->Add(right_sizer, 0, wxEXPAND | wxLEFT | wxRIGHT, 3);
+    
+    // Add vertical separator
+    auto* line = new wxStaticLine(this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxLI_VERTICAL);
+    hsizer->Add(line, 0, wxEXPAND | wxALL, 0);
+
+    hsizer->Add(this->preview_notebook, 1, wxEXPAND | wxTOP, 1);
 
     auto sizer {new wxBoxSizer(wxVERTICAL)};
     if (this->htoolbar != nullptr) sizer->Add(this->htoolbar, 0, wxEXPAND, 0);
@@ -429,13 +437,13 @@ std::vector<int> Plater::load_file(const std::string file, const int obj_idx_to_
             }
         }
         
-        GetFrame()->statusbar->SetStatusText(_("Loaded ") + wxString(file));
+        if (GetFrame()->statusbar) GetFrame()->statusbar->SetStatusText(_("Loaded ") + wxString(file));
 
         if (this->scaled_down) {
-            GetFrame()->statusbar->SetStatusText(_("Your object appears to be too large, so it was automatically scaled down to fit your print bed."));
+            if (GetFrame()->statusbar) GetFrame()->statusbar->SetStatusText(_("Your object appears to be too large, so it was automatically scaled down to fit your print bed."));
         }
         if (this->outside_bounds) {
-            GetFrame()->statusbar->SetStatusText(_("Some of your object(s) appear to be outside the print bed. Use the arrange button to correct this."));
+            if (GetFrame()->statusbar) GetFrame()->statusbar->SetStatusText(_("Some of your object(s) appear to be outside the print bed. Use the arrange button to correct this."));
         }
     }
 
@@ -577,15 +585,15 @@ void Plater::arrange() {
     // TODO pause background process
     const Slic3r::BoundingBoxf bb {Slic3r::BoundingBoxf(this->config->get<ConfigOptionPoints>("bed_shape").values)};
     if (this->objects.size() == 0U) { // abort
-        GetFrame()->statusbar->SetStatusText(_("Nothing to arrange."));
+        if (GetFrame()->statusbar) GetFrame()->statusbar->SetStatusText(_("Nothing to arrange."));
         return; 
     }
     bool success {this->model->arrange_objects(this->config->config().min_object_distance(), &bb)};
 
     if (success) {
-        GetFrame()->statusbar->SetStatusText(_("Objects were arranged."));
+        if (GetFrame()->statusbar) GetFrame()->statusbar->SetStatusText(_("Objects were arranged."));
     } else {
-        GetFrame()->statusbar->SetStatusText(_("Arrange failed."));
+        if (GetFrame()->statusbar) GetFrame()->statusbar->SetStatusText(_("Arrange failed."));
     }
     this->on_model_change(true);
 }

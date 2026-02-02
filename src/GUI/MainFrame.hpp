@@ -30,7 +30,7 @@ class MainFrame: public wxFrame
 {
 public:
     MainFrame(const wxString& title, const wxPoint& pos, const wxSize& size);
-    ProgressStatusBar* statusbar {new ProgressStatusBar(this, -1)};
+    ProgressStatusBar* statusbar {nullptr};
 
     bool has_plater_menu() { return this->plater_menu != nullptr; }
     wxMenu* plater_select_menu {nullptr};

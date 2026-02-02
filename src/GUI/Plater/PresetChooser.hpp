@@ -5,8 +5,8 @@
     #include <wx/wx.h>
     #include <wx/panel.h>
     #include <wx/sizer.h>
-    #include <wx/bmpcbox.h>
 #endif
+#include <wx/bmpcbox.h>
 
 #include <vector>
 #include <array>

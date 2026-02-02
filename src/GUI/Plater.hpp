@@ -8,7 +8,7 @@
 #include <wx/notebook.h>
 #include <wx/toolbar.h>
 #include <wx/menu.h>
-#include <wx/bmpcbox.h>
+#include <wx/simplebook.h>
 
 #include <stack>
 
@@ -141,7 +141,7 @@ private:
     std::stack<UndoOperation> _undo {}; 
     std::stack<UndoOperation> _redo {}; 
 
-    wxNotebook* preview_notebook {new wxNotebook(this, wxID_ANY, wxDefaultPosition, wxSize(335,335), wxNB_BOTTOM)};
+    wxSimplebook* preview_notebook {nullptr};
     wxBoxSizer* right_sizer {new wxBoxSizer(wxVERTICAL)};
 
     wxToolBar* htoolbar {nullptr}; //< toolbar for non-MSW platforms.
