@@ -1,7 +1,6 @@
 name: Build Windows
 
 on:
-
   workflow_dispatch: 
 
 jobs:
@@ -14,14 +13,17 @@ jobs:
       with:
         submodules: recursive
 
+    # Ersetze microsoft/setup-msvc durch ilammy/msvc-dev-cmd
     - name: Set up MSVC
-      uses: microsoft/setup-msvc@v1
+      uses: ilammy/msvc-dev-cmd@v1
 
     - name: Build project
       shell: cmd
-      run: .\build_vs2022.bat
+      run: |
+        .\build_vs2022.bat
 
     - name: Upload Artifact
+      if: success() # Lädt nur hoch, wenn der Build erfolgreich war
       uses: actions/upload-artifact@v4 
       with:
         name: Slic3r-Windows
