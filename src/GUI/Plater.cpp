@@ -1,6 +1,7 @@
 #include <memory>
 #include <climits>
 #include <fstream>
+#include <cmath>
 
 #include <wx/progdlg.h>
 #include <wx/window.h> 
@@ -523,6 +524,7 @@ std::vector<int> Plater::load_model_objects(ModelObjectPtrs model_objects) {
     }
     for (const auto& i : obj_idx) { this->make_thumbnail(i); } 
     if (need_arrange) this->arrange();
+    this->object_list_changed();
     return obj_idx;
 }
 
@@ -688,11 +690,14 @@ void Plater::selection_changed() {
     bool have_sel {obj != this->objects.end()};
     auto* menu {this->GetFrame()->plater_select_menu};
     if (menu != nullptr) {
-        for (auto item = menu->GetMenuItems().begin(); item != menu->GetMenuItems().end(); item++) {
-            (*item)->Check(false);
+        for (auto item : menu->GetMenuItems()) {
+            item->Check(false);
         }
-        if (have_sel) 
-            menu->FindItemByPosition(obj->identifier)->Check(true);
+        if (have_sel) {
+            int idx = std::distance(this->objects.begin(), obj);
+            if (idx >= 0 && idx < (int)menu->GetMenuItemCount())
+                menu->FindItemByPosition(idx)->Check(true);
+        }
     }
 
     if (this->htoolbar != nullptr) {
@@ -700,60 +705,66 @@ void Plater::selection_changed() {
             this->htoolbar->EnableTool(tb, have_sel);
         }
     }
-    /*
-    
-    my $method = $have_sel ? 'Enable' : 'Disable';
-    $self->{"btn_$_"}->$method
-        for grep $self->{"btn_$_"}, qw(remove increase decrease rotate45cw rotate45ccw changescale split cut layers settings);
-    
-    if ($self->{object_info_size}) { # have we already loaded the info pane?
-        
-        if ($have_sel) {
-            my $model_object = $self->{model}->objects->[$obj_idx];
-            $self->{object_info_choice}->SetSelection($obj_idx);
-            $self->{object_info_copies}->SetLabel($model_object->instances_count);
-            my $model_instance = $model_object->instances->[0];
-            {
-                my $size_string = sprintf "%.2f x %.2f x %.2f", @{$model_object->instance_bounding_box(0)->size};
-                if ($model_instance->scaling_factor != 1) {
-                    $size_string .= sprintf " (%s%%)", $model_instance->scaling_factor * 100;
-                }
-                $self->{object_info_size}->SetLabel($size_string);
-            }
-            $self->{object_info_materials}->SetLabel($model_object->materials_count);
+
+    if (this->object_info.choice != nullptr) {
+        if (have_sel) {
+            int obj_idx = std::distance(this->objects.begin(), obj);
+            this->object_info.choice->SetSelection(obj_idx);
+
+            int model_obj_idx = this->get_object_index(obj->identifier);
+            auto* model_object = this->model->objects.at(model_obj_idx);
+            this->object_info.copies->SetLabel(wxString::Format("%zu", model_object->instances.size()));
             
-            my $raw_mesh = $model_object->raw_mesh;
-            $raw_mesh->repair;  # this calculates number_of_parts
-            if (my $stats = $raw_mesh->stats) {
-                $self->{object_info_volume}->SetLabel(sprintf('%.2f', $raw_mesh->volume * ($model_instance->scaling_factor**3)));
-                $self->{object_info_facets}->SetLabel(sprintf('%d (%d shells)', $model_object->facets_count, $stats->{number_of_parts}));
-                if (my $errors = sum(@$stats{qw(degenerate_facets edges_fixed facets_removed facets_added facets_reversed backwards_edges)})) {
-                    $self->{object_info_manifold}->SetLabel(sprintf("Auto-repaired (%d errors)", $errors));
-                    $self->{object_info_manifold_warning_icon}->Show;
-                    
-                    # we don't show normals_fixed because we never provide normals
-	                # to admesh, so it generates normals for all facets
-                    my $message = sprintf '%d degenerate facets, %d edges fixed, %d facets removed, %d facets added, %d facets reversed, %d backwards edges',
-                        @$stats{qw(degenerate_facets edges_fixed facets_removed facets_added facets_reversed backwards_edges)};
-                    $self->{object_info_manifold}->SetToolTipString($message);
-                    $self->{object_info_manifold_warning_icon}->SetToolTipString($message);
-                } else {
-                    $self->{object_info_manifold}->SetLabel("Yes");
+            auto* model_instance = model_object->instances.front();
+            {
+                auto size = model_object->instance_bounding_box(0).size();
+                wxString size_string = wxString::Format("%.2f x %.2f x %.2f", size.x, size.y, size.z);
+                if (std::abs(model_instance->scaling_factor - 1.0) > 0.0001) {
+                    size_string << wxString::Format(" (%.0f%%)", model_instance->scaling_factor * 100.0);
                 }
+                this->object_info.size->SetLabel(size_string);
+            }
+            
+            this->object_info.materials->SetLabel(wxString::Format("%zu", model_object->materials_count()));
+            
+            auto raw_mesh = model_object->raw_mesh();
+            raw_mesh.repair();
+            auto stats = raw_mesh.stats();
+            
+            this->object_info.volume->SetLabel(wxString::Format("%.2f", stats.volume * std::pow(model_instance->scaling_factor, 3)));
+            this->object_info.facets->SetLabel(wxString::Format("%zu (%zu shells)", model_object->facets_count(), stats.number_of_parts));
+            
+            size_t errors = stats.degenerate_facets + stats.edges_fixed + stats.facets_removed + 
+                           stats.facets_added + stats.facets_reversed + stats.backwards_edges;
+            
+            if (errors > 0) {
+                this->object_info.manifold->SetLabel(wxString::Format("Auto-repaired (%zu errors)", errors));
+                this->object_info.manifold_warning_icon->Show();
+                
+                wxString message = wxString::Format("%zu degenerate facets, %zu edges fixed, %zu facets removed, %zu facets added, %zu facets reversed, %zu backwards edges",
+                    stats.degenerate_facets, stats.edges_fixed, stats.facets_removed, stats.facets_added, stats.facets_reversed, stats.backwards_edges);
+                this->object_info.manifold->SetToolTip(message);
+                this->object_info.manifold_warning_icon->SetToolTip(message);
             } else {
-                $self->{status_bar}->SetStatusText($object->facets);
+                this->object_info.manifold->SetLabel(_("Yes"));
+                this->object_info.manifold_warning_icon->Hide();
+                this->object_info.manifold->SetToolTip("");
             }
         } else {
-            $self->{object_info_choice}->SetSelection(-1);
-            $self->{"object_info_$_"}->SetLabel("") for qw(copies size volume facets materials manifold);
-            $self->{object_info_manifold_warning_icon}->Hide;
-            $self->{object_info_manifold}->SetToolTipString("");
+            this->object_info.choice->SetSelection(wxNOT_FOUND);
+            this->object_info.copies->SetLabel("");
+            this->object_info.size->SetLabel("");
+            this->object_info.volume->SetLabel("");
+            this->object_info.facets->SetLabel("");
+            this->object_info.materials->SetLabel("");
+            this->object_info.manifold->SetLabel("");
+            this->object_info.manifold_warning_icon->Hide();
+            this->object_info.manifold->SetToolTip("");
         }
-        $self->Layout;
+        this->Layout();
     }
-    # prepagate the event to the frame (a custom Wx event would be cleaner)
-    $self->GetFrame->on_plater_selection_changed($have_sel);
-*/
+    
+    this->GetFrame()->on_plater_selection_changed(have_sel);
 }
 
 void Plater::build_toolbar() {
@@ -1150,7 +1161,16 @@ void Plater::add_undo_operation(UndoCmd cmd, int obj_id, double angle, Axis axis
 }
 
 void Plater::object_list_changed() {
-    //TODO
+    if (this->object_info.choice == nullptr) return;
+    this->object_info.choice->Clear();
+    int sel_idx = wxNOT_FOUND;
+    for (size_t i = 0; i < this->objects.size(); ++i) {
+        this->object_info.choice->Append(wxString::FromUTF8(this->objects[i].name.c_str()));
+        if (this->objects[i].selected) sel_idx = (int)i;
+    }
+    if (sel_idx != wxNOT_FOUND) {
+        this->object_info.choice->SetSelection(sel_idx);
+    }
 }
 
 void Plater::stop_background_process() {

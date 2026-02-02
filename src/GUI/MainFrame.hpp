@@ -37,6 +37,9 @@ public:
     wxSimplebook* tabs() { return tabpanel; }
 
     std::map<preset_t, PresetEditor*> preset_editor_tabs;
+
+    void on_plater_object_list_changed(bool force) {};
+    void on_plater_selection_changed(bool force) {};
 private:
     wxDECLARE_EVENT_TABLE();
 
@@ -54,8 +57,7 @@ private:
     wxMenu* plater_menu {nullptr};
 
 
-    void on_plater_object_list_changed(bool force) {};
-    void on_plater_selection_changed(bool force) {};
+
 
 
 };
