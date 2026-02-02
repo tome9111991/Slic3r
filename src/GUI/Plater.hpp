@@ -144,7 +144,11 @@ private:
     wxSimplebook* preview_notebook {nullptr};
     wxBoxSizer* right_sizer {new wxBoxSizer(wxVERTICAL)};
 
-    wxToolBar* htoolbar {nullptr}; //< toolbar for non-MSW platforms.
+    // Replacement for native toolbar
+    wxPanel* toolbar_panel {nullptr}; 
+    std::map<int, wxButton*> toolbar_tools; 
+
+    // wxToolBar* htoolbar {nullptr}; //< toolbar for non-MSW platforms.
     wxBoxSizer* btoolbar {nullptr}; //< button-based toolbar for Windows
 
     Plate2D* canvas2D {nullptr}; //< 2D plater canvas
@@ -282,10 +286,12 @@ static void add_info_field(wxWindow* parent, T*& field, wxString name, wxGridSiz
     name << ":";
     auto* text {new wxStaticText(parent, wxID_ANY, name, wxDefaultPosition, wxDefaultSize, wxALIGN_LEFT)};
     text->SetFont(ui_settings->small_font());
+    if (ui_settings->color->SOLID_BACKGROUNDCOLOR()) text->SetForegroundColour(*wxWHITE);
     sizer->Add(text, 0);
 
     field = new wxStaticText(parent, wxID_ANY, "", wxDefaultPosition, wxDefaultSize, wxALIGN_LEFT);
     field->SetFont(ui_settings->small_font());
+    if (ui_settings->color->SOLID_BACKGROUNDCOLOR()) field->SetForegroundColour(*wxWHITE);
     sizer->Add(field, 0);
 }
 

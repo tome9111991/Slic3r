@@ -18,7 +18,6 @@
 #include "Dialogs/PresetEditor.hpp"
 #include "Settings.hpp"
 #include "GUI.hpp"
-#include "ProgressStatusBar.hpp"
 
 namespace Slic3r { namespace GUI {
 
@@ -30,7 +29,6 @@ class MainFrame: public wxFrame
 {
 public:
     MainFrame(const wxString& title, const wxPoint& pos, const wxSize& size);
-    ProgressStatusBar* statusbar {nullptr};
 
     bool has_plater_menu() { return this->plater_menu != nullptr; }
     wxMenu* plater_select_menu {nullptr};
@@ -48,7 +46,6 @@ private:
 
     bool loaded; //< Main frame itself has finished loading.
     // STUB: preset editor tabs storage
-    // STUB: Statusbar reference
 
     wxSimplebook* tabpanel;
     Controller* controller;

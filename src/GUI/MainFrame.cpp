@@ -1,5 +1,6 @@
 #include <wx/accel.h>
 #include <wx/utils.h> 
+#include <wx/tglbtn.h>
 
 #include "libslic3r.h"
 
@@ -26,48 +27,62 @@ MainFrame::MainFrame(const wxString& title, const wxPoint& pos, const wxSize& si
 
     wxToolTip::SetAutoPop(TOOLTIP_TIMER);
 
-    /* initialize status bar
-    this->statusbar = new ProgressStatusBar(this, -1);
-    this->SetStatusBar(this->statusbar);
-    */
-
     this->loaded = 1;
 
     // Initialize layout
     {
         wxSizer* sizer = new wxBoxSizer(wxVERTICAL);
         
-        // --- Top Navigation Bar (OrcaSlicer Style) ---
+        // --- Top Navigation Bar (Modern Style) ---
         wxPanel* top_bar = new wxPanel(this, wxID_ANY);
         if (ui_settings->color->SOLID_BACKGROUNDCOLOR()) 
             top_bar->SetBackgroundColour(ui_settings->color->TOP_COLOR());
 
         wxBoxSizer* top_sizer = new wxBoxSizer(wxHORIZONTAL);
         
-        // Buttons
-        // We need 3 main modes: Prepare, Preview (Plater's Preview), Device (Controller)
-        auto create_nav_btn = [&](const wxString& label, int id) -> wxButton* {
-            wxButton* b = new wxButton(top_bar, id, label);
-            b->SetFont(ui_settings->small_bold_font());
+        // Navigation Buttons (Toggle Buttons acting as Tabs)
+        // Reverted to natural size and standard button appearance for clarity
+        auto create_nav_tgl = [&](const wxString& label) -> wxToggleButton* {
+            wxToggleButton* b = new wxToggleButton(top_bar, wxID_ANY, label);
+            b->SetFont(ui_settings->medium_font()); 
+            if (ui_settings->color->SOLID_BACKGROUNDCOLOR()) {
+                // Only set text color to white, let system handle button background/hover
+                // This improves visibility on hover states
+                // b->SetForegroundColour(*wxWHITE); // Standard windows buttons might ignore this or look bad if background is light.
+                // Actually, if we don't set background, it will be light grey. White text on light grey is bad.
+                // Let's try setting a slightly lighter dark background than the bar, which often helps Windows calculate hover correctly.
+                b->SetBackgroundColour(wxColour(60, 60, 60)); 
+                b->SetForegroundColour(*wxWHITE);
+            }
             return b;
         };
 
-        wxButton* btn_prepare = create_nav_btn(_("Prepare"), wxNewId());
-        wxButton* btn_preview = create_nav_btn(_("Preview"), wxNewId());
-        wxButton* btn_device  = create_nav_btn(_("Device"), wxNewId());
+        wxToggleButton* btn_prepare = create_nav_tgl(_("Prepare"));
+        wxToggleButton* btn_preview = create_nav_tgl(_("Preview"));
+        wxToggleButton* btn_device  = create_nav_tgl(_("Device"));
 
-        top_sizer->AddStretchSpacer();
-        top_sizer->Add(btn_prepare, 0, wxALL | wxALIGN_CENTER_VERTICAL, 10);
-        top_sizer->Add(btn_preview, 0, wxALL | wxALIGN_CENTER_VERTICAL, 10);
-        top_sizer->Add(btn_device, 0, wxALL | wxALIGN_CENTER_VERTICAL, 10);
-        top_sizer->AddStretchSpacer();
+        btn_prepare->SetValue(true); // Default selection
+
+        // Left-align the navigation tabs
+        top_sizer->Add(btn_prepare, 0, wxALL | wxALIGN_CENTER_VERTICAL, 2);
+        top_sizer->Add(btn_preview, 0, wxALL | wxALIGN_CENTER_VERTICAL, 2);
+        top_sizer->Add(btn_device,  0, wxALL | wxALIGN_CENTER_VERTICAL, 2);
+        top_sizer->AddStretchSpacer(1);
         
-        // Right Side Actions (OrcaSlicer Style)
-        wxButton* btn_slice = create_nav_btn(_("Slice plate"), wxNewId());
-        btn_slice->SetBackgroundColour(ui_settings->color->SELECTED_COLOR()); // Green
+        // Right Side Actions - Restored to prominent style
+        wxButton* btn_slice = new wxButton(top_bar, wxID_ANY, _("Slice plate"));
+        btn_slice->SetBackgroundColour(ui_settings->color->SELECTED_COLOR()); 
         btn_slice->SetForegroundColour(*wxWHITE);
+        wxFont slice_font = ui_settings->small_bold_font();
+        slice_font.SetPointSize(slice_font.GetPointSize() + 1);
+        btn_slice->SetFont(slice_font);
 
-        wxButton* btn_export = create_nav_btn(_("Export G-code"), wxNewId());
+        wxButton* btn_export = new wxButton(top_bar, wxID_ANY, _("Export G-code"));
+        btn_export->SetFont(ui_settings->small_font());
+        if (ui_settings->color->SOLID_BACKGROUNDCOLOR()) {
+             btn_export->SetBackgroundColour(ui_settings->color->TOP_COLOR());
+             btn_export->SetForegroundColour(*wxWHITE);
+        }
         
         top_sizer->Add(btn_slice, 0, wxALL | wxALIGN_CENTER_VERTICAL, 10);
         top_sizer->Add(btn_export, 0, wxALL | wxALIGN_CENTER_VERTICAL, 10);
@@ -78,35 +93,60 @@ MainFrame::MainFrame(const wxString& title, const wxPoint& pos, const wxSize& si
 
         sizer->Add(this->tabpanel, 1, wxEXPAND);
         
-        // wiring
-        btn_prepare->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) {
+        // Navigation Logic Helper
+        auto update_nav = [=](wxToggleButton* active) {
+            if (active != btn_prepare) btn_prepare->SetValue(false);
+            else btn_prepare->SetValue(true);
+            
+            if (active != btn_preview) btn_preview->SetValue(false);
+            else btn_preview->SetValue(true);
+
+            if (active != btn_device) btn_device->SetValue(false);
+            else btn_device->SetValue(true);
+        };
+
+        // Wiring Events
+        btn_prepare->Bind(wxEVT_TOGGLEBUTTON, [=](wxCommandEvent& e) {
+             update_nav(btn_prepare);
              this->tabpanel->SetSelection(0); // Show Plater Panel
              if (this->plater) this->plater->select_view_3d();
         });
 
-        btn_preview->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) {
+        btn_preview->Bind(wxEVT_TOGGLEBUTTON, [=](wxCommandEvent& e) {
+             update_nav(btn_preview);
              this->tabpanel->SetSelection(0); // Stay on Plater
              if (this->plater) this->plater->select_view_preview();
         });
 
-        btn_device->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) {
+        btn_device->Bind(wxEVT_TOGGLEBUTTON, [=](wxCommandEvent& e) {
+             update_nav(btn_device);
              if (this->tabpanel->GetPageCount() > 1) this->tabpanel->SetSelection(1);
         });
 
-        btn_slice->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) {
-             if (this->plater) this->plater->slice();
+        // Action Buttons
+        btn_slice->Bind(wxEVT_BUTTON, [this, btn_preview, update_nav](wxCommandEvent&) {
+             if (this->plater) {
+                 this->plater->slice();
+                 // Automatically switch to preview after slicing for modern workflow
+                 update_nav(btn_preview); 
+                 this->plater->select_view_preview();
+             }
         });
 
         btn_export->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) {
              if (this->plater) this->plater->export_gcode();
         });
+
         sizer->SetSizeHints(this);
         this->SetSizer(sizer);
         this->Fit();
-        this->SetMinSize(wxSize(760, 490));
+        // Increased minimum size for modern displays
+        this->SetMinSize(wxSize(960, 640));
         this->SetSize(this->GetMinSize());
+        
         wxTheApp->SetTopWindow(this);
         ui_settings->restore_window_pos(this, "main_frame");
+        
         if (ui_settings->color->SOLID_BACKGROUNDCOLOR()) {
             this->SetBackgroundColour(ui_settings->color->BACKGROUND_COLOR());
         }

@@ -15,7 +15,6 @@
 
 
 #include "Plater.hpp"
-#include "ProgressStatusBar.hpp"
 #include "Log.hpp"
 #include "MainFrame.hpp"
 #include "BoundingBox.hpp"
@@ -46,7 +45,7 @@ const auto TB_SETTINGS      {wxNewId()};
 const auto PROGRESS_BAR_EVENT = wxNewEventType();
 
 Plater::Plater(wxWindow* parent, const wxString& title) : 
-    wxPanel(parent, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxTAB_TRAVERSAL, title),
+    wxPanel(parent, wxID_ANY, wxDefaultPosition, wxDefaultSize, 0, title),
     _presets(new PresetChooser(dynamic_cast<wxWindow*>(this), this->print))
 {
     if (ui_settings->color->SOLID_BACKGROUNDCOLOR()) {
@@ -77,31 +76,6 @@ Plater::Plater(wxWindow* parent, const wxString& title) :
         }};
     auto on_instances_moved {[this]() { this->on_model_change(); }};
 
-    /* 
-    # Initialize 3D plater
-    if ($Slic3r::GUI::have_OpenGL) {
-        $self->{canvas3D} = Slic3r::GUI::Plater::3D->new($self->{preview_notebook}, $self->{objects}, $self->{model}, $self->{config});
-        $self->{preview_notebook}->AddPage($self->{canvas3D}, '3D');
-        $self->{canvas3D}->set_on_select_object($on_select_object);
-        $self->{canvas3D}->set_on_double_click($on_double_click);
-        $self->{canvas3D}->set_on_right_click(sub { $on_right_click->($self->{canvas3D}, @_); });
-        $self->{canvas3D}->set_on_instances_moved($on_instances_moved);
-        $self->{canvas3D}->on_viewport_changed(sub {
-            $self->{preview3D}->canvas->set_viewport_from_scene($self->{canvas3D});
-        });
-    }
-    */
-
-    // initialize 2D Preview Canvas
-    // canvas2D = new Plate2D(preview_notebook, wxDefaultSize, objects, model, config);
-    // preview_notebook->AddPage(canvas2D, _("2D"));
-
-    // canvas2D->on_select_object = std::function<void (ObjIdx obj_idx)>(on_select_object);
-    // canvas2D->on_double_click = std::function<void ()>(on_double_click);
-    // canvas2D->on_right_click = std::function<void (const wxPoint& pos)>([=](const wxPoint& pos){ on_right_click(canvas2D, pos); });
-    // canvas2D->on_instances_moved = std::function<void ()>(on_instances_moved);
-
-
     canvas3D = new Plate3D(preview_notebook, wxDefaultSize, objects, model, config);
     preview_notebook->AddPage(canvas3D, _("3D"));
 
@@ -131,58 +105,6 @@ Plater::Plater(wxWindow* parent, const wxString& title) :
         e.Skip();
     });
 
-    /*
-    previewDLP = new PreviewDLP(preview_notebook, wxDefaultSize, objects, model, config);
-    preview_notebook->AddPage(previewDLP, _("DLP/SLA"));
-    */
-
-    /*
-    # Initialize 2D preview canvas
-    $self->{canvas} = Slic3r::GUI::Plater::2D->new($self->{preview_notebook}, wxDefaultSize, $self->{objects}, $self->{model}, $self->{config});
-    $self->{preview_notebook}->AddPage($self->{canvas}, '2D');
-    $self->{canvas}->on_select_object($on_select_object);
-    $self->{canvas}->on_double_click($on_double_click);
-    $self->{canvas}->on_right_click(sub { $on_right_click->($self->{canvas}, @_); });
-    $self->{canvas}->on_instances_moved($on_instances_moved);
-    # Initialize 3D toolpaths preview
-    $self->{preview3D_page_idx} = -1;
-    if ($Slic3r::GUI::have_OpenGL) {
-        $self->{preview3D} = Slic3r::GUI::Plater::3DPreview->new($self->{preview_notebook}, $self->{print});
-        $self->{preview3D}->canvas->on_viewport_changed(sub {
-            $self->{canvas3D}->set_viewport_from_scene($self->{preview3D}->canvas);
-        });
-        $self->{preview_notebook}->AddPage($self->{preview3D}, 'Preview');
-        $self->{preview3D_page_idx} = $self->{preview_notebook}->GetPageCount-1;
-    }
-    
-    # Initialize toolpaths preview
-    $self->{toolpaths2D_page_idx} = -1;
-    if ($Slic3r::GUI::have_OpenGL) {
-        $self->{toolpaths2D} = Slic3r::GUI::Plater::2DToolpaths->new($self->{preview_notebook}, $self->{print});
-        $self->{preview_notebook}->AddPage($self->{toolpaths2D}, 'Layers');
-        $self->{toolpaths2D_page_idx} = $self->{preview_notebook}->GetPageCount-1;
-    }
-    
-    EVT_NOTEBOOK_PAGE_CHANGED($self, $self->{preview_notebook}, sub {
-        wxTheApp->CallAfter(sub {
-            my $sel = $self->{preview_notebook}->GetSelection;
-            if ($sel == $self->{preview3D_page_idx} || $sel == $self->{toolpaths2D_page_idx}) {
-                if (!$Slic3r::GUI::Settings->{_}{background_processing} && !$self->{processed}) {
-                    $self->statusbar->SetCancelCallback(sub {
-                        $self->stop_background_process;
-                        $self->statusbar->SetStatusText("Slicing cancelled");
-                        $self->{preview_notebook}->SetSelection(0);
-
-                    });
-                    $self->start_background_process;
-                } else {
-                    $self->{preview3D}->load_print
-                        if $sel == $self->{preview3D_page_idx};
-                }
-            }
-        });
-    });
-    */
     wxStaticBoxSizer* object_info_sizer {nullptr};
     {
         auto* box {new wxStaticBox(this, wxID_ANY, _("Info"))};
@@ -193,6 +115,7 @@ Plater::Plater(wxWindow* parent, const wxString& title) :
             object_info_sizer->Add(sizer, 0, wxEXPAND | wxBOTTOM, 5);
             auto* text  {new wxStaticText(box, wxID_ANY, _("Object:"), wxDefaultPosition, wxDefaultSize, wxALIGN_LEFT)};
             text->SetFont(ui_settings->small_font());
+            if (ui_settings->color->SOLID_BACKGROUNDCOLOR()) text->SetForegroundColour(*wxWHITE);
             sizer->Add(text, 0, wxALIGN_CENTER_VERTICAL);
 
             /* We supply a bogus width to wxChoice (sizer will override it and stretch 
@@ -201,6 +124,10 @@ Plater::Plater(wxWindow* parent, const wxString& title) :
              */
             this->object_info.choice = new wxChoice(box, wxID_ANY, wxDefaultPosition, wxSize(100, -1));
             this->object_info.choice->SetFont(ui_settings->small_font());
+            if (ui_settings->color->SOLID_BACKGROUNDCOLOR()) {
+                this->object_info.choice->SetBackgroundColour(ui_settings->color->BACKGROUND_COLOR());
+                this->object_info.choice->SetForegroundColour(*wxWHITE);
+            }
             sizer->Add(this->object_info.choice, 1, wxALIGN_CENTER_VERTICAL);
 
             // Select object on change.
@@ -222,10 +149,12 @@ Plater::Plater(wxWindow* parent, const wxString& title) :
             wxString name {"Manifold:"};
             auto* text {new wxStaticText(box, wxID_ANY, name, wxDefaultPosition, wxDefaultSize, wxALIGN_LEFT)};
             text->SetFont(ui_settings->small_font());
+            if (ui_settings->color->SOLID_BACKGROUNDCOLOR()) text->SetForegroundColour(*wxWHITE);
             grid_sizer->Add(text, 0);
 
             this->object_info.manifold = new wxStaticText(box, wxID_ANY, "", wxDefaultPosition, wxDefaultSize, wxALIGN_LEFT);
             this->object_info.manifold->SetFont(ui_settings->small_font());
+            if (ui_settings->color->SOLID_BACKGROUNDCOLOR()) this->object_info.manifold->SetForegroundColour(*wxWHITE);
 
             this->object_info.manifold_warning_icon = new wxStaticBitmap(box, wxID_ANY, wxBitmap(var("error.png"), wxBITMAP_TYPE_PNG));
             this->object_info.manifold_warning_icon->Hide();
@@ -239,6 +168,7 @@ Plater::Plater(wxWindow* parent, const wxString& title) :
 
         object_info_sizer->Add(grid_sizer, 0, wxEXPAND);
     }
+    
     this->selection_changed();
     if (this->canvas2D) this->canvas2D->update_bed_size();
 
@@ -247,34 +177,15 @@ Plater::Plater(wxWindow* parent, const wxString& title) :
 
     // Finally assemble the sizers into the display.
     
-    // export/print/send/export buttons
-
     // right panel sizer
     auto* right_sizer {this->right_sizer};
     right_sizer->Add(this->_presets, 0, wxEXPAND | wxTOP, 10);
-
-    /* Moved to Top Bar in MainFrame
-    auto*buttons_sizer = new wxBoxSizer(wxVERTICAL);
-    {
-        auto* btn = new wxButton(this, wxID_ANY, _("Slice now"));
-        btn->SetBitmap(wxBitmap(var("cog.png"), wxBITMAP_TYPE_PNG)); 
-        btn->Bind(wxEVT_BUTTON, [this](wxCommandEvent& e) { this->slice(); });
-        buttons_sizer->Add(btn, 0, wxEXPAND | wxBOTTOM, 5);
-    }
-    {
-        auto* btn = new wxButton(this, wxID_ANY, _("Export G-code"));
-        btn->SetBitmap(wxBitmap(var("cog_go.png"), wxBITMAP_TYPE_PNG)); 
-        btn->Bind(wxEVT_BUTTON, [this](wxCommandEvent& e) { this->export_gcode(); });
-        buttons_sizer->Add(btn, 0, wxEXPAND);
-    }
-    right_sizer->Add(buttons_sizer, 0, wxEXPAND | wxTOP | wxBOTTOM, 10);
-    */
+    this->_presets->Show();
 
 //    $right_sizer->Add($self->{settings_override_panel}, 1, wxEXPAND, 5);
     right_sizer->Add(object_info_sizer, 0, wxEXPAND, 0);
 //    $right_sizer->Add($object_info_sizer, 0, wxEXPAND, 0);
-//    $right_sizer->Add($print_info_sizer, 0, wxEXPAND, 0);
-//    $right_sizer->Hide($print_info_sizer);
+
 
     auto hsizer {new wxBoxSizer(wxHORIZONTAL)};
     hsizer->Add(right_sizer, 0, wxEXPAND | wxLEFT | wxRIGHT, 3);
@@ -286,21 +197,31 @@ Plater::Plater(wxWindow* parent, const wxString& title) :
     hsizer->Add(this->preview_notebook, 1, wxEXPAND | wxTOP, 1);
 
     auto sizer {new wxBoxSizer(wxVERTICAL)};
-    if (this->htoolbar != nullptr) sizer->Add(this->htoolbar, 0, wxEXPAND, 0);
-    if (this->btoolbar != nullptr) sizer->Add(this->btoolbar, 0, wxEXPAND, 0);
+    // Add the new modern toolbar panel
+    if (this->toolbar_panel != nullptr) sizer->Add(this->toolbar_panel, 0, wxEXPAND | wxALL, 0);
+    
     sizer->Add(hsizer, 1, wxEXPAND,0);
 
     sizer->SetSizeHints(this);
     this->SetSizer(sizer);
 
-    // Initialize the toolbar
-    this->selection_changed();
+            // Initialize the toolbar
 
-    this->selection_changed();
+            this->selection_changed();
 
-}
+        
 
-void Plater::select_view_3d() {
+            this->selection_changed();
+
+        }
+
+        
+
+    
+
+    void Plater::select_view_3d() {
+
+    
     if (this->preview_notebook) this->preview_notebook->SetSelection(0);
 }
 
@@ -439,14 +360,6 @@ std::vector<int> Plater::load_file(const std::string file, const int obj_idx_to_
             }
         }
         
-        if (GetFrame()->statusbar) GetFrame()->statusbar->SetStatusText(_("Loaded ") + wxString(file));
-
-        if (this->scaled_down) {
-            if (GetFrame()->statusbar) GetFrame()->statusbar->SetStatusText(_("Your object appears to be too large, so it was automatically scaled down to fit your print bed."));
-        }
-        if (this->outside_bounds) {
-            if (GetFrame()->statusbar) GetFrame()->statusbar->SetStatusText(_("Some of your object(s) appear to be outside the print bed. Use the arrange button to correct this."));
-        }
     }
 
     progress_dialog->Destroy();
@@ -588,15 +501,12 @@ void Plater::arrange() {
     // TODO pause background process
     const Slic3r::BoundingBoxf bb {Slic3r::BoundingBoxf(this->config->get<ConfigOptionPoints>("bed_shape").values)};
     if (this->objects.size() == 0U) { // abort
-        if (GetFrame()->statusbar) GetFrame()->statusbar->SetStatusText(_("Nothing to arrange."));
         return; 
     }
     bool success {this->model->arrange_objects(this->config->config().min_object_distance(), &bb)};
 
     if (success) {
-        if (GetFrame()->statusbar) GetFrame()->statusbar->SetStatusText(_("Objects were arranged."));
     } else {
-        if (GetFrame()->statusbar) GetFrame()->statusbar->SetStatusText(_("Arrange failed."));
     }
     this->on_model_change(true);
 }
@@ -701,9 +611,11 @@ void Plater::selection_changed() {
         }
     }
 
-    if (this->htoolbar != nullptr) {
+    if (this->toolbar_panel != nullptr) {
         for (auto tb : {TB_REMOVE, TB_MORE, TB_FEWER, TB_45CW, TB_45CCW, TB_SCALE, TB_SPLIT, TB_CUT, TB_LAYERS, TB_SETTINGS}) {
-            this->htoolbar->EnableTool(tb, have_sel);
+            if (this->toolbar_tools.count(tb)) {
+                this->toolbar_tools[tb]->Enable(have_sel);
+            }
         }
     }
 
@@ -770,40 +682,119 @@ void Plater::selection_changed() {
 
 void Plater::build_toolbar() {
     wxToolTip::Enable(true);
-    auto* toolbar = this->htoolbar = new wxToolBar(this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxTB_HORIZONTAL | wxTB_TEXT | wxBORDER_SIMPLE | wxTAB_TRAVERSAL);
-    toolbar->AddTool(TB_ADD, _(L"Add\u2026"), wxBitmap(var("brick_add.png"), wxBITMAP_TYPE_PNG));
-    toolbar->AddTool(TB_REMOVE, _("Delete"), wxBitmap(var("brick_delete.png"), wxBITMAP_TYPE_PNG));
-    toolbar->AddTool(TB_RESET, _("Delete All"), wxBitmap(var("cross.png"), wxBITMAP_TYPE_PNG));
-    toolbar->AddTool(TB_ARRANGE, _("Arrange"), wxBitmap(var("bricks.png"), wxBITMAP_TYPE_PNG));
-    toolbar->AddSeparator();
-    toolbar->AddTool(TB_MORE, _("More"), wxBitmap(var("add.png"), wxBITMAP_TYPE_PNG));
-    toolbar->AddTool(TB_FEWER, _("Fewer"), wxBitmap(var("delete.png"), wxBITMAP_TYPE_PNG));
-    toolbar->AddSeparator();
-    toolbar->AddTool(TB_45CCW, _(L"45\u00B0 ccw"), wxBitmap(var("arrow_rotate_anticlockwise.png"), wxBITMAP_TYPE_PNG));
-    toolbar->AddTool(TB_45CW, _(L"45\u00B0 cw"), wxBitmap(var("arrow_rotate_clockwise.png"), wxBITMAP_TYPE_PNG));
-    toolbar->AddTool(TB_SCALE, _(L"Scale\u2026"), wxBitmap(var("arrow_out.png"), wxBITMAP_TYPE_PNG));
-    toolbar->AddTool(TB_SPLIT, _("Split"), wxBitmap(var("shape_ungroup.png"), wxBITMAP_TYPE_PNG));
-    toolbar->AddTool(TB_CUT, _(L"Cut\u2026"), wxBitmap(var("package.png"), wxBITMAP_TYPE_PNG));
-    toolbar->AddSeparator();
-    toolbar->AddTool(TB_SETTINGS, _(L"Settings\u2026"), wxBitmap(var("cog.png"), wxBITMAP_TYPE_PNG));
-    toolbar->AddTool(TB_LAYERS, _(L"Layer heights\u2026"), wxBitmap(var("variable_layer_height.png"), wxBITMAP_TYPE_PNG));
+    
+    // Create the main toolbar panel
+    this->toolbar_panel = new wxPanel(this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxBORDER_NONE);
+    if (ui_settings->color->SOLID_BACKGROUNDCOLOR()) {
+        this->toolbar_panel->SetBackgroundColour(ui_settings->color->TOP_COLOR());
+    }
 
-    toolbar->Realize();
+    auto* sizer = new wxBoxSizer(wxHORIZONTAL);
+    this->toolbar_panel->SetSizer(sizer);
 
+    // Add leading spacer to center the buttons
+    sizer->AddStretchSpacer();
 
-    toolbar->Bind(wxEVT_TOOL, [this](wxCommandEvent &e) { this->add(); }, TB_ADD);
-    toolbar->Bind(wxEVT_TOOL, [this](wxCommandEvent &e) { this->remove(); }, TB_REMOVE);
-    toolbar->Bind(wxEVT_TOOL, [this](wxCommandEvent &e) { this->reset(); }, TB_RESET);
-    toolbar->Bind(wxEVT_TOOL, [this](wxCommandEvent &e) { this->arrange(); }, TB_ARRANGE);
-    toolbar->Bind(wxEVT_TOOL, [this](wxCommandEvent &e) { this->increase(); }, TB_MORE);
-    toolbar->Bind(wxEVT_TOOL, [this](wxCommandEvent &e) { this->decrease(); }, TB_FEWER);
-    toolbar->Bind(wxEVT_TOOL, [this](wxCommandEvent &e) { this->rotate(-45); }, TB_45CW);
-    toolbar->Bind(wxEVT_TOOL, [this](wxCommandEvent &e) { this->rotate(45); }, TB_45CCW);
-    toolbar->Bind(wxEVT_TOOL, [this](wxCommandEvent &e) { this->changescale(); }, TB_SCALE);
-    toolbar->Bind(wxEVT_TOOL, [this](wxCommandEvent &e) { this->split_object(); }, TB_SPLIT);
-    toolbar->Bind(wxEVT_TOOL, [this](wxCommandEvent &e) { this->object_cut_dialog(); }, TB_CUT);
-    toolbar->Bind(wxEVT_TOOL, [this](wxCommandEvent &e) { this->object_layers_dialog(); }, TB_LAYERS);
-    toolbar->Bind(wxEVT_TOOL, [this](wxCommandEvent &e) { this->object_settings_dialog(); }, TB_SETTINGS);
+    // Helper to add a flat toolbar button
+    auto add_tool = [&](int id, const wxString& label, const wxString& icon_name, const wxString& tooltip) {
+        wxBitmap bmp(var(icon_name), wxBITMAP_TYPE_PNG);
+        
+        // Use standard wxButton which supports bitmaps + text on modern Windows
+        wxButton* btn = new wxButton(this->toolbar_panel, id, label, wxDefaultPosition, wxDefaultSize, wxBORDER_NONE);
+        btn->SetBitmap(bmp);
+        btn->SetToolTip(tooltip);
+        
+        // Styling
+        btn->SetFont(ui_settings->small_font());
+        if (ui_settings->color->SOLID_BACKGROUNDCOLOR()) {
+            btn->SetBackgroundColour(ui_settings->color->TOP_COLOR());
+            btn->SetForegroundColour(*wxWHITE);
+        }
+
+        // Hover Effect
+        btn->Bind(wxEVT_ENTER_WINDOW, [btn](wxMouseEvent& e) {
+             if (ui_settings->color->SOLID_BACKGROUNDCOLOR()) {
+                 btn->SetBackgroundColour(wxColour(60, 60, 60)); // Lighter on hover
+                 btn->Refresh();
+             }
+             e.Skip();
+        });
+
+        btn->Bind(wxEVT_LEAVE_WINDOW, [btn](wxMouseEvent& e) {
+             if (ui_settings->color->SOLID_BACKGROUNDCOLOR()) {
+                 btn->SetBackgroundColour(ui_settings->color->TOP_COLOR()); // Back to normal
+                 btn->Refresh();
+             }
+             e.Skip();
+        });
+
+        // Add to sizer
+        sizer->Add(btn, 0, wxALIGN_CENTER_VERTICAL | wxALL, 2);
+
+        // Store reference
+        this->toolbar_tools[id] = btn;
+        
+        return btn;
+    };
+
+    auto add_separator = [&]() {
+         sizer->AddSpacer(10); // Simple spacer instead of panel artifact
+    };
+
+    // Group 1: File/Object Management
+    wxButton* b;
+    b = add_tool(TB_ADD, _("Add"), "brick_add.png", _(L"Add object"));
+    b->Bind(wxEVT_BUTTON, [this](wxCommandEvent &e) { this->add(); });
+
+    b = add_tool(TB_REMOVE, _("Delete"), "brick_delete.png", _("Delete selected object"));
+    b->Bind(wxEVT_BUTTON, [this](wxCommandEvent &e) { this->remove(); });
+
+    b = add_tool(TB_RESET, _("Delete All"), "cross.png", _("Delete all objects"));
+    b->Bind(wxEVT_BUTTON, [this](wxCommandEvent &e) { this->reset(); });
+
+    b = add_tool(TB_ARRANGE, _("Arrange"), "bricks.png", _("Arrange objects"));
+    b->Bind(wxEVT_BUTTON, [this](wxCommandEvent &e) { this->arrange(); });
+
+    add_separator();
+
+    // Group 2: Instances
+    b = add_tool(TB_MORE, _("More"), "add.png", _("Increase copies"));
+    b->Bind(wxEVT_BUTTON, [this](wxCommandEvent &e) { this->increase(); });
+
+    b = add_tool(TB_FEWER, _("Fewer"), "delete.png", _("Decrease copies"));
+    b->Bind(wxEVT_BUTTON, [this](wxCommandEvent &e) { this->decrease(); });
+
+    add_separator();
+
+    // Group 3: Manipulation
+    b = add_tool(TB_45CCW, _(L"-45\u00B0"), "arrow_rotate_anticlockwise.png", _(L"Rotate 45\u00B0 Counter-Clockwise"));
+    b->Bind(wxEVT_BUTTON, [this](wxCommandEvent &e) { this->rotate(45); });
+
+    b = add_tool(TB_45CW, _(L"+45\u00B0"), "arrow_rotate_clockwise.png", _(L"Rotate 45\u00B0 Clockwise"));
+    b->Bind(wxEVT_BUTTON, [this](wxCommandEvent &e) { this->rotate(-45); });
+
+    b = add_tool(TB_SCALE, _("Scale"), "arrow_out.png", _(L"Scale object"));
+    b->Bind(wxEVT_BUTTON, [this](wxCommandEvent &e) { this->changescale(); });
+    
+    b = add_tool(TB_SPLIT, _("Split"), "shape_ungroup.png", _("Split object into parts"));
+    b->Bind(wxEVT_BUTTON, [this](wxCommandEvent &e) { this->split_object(); });
+
+    b = add_tool(TB_CUT, _("Cut"), "package.png", _("Cut object"));
+    b->Bind(wxEVT_BUTTON, [this](wxCommandEvent &e) { this->object_cut_dialog(); });
+
+    add_separator();
+
+    // Group 4: Settings
+    b = add_tool(TB_SETTINGS, _("Settings"), "cog.png", _(L"Object Settings"));
+    b->Bind(wxEVT_BUTTON, [this](wxCommandEvent &e) { this->object_settings_dialog(); });
+
+    b = add_tool(TB_LAYERS, _("Layers"), "variable_layer_height.png", _(L"Variable Layer Heights"));
+    b->Bind(wxEVT_BUTTON, [this](wxCommandEvent &e) { this->object_layers_dialog(); });
+    
+    // Add spacer at end
+    sizer->AddStretchSpacer();
+
+    this->toolbar_panel->SetMinSize(wxSize(-1, 38)); // Ensure height
 }
 
 void Plater::remove() {

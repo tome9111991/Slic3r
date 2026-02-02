@@ -11,6 +11,11 @@ PresetChooser::PresetChooser(wxWindow* parent, std::weak_ptr<Print> print, Setti
     wxPanel(parent, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxTAB_TRAVERSAL, ""),
     _local_sizer(new wxFlexGridSizer(3,3,1,2)), _parent(parent), _settings(external_settings), _print(print), _presets(external_presets)
 {
+    // Apply panel background
+    if (_settings->color->SOLID_BACKGROUNDCOLOR()) {
+        this->SetBackgroundColour(_settings->color->BACKGROUND_COLOR());
+    }
+
     _local_sizer->AddGrowableCol(1, 1);
     _local_sizer->SetFlexibleDirection(wxHORIZONTAL);
 
@@ -37,9 +42,21 @@ PresetChooser::PresetChooser(wxWindow* parent, std::weak_ptr<Print> print, Setti
 
         auto* choice {new wxBitmapComboBox(this, wxID_ANY, "", wxDefaultPosition, wxDefaultSize, 0, nullptr, wxCB_READONLY)};
         this->preset_choosers[get_preset(group)].push_back(choice);
+        
+        // Apply Dark Theme to ComboBox
+        if (_settings->color->SOLID_BACKGROUNDCOLOR()) {
+            choice->SetBackgroundColour(_settings->color->BACKGROUND_COLOR());
+            choice->SetForegroundColour(*wxWHITE);
+            // Note: On Windows, pure OwnerDrawn is needed for full dark mode on ComboBox dropdown list itself,
+            // but this helps the control itself blend in.
+        }
 
         // Settings button
         auto* settings_btn {new wxBitmapButton(this, wxID_ANY, wxBitmap(var("cog.png"), wxBITMAP_TYPE_PNG), wxDefaultPosition, wxDefaultSize, wxBORDER_NONE)};
+        if (_settings->color->SOLID_BACKGROUNDCOLOR()) {
+            settings_btn->SetBackgroundColour(_settings->color->BACKGROUND_COLOR());
+        }
+        
         settings_btn->Bind(wxEVT_BUTTON, [this, group](wxCommandEvent& e) {
              if (auto plater = dynamic_cast<Plater*>(this->GetParent())) {
                  plater->show_preset_editor(group, 0); 

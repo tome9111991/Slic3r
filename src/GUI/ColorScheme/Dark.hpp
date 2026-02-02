@@ -13,9 +13,9 @@ public:
     const wxColour HOVER_COLOR() const { return wxColour(0, 214, 155); };    // Lighter Green
     
     // Dark Backgrounds
-    const wxColour TOP_COLOR() const { return wxColour(31, 31, 31); };       // Dark Grey
-    const wxColour BOTTOM_COLOR() const { return wxColour(31, 31, 31); };    // Dark Grey
-    const wxColour BACKGROUND_COLOR() const { return TOP_COLOR(); }          // Solid Dark
+    const wxColour TOP_COLOR() const { return wxColour(24, 24, 24); };       // Darker Grey for Top Bar
+    const wxColour BOTTOM_COLOR() const { return wxColour(24, 24, 24); };    // Darker Grey for Status Bar
+    const wxColour BACKGROUND_COLOR() const { return wxColour(31, 31, 31); } // Solid Dark Content
     
     // Grid & Bed
     const wxColour GRID_COLOR() const { return wxColour(60, 60, 60, 100); }; // Subtle grid
