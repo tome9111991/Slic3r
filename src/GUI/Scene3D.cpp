@@ -283,6 +283,13 @@ void Scene3D::set_bed_shape(Points _bed_shape){
     const auto expoly = ExPolygon(Polygon(bed_shape));
     const auto box = expoly.bounding_box();
     bed_bound = box;
+    
+    // Update camera target to be the center of the bed
+    Point center = bed_bound.center();
+    _camera_target.x = unscale(center.x);
+    _camera_target.y = unscale(center.y);
+    _camera_target.z = 0.0f;
+
     {
         std::vector<Polygon> triangles;
         expoly.triangulate(&triangles);
@@ -754,12 +761,16 @@ void Scene3D::draw_axes (Pointf3 center, float length, int width, bool always_vi
     glColor3f(0, 1, 0);
     glVertex3f(center.x, center.y, center.z);
     glVertex3f(center.x, center.y + length, center.z);
+    glEnd();
+
     // draw line for Z axis
+    // (re-enable depth test so that axis is correctly shown when objects are behind it)
+    glEnable(GL_DEPTH_TEST);
+    glBegin(GL_LINES);
     glColor3f(0, 0, 1);
     glVertex3f(center.x, center.y, center.z);
     glVertex3f(center.x, center.y, center.z + length);
-    glEnd(); 
-    glEnable(GL_DEPTH_TEST);
+    glEnd();
 }
 void Scene3D::draw_volumes(){
     if (extensions_loaded && m_shader_program != 0) {
@@ -790,8 +801,43 @@ void Scene3D::draw_volumes(){
              // Disable or set default?
              glVertexAttrib1f(m_a_tube_x, 0.0f);
         }
-        glColor4ub(volume.color.Red(), volume.color.Green(), volume.color.Blue(), volume.color.Alpha());
+        glColor4ub(volume.color.Red(), volume.color.Green(), volume.color.Blue(), 255);
         glDrawArrays(GL_TRIANGLES, 0, volume.model.verts.size()/3);
+
+        if (volume.selected) {
+            glDisable(GL_LIGHTING);
+            glLineWidth(2.0f);
+            glColor3f(1.0f, 1.0f, 1.0f);
+            
+            const Pointf3& min = volume.bb.min;
+            const Pointf3& max = volume.bb.max;
+            
+            // Calculate corner line length (min of 10.0f or 20% of dimension)
+            float lx = std::min(10.0f, (float)((max.x - min.x) * 0.2));
+            float ly = std::min(10.0f, (float)((max.y - min.y) * 0.2));
+            float lz = std::min(10.0f, (float)((max.z - min.z) * 0.2));
+
+            glBegin(GL_LINES);
+            for (float x : {min.x, max.x}) {
+                for (float y : {min.y, max.y}) {
+                    for (float z : {min.z, max.z}) {
+                        float dx = (x == min.x) ? lx : -lx;
+                        float dy = (y == min.y) ? ly : -ly;
+                        float dz = (z == min.z) ? lz : -lz;
+                        
+                        // Line along X
+                        glVertex3f(x, y, z); glVertex3f(x + dx, y, z);
+                        // Line along Y
+                        glVertex3f(x, y, z); glVertex3f(x, y + dy, z);
+                        // Line along Z
+                        glVertex3f(x, y, z); glVertex3f(x, y, z + dz);
+                    }
+                }
+            }
+            glEnd();
+            glEnable(GL_LIGHTING);
+        }
+
         glPopMatrix();
     }
     
@@ -857,8 +903,7 @@ void Scene3D::repaint(wxPaintEvent& e) {
             max(@{ $self->bed_bounding_box->size }),
             1.2 * max(@{ $volumes_bb->size }),
         );*/
-    draw_axes(Pointf3(0.0f,0.0f,0.0f),
-    unscale(bed_bound.radius()),2,true/*origin,calulcated length,2, true*/);
+    draw_axes(Pointf3(0.0f,0.0f,0.0f), 20.0f, 2, true);
     
     // draw objects
     glEnable(GL_LIGHTING);

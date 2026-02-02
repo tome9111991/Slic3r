@@ -22,6 +22,7 @@ struct Volume {
     GLVertexArray model;
     BoundingBoxf3 bb;
     std::vector<float> tube_coords;
+    bool selected = false;
 };
 
 class Scene3D : public wxGLCanvas {
@@ -34,7 +35,7 @@ private:
     wxGLContext* glContext;
     
     // Camera settings
-    float zoom = 5.0f, phi = 0.0f, theta = 0.0f;
+    float zoom = 3.0f, phi = 45.0f, theta = 45.0f;
     Pointf3 _camera_target = Pointf3(0.0f,0.0f,0.0f);
     
     // Optional point used for dragging calculations
