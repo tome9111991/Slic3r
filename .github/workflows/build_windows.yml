@@ -1,11 +1,8 @@
 name: Build Windows
 
 on:
-  push:
-    branches: [ "main", "master" ]
-  pull_request:
-    branches: [ "main", "master" ]
-  workflow_dispatch:
+
+  workflow_dispatch: 
 
 jobs:
   build:
@@ -13,7 +10,7 @@ jobs:
 
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4 
       with:
         submodules: recursive
 
@@ -25,7 +22,7 @@ jobs:
       run: .\build_vs2022.bat
 
     - name: Upload Artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4 
       with:
         name: Slic3r-Windows
         path: build/target/slic3r.exe
