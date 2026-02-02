@@ -5,34 +5,27 @@ on:
     branches: [ "main", "master" ]
   pull_request:
     branches: [ "main", "master" ]
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: windows-latest
 
     steps:
-    - uses: actions/checkout@v3
+    - name: Checkout repository
+      uses: actions/checkout@v3
       with:
         submodules: recursive
 
     - name: Set up MSVC
       uses: microsoft/setup-msvc@v1
 
-    - name: Set up vcpkg
-      uses: lukka/run-vcpkg@v10
-      with:
-        vcpkgGitCommitId: '15f750653d99a38618c61097e3704259b369c0d9' # Use a known stable version
-
-    - name of the bootstrap-vcpkg script
-      run: vcpkg/bootstrap-vcpkg.bat
-
     - name: Build project
-      run: |
-        .\build_vs2022.bat
       shell: cmd
+      run: .\build_vs2022.bat
 
     - name: Upload Artifact
       uses: actions/upload-artifact@v3
       with:
         name: Slic3r-Windows
-        path: build/target/Release/slic3r.exe
+        path: build/target/slic3r.exe
