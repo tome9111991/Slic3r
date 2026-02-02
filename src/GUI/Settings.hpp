@@ -35,10 +35,12 @@ class Settings {
         bool autoalignz {true};
         bool invert_zoom {false};
         bool background_processing {false};
+        bool remember_output_path {true};
 
         bool preset_editor_tabs {true};
 
         bool hide_reload_dialog {false};
+        bool reload_preserve_trafo {false};
 
         ReloadBehavior reload {ReloadBehavior::all};
         std::unique_ptr<ColorScheme> color {new Slic3r::GUI::DarkColor};
@@ -47,6 +49,8 @@ class Settings {
         float nudge {1.0}; //< 2D plater nudge amount in mm
 
         unsigned int threads {1}; //< Number of threads to use when slicing
+        
+        std::string rotation_controls {"xyz"};
 
         const wxString version { wxString(SLIC3R_VERSION) };
 

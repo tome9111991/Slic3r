@@ -107,6 +107,7 @@ Plater::Plater(wxWindow* parent, const wxString& title) :
 
     canvas3D->on_select_object = std::function<void (ObjIdx obj_idx)>(on_select_object);
     canvas3D->on_instances_moved = std::function<void ()>(on_instances_moved);
+    canvas3D->on_right_click = std::function<void(wxWindow* canvas, const wxPoint& pos)>([=](wxWindow* canvas, const wxPoint& pos) { on_right_click(static_cast<wxPanel*>(canvas), pos); });
     
     preview3D = new Preview3D(preview_notebook, wxDefaultSize, print, objects, model, config);
     preview_notebook->AddPage(preview3D, _("Preview"));
@@ -1068,7 +1069,7 @@ void Plater::split_object() {
     this->resume_background_process();
 } 
 
-void Plater::changescale() {
+void Plater::changescale(bool to_size) {
     ObjRef obj {this->selected_object()};
     if (obj == this->objects.end()) return;
     
@@ -1079,6 +1080,12 @@ void Plater::changescale() {
     if (model_object->instances.empty()) return;
 
     auto* model_instance = model_object->instances.front();
+    
+    if (to_size) {
+        wxMessageBox("Scale to size not implemented yet", "Not Implemented");
+        return;
+    }
+
     double current_scale_percent = model_instance->scaling_factor * 100.0;
     
     // Ask user for percentage
@@ -1099,7 +1106,6 @@ void Plater::changescale() {
     
     // Apply uniformly
     double variation = scale_factor / model_instance->scaling_factor;
-    // Update layer height ranges if any
     // Update layer height ranges if any
     t_layer_height_ranges new_ranges;
     for (const auto& kv : model_object->layer_height_ranges) {
@@ -1124,6 +1130,30 @@ void Plater::changescale() {
 
     this->selection_changed();
     this->on_model_change();
+}
+
+void Plater::changescale(Axis axis, bool to_size) {
+    wxMessageBox("Non-uniform scaling not implemented yet", "Not Implemented");
+}
+
+void Plater::mirror(Axis axis, bool dont_push) {
+    wxMessageBox("Mirroring not implemented yet", "Not Implemented");
+}
+
+void Plater::reload_from_disk() {
+    wxMessageBox("Reload from disk not implemented yet", "Not Implemented");
+}
+
+void Plater::export_object_stl() {
+    wxMessageBox("Export object STL not implemented yet", "Not Implemented");
+}
+
+void Plater::export_object_amf() {
+    wxMessageBox("Export object AMF not implemented yet", "Not Implemented");
+}
+
+void Plater::export_object_tmf() {
+    wxMessageBox("Export object 3MF not implemented yet", "Not Implemented");
 }
 
 void Plater::object_cut_dialog() {
@@ -1201,95 +1231,59 @@ wxMenu* Plater::object_menu() {
     append_menu_item(menu, _(L"Rotate 45\u00B0 clockwise"), _(L"Rotate the selected object by 45\u00B0 clockwise."), [=](wxCommandEvent& e) { this->rotate(45);}, wxID_ANY, "arrow_rotate_clockwise.png");
     append_menu_item(menu, _(L"Rotate 45\u00B0 counter-clockwise"), _(L"Rotate the selected object by 45\u00B0 counter-clockwise."), [=](wxCommandEvent& e) { this->rotate(-45);}, wxID_ANY, "arrow_rotate_anticlockwise.png");
     
+    // Rotate Submenu
     {
         auto* rotateMenu {new wxMenu};
-
         append_menu_item(rotateMenu, _(L"Around X axis\u2026"), _("Rotate the selected object by an arbitrary angle around X axis."), [this](wxCommandEvent& e) { this->rotate(X); }, wxID_ANY, "bullet_red.png");
         append_menu_item(rotateMenu, _(L"Around Y axis\u2026"), _("Rotate the selected object by an arbitrary angle around Y axis."), [this](wxCommandEvent& e) { this->rotate(Y); }, wxID_ANY, "bullet_green.png");
         append_menu_item(rotateMenu, _(L"Around Z axis\u2026"), _("Rotate the selected object by an arbitrary angle around Z axis."), [this](wxCommandEvent& e) { this->rotate(Z); }, wxID_ANY, "bullet_blue.png");
-
         append_submenu(menu, _("Rotate"), _("Rotate the selected object by an arbitrary angle"), rotateMenu, wxID_ANY, "textfield.png");
     }
-    /*
-    
+
+    // Mirror Submenu
     {
-        my $mirrorMenu = Wx::Menu->new;
-        wxTheApp->append_menu_item($mirrorMenu, "Along X axis…", 'Mirror the selected object along the X axis', sub {
-            $self->mirror(X);
-        }, undef, 'bullet_red.png');
-        wxTheApp->append_menu_item($mirrorMenu, "Along Y axis…", 'Mirror the selected object along the Y axis', sub {
-            $self->mirror(Y);
-        }, undef, 'bullet_green.png');
-        wxTheApp->append_menu_item($mirrorMenu, "Along Z axis…", 'Mirror the selected object along the Z axis', sub {
-            $self->mirror(Z);
-        }, undef, 'bullet_blue.png');
-        wxTheApp->append_submenu($menu, "Mirror", 'Mirror the selected object', $mirrorMenu, undef, 'shape_flip_horizontal.png');
+        auto* mirrorMenu {new wxMenu};
+        append_menu_item(mirrorMenu, _(L"Along X axis"), _("Mirror the selected object along the X axis"), [this](wxCommandEvent& e) { this->mirror(X); }, wxID_ANY, "shape_flip_horizontal_x.png");
+        append_menu_item(mirrorMenu, _(L"Along Y axis"), _("Mirror the selected object along the Y axis"), [this](wxCommandEvent& e) { this->mirror(Y); }, wxID_ANY, "shape_flip_horizontal_y.png");
+        append_menu_item(mirrorMenu, _(L"Along Z axis"), _("Mirror the selected object along the Z axis"), [this](wxCommandEvent& e) { this->mirror(Z); }, wxID_ANY, "shape_flip_horizontal_z.png");
+        append_submenu(menu, _("Mirror"), _("Mirror the selected object"), mirrorMenu, wxID_ANY, "shape_flip_horizontal.png");
     }
-    
+
+    // Scale Submenu
     {
-        my $scaleMenu = Wx::Menu->new;
-        wxTheApp->append_menu_item($scaleMenu, "Uniformly…", 'Scale the selected object along the XYZ axes', sub {
-            $self->changescale(undef);
-        });
-        wxTheApp->append_menu_item($scaleMenu, "Along X axis…", 'Scale the selected object along the X axis', sub {
-            $self->changescale(X);
-        }, undef, 'bullet_red.png');
-        wxTheApp->append_menu_item($scaleMenu, "Along Y axis…", 'Scale the selected object along the Y axis', sub {
-            $self->changescale(Y);
-        }, undef, 'bullet_green.png');
-        wxTheApp->append_menu_item($scaleMenu, "Along Z axis…", 'Scale the selected object along the Z axis', sub {
-            $self->changescale(Z);
-        }, undef, 'bullet_blue.png');
-        wxTheApp->append_submenu($menu, "Scale", 'Scale the selected object by a given factor', $scaleMenu, undef, 'arrow_out.png');
+        auto* scaleMenu {new wxMenu};
+        append_menu_item(scaleMenu, _(L"Uniformly\u2026"), _("Scale the selected object along the XYZ axes"), [this](wxCommandEvent& e) { this->changescale(false); }, wxID_ANY);
+        append_menu_item(scaleMenu, _(L"Along X axis\u2026"), _("Scale the selected object along the X axis"), [this](wxCommandEvent& e) { this->changescale(X, false); }, wxID_ANY, "bullet_red.png");
+        append_menu_item(scaleMenu, _(L"Along Y axis\u2026"), _("Scale the selected object along the Y axis"), [this](wxCommandEvent& e) { this->changescale(Y, false); }, wxID_ANY, "bullet_green.png");
+        append_menu_item(scaleMenu, _(L"Along Z axis\u2026"), _("Scale the selected object along the Z axis"), [this](wxCommandEvent& e) { this->changescale(Z, false); }, wxID_ANY, "bullet_blue.png");
+        append_submenu(menu, _("Scale"), _("Scale the selected object by a given factor"), scaleMenu, wxID_ANY, "arrow_out.png");
     }
-    
+
+    // Scale to Size Submenu
     {
-        my $scaleToSizeMenu = Wx::Menu->new;
-        wxTheApp->append_menu_item($scaleToSizeMenu, "Uniformly…", 'Scale the selected object along the XYZ axes', sub {
-            $self->changescale(undef, 1);
-        });
-        wxTheApp->append_menu_item($scaleToSizeMenu, "Along X axis…", 'Scale the selected object along the X axis', sub {
-            $self->changescale(X, 1);
-        }, undef, 'bullet_red.png');
-        wxTheApp->append_menu_item($scaleToSizeMenu, "Along Y axis…", 'Scale the selected object along the Y axis', sub {
-            $self->changescale(Y, 1);
-        }, undef, 'bullet_green.png');
-        wxTheApp->append_menu_item($scaleToSizeMenu, "Along Z axis…", 'Scale the selected object along the Z axis', sub {
-            $self->changescale(Z, 1);
-        }, undef, 'bullet_blue.png');
-        wxTheApp->append_submenu($menu, "Scale to size", 'Scale the selected object to match a given size', $scaleToSizeMenu, undef, 'arrow_out.png');
+        auto* scaleToSizeMenu {new wxMenu};
+        append_menu_item(scaleToSizeMenu, _(L"Uniformly\u2026"), _("Scale the selected object along the XYZ axes"), [this](wxCommandEvent& e) { this->changescale(true); }, wxID_ANY);
+        append_menu_item(scaleToSizeMenu, _(L"Along X axis\u2026"), _("Scale the selected object along the X axis"), [this](wxCommandEvent& e) { this->changescale(X, true); }, wxID_ANY, "bullet_red.png");
+        append_menu_item(scaleToSizeMenu, _(L"Along Y axis\u2026"), _("Scale the selected object along the Y axis"), [this](wxCommandEvent& e) { this->changescale(Y, true); }, wxID_ANY, "bullet_green.png");
+        append_menu_item(scaleToSizeMenu, _(L"Along Z axis\u2026"), _("Scale the selected object along the Z axis"), [this](wxCommandEvent& e) { this->changescale(Z, true); }, wxID_ANY, "bullet_blue.png");
+        append_submenu(menu, _("Scale to size"), _("Scale the selected object to match a given size"), scaleToSizeMenu, wxID_ANY, "arrow_out.png");
     }
+
+    append_menu_item(menu, _("Split"), _("Split the selected object into individual parts"), [this](wxCommandEvent& e) { this->split_object(); }, wxID_ANY, "shape_ungroup.png");
+    append_menu_item(menu, _("Cut\u2026"), _("Open the 3D cutting tool"), [this](wxCommandEvent& e) { this->object_cut_dialog(); }, wxID_ANY, "package.png");
+    append_menu_item(menu, _("Layer heights\u2026"), _("Open the dynamic layer height control"), [this](wxCommandEvent& e) { this->object_layers_dialog(); }, wxID_ANY, "variable_layer_height.png");
     
-    wxTheApp->append_menu_item($menu, "Split", 'Split the selected object into individual parts', sub {
-        $self->split_object;
-    }, undef, 'shape_ungroup.png');
-    wxTheApp->append_menu_item($menu, "Cut…", 'Open the 3D cutting tool', sub {
-        $self->object_cut_dialog;
-    }, undef, 'package.png');
-    wxTheApp->append_menu_item($menu, "Layer heights…", 'Open the dynamic layer height control', sub {
-        $self->object_layers_dialog;
-    }, undef, 'variable_layer_height.png');
-    $menu->AppendSeparator();
-    wxTheApp->append_menu_item($menu, "Settings…", 'Open the object editor dialog', sub {
-        $self->object_settings_dialog;
-    }, undef, 'cog.png');
-    $menu->AppendSeparator();
-    wxTheApp->append_menu_item($menu, "Reload from Disk", 'Reload the selected file from Disk', sub {
-        $self->reload_from_disk;
-    }, undef, 'arrow_refresh.png');
-    wxTheApp->append_menu_item($menu, "Export object as STL…", 'Export this single object as STL file', sub {
-        $self->export_object_stl;
-    }, undef, 'brick_go.png');
-    wxTheApp->append_menu_item($menu, "Export object and modifiers as AMF…", 'Export this single object and all associated modifiers as AMF file', sub {
-        $self->export_object_amf;
-    }, undef, 'brick_go.png');
-    wxTheApp->append_menu_item($menu, "Export object and modifiers as 3MF…", 'Export this single object and all associated modifiers as 3MF file', sub {
-            $self->export_object_tmf;
-    }, undef, 'brick_go.png');
+    menu->AppendSeparator();
     
-    return $menu;
-}
-*/
+    append_menu_item(menu, _("Settings\u2026"), _("Open the object editor dialog"), [this](wxCommandEvent& e) { this->object_settings_dialog(); }, wxID_ANY, "cog.png");
+    
+    menu->AppendSeparator();
+    
+    append_menu_item(menu, _("Reload from Disk"), _("Reload the selected file from Disk"), [this](wxCommandEvent& e) { this->reload_from_disk(); }, wxID_ANY, "arrow_refresh.png");
+    append_menu_item(menu, _("Export object as STL\u2026"), _("Export this single object as STL file"), [this](wxCommandEvent& e) { this->export_object_stl(); }, wxID_ANY, "brick_go.png");
+    append_menu_item(menu, _("Export object and modifiers as AMF\u2026"), _("Export this single object and all associated modifiers as AMF file"), [this](wxCommandEvent& e) { this->export_object_amf(); }, wxID_ANY, "brick_go.png");
+    append_menu_item(menu, _("Export object and modifiers as 3MF\u2026"), _("Export this single object and all associated modifiers as 3MF file"), [this](wxCommandEvent& e) { this->export_object_tmf(); }, wxID_ANY, "brick_go.png");
+
     return menu;
 }
 

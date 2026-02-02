@@ -14,9 +14,14 @@ Plate3D::Plate3D(wxWindow* parent, const wxSize& size, std::vector<PlaterObject>
 void Plate3D::mouse_down(wxMouseEvent &e){
     if(hover){
         on_select_object(hover_object);
-        moving = true;
-        moving_volume = hover_volume;
-        move_start = Point(e.GetX(),e.GetY());
+        if (e.RightDown()) {
+            if (on_right_click)
+                on_right_click(this, e.GetPosition());
+        } else {
+            moving = true;
+            moving_volume = hover_volume;
+            move_start = Point(e.GetX(), e.GetY());
+        }
     }else{
         on_select_object(-1);
     }
@@ -101,18 +106,12 @@ void Plate3D::color_volumes(){
     unsigned int i = 0;
     for(const PlaterObject &object: objects){
         const auto &modelobj = model->objects.at(object.identifier);
-        bool hover_object = hover && i <= hover_volume && hover_volume < i+modelobj->instances.size()*modelobj->volumes.size();
+
         for(ModelInstance *instance: modelobj->instances){
             for(ModelVolume* volume: modelobj->volumes){
                 auto& rendervolume = volumes.at(i);
                 rendervolume.selected = object.selected;
-                if(object.selected){
-                    rendervolume.color = ui_settings->color->SELECTED_COLOR();
-                }else if(hover_object){
-                    rendervolume.color = ui_settings->color->HOVER_COLOR();
-                } else {
-                    rendervolume.color = ui_settings->color->COLOR_PARTS();
-                }
+                rendervolume.color = ui_settings->color->COLOR_PARTS();
                 i++;
             }
         }

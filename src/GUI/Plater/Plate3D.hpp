@@ -24,6 +24,9 @@ public:
     
     /// Registered function to fire when an instance is moved.
     std::function<void ()> on_instances_moved {};
+
+    /// Registered function to fire when the user right clicks.
+    std::function<void(wxWindow* canvas, const wxPoint& pos)> on_right_click {};
     
     void selection_changed(){Refresh();}
  protected:

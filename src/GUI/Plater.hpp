@@ -227,11 +227,23 @@ private:
     /// Rotate the currently selected model.
     void rotate(double angle, Axis axis = Z, bool dont_push = false); 
 
+    /// Mirror the currently selected model.
+    void mirror(Axis axis, bool dont_push = false);
+
+    /// Reload the selected object from disk.
+    void reload_from_disk();
+
+    /// Export the single selected object.
+    void export_object_stl();
+    void export_object_amf();
+    void export_object_tmf();
+
     /// Separate a multipart model to its component interfaces.
     void split_object(); 
 
     /// Prompt a change of scaling.
-    void changescale();
+    void changescale(bool to_size = false);
+    void changescale(Axis axis, bool to_size = false);
 
     /// Open the dialog to perform a cut on the current model.
     void object_cut_dialog();
