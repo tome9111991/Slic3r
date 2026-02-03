@@ -79,8 +79,8 @@ if %errorlevel% neq 0 (
 )
 
 echo [INFO] Copying resources...
-if not exist "%GLOBAL_BUILD_DIR%\var" mkdir "%GLOBAL_BUILD_DIR%\var"
-xcopy /E /I /Y "%BASE_DIR%\var" "%GLOBAL_BUILD_DIR%\var" >nul
+if not exist "%CMAKE_BUILD_DIR%\resources" mkdir "%CMAKE_BUILD_DIR%\resources"
+xcopy /E /I /Y "%BASE_DIR%\resources" "%CMAKE_BUILD_DIR%\resources" >nul
 
 echo.
 echo [SUCCESS] Build complete!

@@ -89,11 +89,11 @@ const std::string TMF_MODEL_WILDCARD { FILE_WILDCARDS.at("tmf") };
     #define VAR_ABS true
 #endif
 #ifndef VAR_ABS_PATH
-    #define VAR_ABS_PATH "/usr/share/Slic3r/var"
+    #define VAR_ABS_PATH "/usr/share/Slic3r/resources"
 #endif
 
 #ifndef VAR_REL // Redefine on compile
-    #define VAR_REL L"/../var"
+    #define VAR_REL L"/resources"
 #endif
 
 /// Performs a check via the Internet for a new version of Slic3r.
