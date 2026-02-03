@@ -36,6 +36,8 @@ The legacy Perl code in `port/lib/` and `port/xs/` serves as the "source of trut
 - Visual Studio 2022
 - PowerShell 7 or 5.1
 - CMake & Ninja (installed via VS or separately)
+- **Boost 1.90.0**
+- **wxWidgets 3.3.1**
 
 ### Build Command
 Use the provided batch script to build the C++ version:
@@ -51,6 +53,7 @@ This script handles `vcpkg` dependencies and CMake configuration automatically.
 2.  **Implement C++:** Reimplement the logic in `src/` using C++17 and wxWidgets.
 3.  **Verify:** Ensure the C++ behavior matches the legacy Perl behavior.
 4.  **Style:** Follow the surrounding C++ code style (indentation, naming).
+5.  **Forward Thinking:** When implementing new features, always design with future scalability and modularity in mind. Don't just port the logic; consider how it can be improved or extended in the modern C++ context.
 
 ## Useful References
 - **Perl GUI:** `port/lib/Slic3r/GUI/`

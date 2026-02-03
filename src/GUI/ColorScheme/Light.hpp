@@ -1,17 +1,20 @@
-#ifndef COLOR_DEFAULT_HPP
-#define COLOR_DEFAULT_HPP
+#ifndef COLOR_LIGHT_HPP
+#define COLOR_LIGHT_HPP
 
 namespace Slic3r { namespace GUI {
 
-class DefaultColor : public ColorScheme {
+class LightColor : public ColorScheme {
 public:
-    const std::string name() const { return "Default"; }
+    const std::string name() const { return "Light"; }
     const bool SOLID_BACKGROUNDCOLOR() const { return false; };
     const wxColour SELECTED_COLOR() const { return wxColour(0, 255, 0); };
     const wxColour HOVER_COLOR() const { return wxColour(255*0.4, 255*0.9, 0); };            //<Hover over Model
-    const wxColour TOP_COLOR() const { return wxColour(10,98,144); };    //<TOP Background color
-    const wxColour BOTTOM_COLOR() const { return wxColour(0,0,0); };                 //<BOTTOM Background color
-    const wxColour BACKGROUND_COLOR() const {return TOP_COLOR();}                      //< SOLID background color
+    
+    // Standard Light Mode Colors (Blue Gradient Background)
+    const wxColour TOP_COLOR() const { return wxColour(10, 98, 144); };      //< Legacy Slic3r Blue
+    const wxColour BOTTOM_COLOR() const { return wxColour(0, 0, 0); };       //< Black Bottom Gradient
+    const wxColour BACKGROUND_COLOR() const {return TOP_COLOR();}            //< Defines Solid BG if used
+    
     const wxColour GRID_COLOR() const { return wxColour(255*0.2, 255*0.2, 255*0.2, 255*0.4); };      //<Grid color
     const wxColour GROUND_COLOR() const { return wxColour(255*0.8, 255*0.6, 255*0.5, 255*0.4); };    //<Ground or Plate color
     const wxColour COLOR_CUTPLANE() const { return wxColour(255*0.8, 255*0.8, 255*0.8, 255*0.5); };

@@ -5,6 +5,7 @@
 #include <wx/statbox.h>
 #include "libslic3r/PrintConfig.hpp"
 #include "Log.hpp"
+#include "GUI.hpp"
 
 namespace Slic3r { namespace GUI {
 
@@ -33,8 +34,15 @@ void OptionsGroup::append_single_option_line(const t_config_option_key& opt_key)
     }
     
     auto* label = new wxStaticText(parent, wxID_ANY, wxString::FromUTF8(label_text + ":"));
+    if (ui_settings && ui_settings->color->SOLID_BACKGROUNDCOLOR()) label->SetForegroundColour(*wxWHITE);
+    else label->SetForegroundColour(*wxBLACK);
     line_sizer->Add(label, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 5);
-    line_sizer->Add(field->get_window(), 1, wxEXPAND);
+    if (this->get_option(opt_key).desc.type == coBool) {
+        // Don't expand checkboxes, keeps the background highlight tight to the box
+        line_sizer->Add(field->get_window(), 0, wxALIGN_LEFT | wxALIGN_CENTER_VERTICAL);
+    } else {
+        line_sizer->Add(field->get_window(), 1, wxEXPAND);
+    }
     
     if (this->sizer)
         this->sizer->Add(line_sizer, 0, wxEXPAND | wxALL, 5);
@@ -45,6 +53,8 @@ void OptionsGroup::append_line(const Line& line) {
     
     if (!line.label.empty()) {
         auto* label = new wxStaticText(parent, wxID_ANY, wxString::FromUTF8(line.label + ":"));
+        if (ui_settings && ui_settings->color->SOLID_BACKGROUNDCOLOR()) label->SetForegroundColour(*wxWHITE);
+        else label->SetForegroundColour(*wxBLACK);
         line_sizer->Add(label, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 5);
     }
     
@@ -55,7 +65,13 @@ void OptionsGroup::append_line(const Line& line) {
         auto* field = this->build_field(opt.opt_id);
         if (field) {
             _fields[opt.opt_id] = std::unique_ptr<UI_Field>(field);
-            line_sizer->Add(field->get_window(), 1, wxEXPAND | wxRIGHT, 5);
+            
+            if (opt.desc.type == coBool) {
+                // Don't expand checkboxes
+                line_sizer->Add(field->get_window(), 0, wxALIGN_LEFT | wxALIGN_CENTER_VERTICAL | wxRIGHT, 5);
+            } else {
+                line_sizer->Add(field->get_window(), 1, wxEXPAND | wxRIGHT, 5);
+            }
         }
     }
     

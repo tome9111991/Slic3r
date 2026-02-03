@@ -38,6 +38,8 @@ public:
 
     void on_plater_object_list_changed(bool force) {};
     void on_plater_selection_changed(bool force) {};
+
+    void sync_colors();
 private:
     wxDECLARE_EVENT_TABLE();
 
@@ -50,6 +52,13 @@ private:
     wxSimplebook* tabpanel;
     Controller* controller;
     Plater* plater;
+
+    wxPanel* top_bar {nullptr};
+    wxPanel* btn_prepare {nullptr};
+    wxPanel* btn_preview {nullptr};
+    wxPanel* btn_device {nullptr};
+    wxPanel* btn_slice {nullptr};
+    wxPanel* btn_export {nullptr};
 
     wxMenu* plater_menu {nullptr};
 

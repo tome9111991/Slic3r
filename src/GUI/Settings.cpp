@@ -37,6 +37,7 @@ void Settings::save_settings() {
     config.Write("show_host", this->show_host);
     config.Write("reload_hide_dialog", this->hide_reload_dialog);
     config.Write("reload_preserve_trafo", this->reload_preserve_trafo);
+    config.Write("dark_mode", this->dark_mode);
     config.Write("reload_behavior", (long)this->reload);
     config.Write("rotation_controls", wxString(this->rotation_controls));
 
@@ -73,6 +74,8 @@ void Settings::load_settings() {
     config.Read("show_host", &this->show_host, true);
     config.Read("reload_hide_dialog", &this->hide_reload_dialog, false);
     config.Read("reload_preserve_trafo", &this->reload_preserve_trafo, false);
+    config.Read("dark_mode", &this->dark_mode, true);
+    this->apply_theme();
     
     long t_reload;
     if (config.Read("reload_behavior", &t_reload)) this->reload = (ReloadBehavior)t_reload;
@@ -144,4 +147,85 @@ void Settings::restore_window_pos(wxWindow* ref, wxString name) {
 
     if (max) parent->Maximize(true);
 }
+
+// Pure Internal Theme Switching + Simple Native Flag
+void Settings::apply_theme() {
+    if (this->dark_mode) {
+        this->color = std::make_unique<DarkColor>();
+    } else {
+        this->color = std::make_unique<LightColor>();
+    }
+
+#ifdef _WIN32
+    // if (SLIC3RAPP) SLIC3RAPP->MSWEnableDarkMode(this->dark_mode ? 1 : 0);
+#endif
+    
+    // Refresh all top-level windows if they exist
+    // Refresh all top-level windows if they exist
+    // Refresh all top-level windows if they exist
+     for (wxWindow* win : wxTopLevelWindows) {
+        if (win) this->apply_theme_to_window(win);
+     }
+}
+
+void Settings::apply_theme_to_window(wxWindow* win) {
+     if (!win) return;
+     
+     wxColour target_bg = wxColour(240, 240, 240); // Hardcoded Light Grey for consistency
+     if (this->color->SOLID_BACKGROUNDCOLOR()) {
+         target_bg = this->color->BACKGROUND_COLOR();
+     }
+     
+     win->SetBackgroundColour(target_bg);
+     win->Refresh();
+     
+     // Special handling for MainFrame to update its custom panels
+     if (MainFrame* main = dynamic_cast<MainFrame*>(win)) {
+         main->sync_colors();
+     }
+
+     // Aggressively recurse children to force background color AND text color
+     // This fixes issues where panels inside dialogs stick to System Dark Mode colors
+     std::function<void(wxWindow*)> recurse_children = [&](wxWindow* parent) {
+         for (wxWindow* child : parent->GetChildren()) {
+              // Skip simple buttons or text controls, mainly target Panels/Notebooks
+              // casting to wxPanel check is good heuristic for containers
+              if (dynamic_cast<wxPanel*>(child) || dynamic_cast<wxNotebook*>(child) || dynamic_cast<wxSimplebook*>(child)) {
+                  child->SetBackgroundColour(target_bg);
+              }
+              
+              // Fix Controls in Light Mode (force White BG / Black Text)
+              if (!this->color->SOLID_BACKGROUNDCOLOR()) {
+                  // Text Inputs, Combo Boxes - Force White BG, Black Text
+                  if (dynamic_cast<wxTextCtrl*>(child) || dynamic_cast<wxChoice*>(child) || dynamic_cast<wxComboBox*>(child)) {
+                      child->SetBackgroundColour(*wxWHITE);
+                      child->SetForegroundColour(*wxBLACK);
+                  }
+                  // Static Text, Checkboxes - Force Transparent/Target BG, Black Text
+                  if (dynamic_cast<wxStaticText*>(child) || dynamic_cast<wxCheckBox*>(child) || dynamic_cast<wxRadioButton*>(child)) {
+                       child->SetForegroundColour(*wxBLACK);
+                  }
+              } else {
+                  // Dark Mode Handling
+                  
+                  // Fix for Checkboxes: 
+                  // The user confirmed Light Mode works (Black Check on Light Background).
+                  // Since the Checkbox has NO text (label is separate), we can safely force 
+                  // it to look exactly like it does in Light Mode.
+                  if (dynamic_cast<wxCheckBox*>(child)) {
+                       child->SetBackgroundColour(wxColour(240, 240, 240)); // Standard Light Grey
+                       child->SetForegroundColour(*wxBLACK);                // Standard Black Check
+                  }
+                  else if (dynamic_cast<wxStaticText*>(child) || dynamic_cast<wxRadioButton*>(child)) {
+                       child->SetForegroundColour(*wxWHITE); // Keep text white
+                  }
+              }
+              
+              child->Refresh();
+              recurse_children(child);
+         }
+     };
+     recurse_children(win);
+}
+
 }} // namespace Slic3r::GUI

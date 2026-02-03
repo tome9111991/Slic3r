@@ -189,16 +189,14 @@ MainFrame::MainFrame(const wxString& title, const wxPoint& pos, const wxSize& si
         wxSizer* sizer = new wxBoxSizer(wxVERTICAL);
         
         // --- Top Navigation Bar (Modern Style) ---
-        wxPanel* top_bar = new wxPanel(this, wxID_ANY);
-        if (ui_settings->color->SOLID_BACKGROUNDCOLOR()) 
-            top_bar->SetBackgroundColour(ui_settings->color->TOP_COLOR());
-
+        this->top_bar = new wxPanel(this, wxID_ANY);
+        
         wxBoxSizer* top_sizer = new wxBoxSizer(wxHORIZONTAL);
         
         // Navigation Buttons (Acting as Tabs)
         // Implemented as FlatToggleButton for clean, modern look
         auto create_nav_tgl = [&](const wxString& label) -> FlatToggleButton* {
-            FlatToggleButton* b = new FlatToggleButton(top_bar, wxID_ANY, label);
+            FlatToggleButton* b = new FlatToggleButton(this->top_bar, wxID_ANY, label);
             b->SetFont(ui_settings->medium_font()); 
             if (ui_settings->color->SOLID_BACKGROUNDCOLOR()) {
                 b->SetBackgroundColour(ui_settings->color->TOP_COLOR()); // Match bar background
@@ -207,83 +205,83 @@ MainFrame::MainFrame(const wxString& title, const wxPoint& pos, const wxSize& si
             return b;
         };
 
-        FlatToggleButton* btn_prepare = create_nav_tgl(_("Prepare"));
-        FlatToggleButton* btn_preview = create_nav_tgl(_("Preview"));
-        FlatToggleButton* btn_device  = create_nav_tgl(_("Device"));
+        this->btn_prepare = create_nav_tgl(_("Prepare"));
+        this->btn_preview = create_nav_tgl(_("Preview"));
+        this->btn_device  = create_nav_tgl(_("Device"));
 
-        btn_prepare->SetValue(true); // Default selection
+        dynamic_cast<FlatToggleButton*>(this->btn_prepare)->SetValue(true); // Default selection
 
         // Left-align the navigation tabs
-        top_sizer->Add(btn_prepare, 0, wxALL | wxALIGN_CENTER_VERTICAL, 2);
-        top_sizer->Add(btn_preview, 0, wxALL | wxALIGN_CENTER_VERTICAL, 2);
-        top_sizer->Add(btn_device,  0, wxALL | wxALIGN_CENTER_VERTICAL, 2);
+        top_sizer->Add(this->btn_prepare, 0, wxALL | wxALIGN_CENTER_VERTICAL, 2);
+        top_sizer->Add(this->btn_preview, 0, wxALL | wxALIGN_CENTER_VERTICAL, 2);
+        top_sizer->Add(this->btn_device,  0, wxALL | wxALIGN_CENTER_VERTICAL, 2);
         top_sizer->AddStretchSpacer(1);
         
         // Right Side Actions - Oval Buttons
-        OvalButton* btn_slice = new OvalButton(top_bar, wxID_ANY, _("Slice plate"));
-        btn_slice->SetBackgroundColour(ui_settings->color->SELECTED_COLOR()); 
-        btn_slice->SetForegroundColour(*wxWHITE);
-        wxFont slice_font = ui_settings->small_bold_font();
-        slice_font.SetPointSize(slice_font.GetPointSize() + 1);
-        btn_slice->SetFont(slice_font);
-
-        OvalButton* btn_export = new OvalButton(top_bar, wxID_ANY, _("Export G-code"));
-        btn_export->SetFont(ui_settings->small_font());
-        if (ui_settings->color->SOLID_BACKGROUNDCOLOR()) {
-             btn_export->SetBackgroundColour(wxColour(100, 100, 100)); // Darker grey for secondary action
-             btn_export->SetForegroundColour(*wxWHITE);
-        }
+        this->btn_slice = new OvalButton(this->top_bar, wxID_ANY, _("Slice plate"));
+        this->btn_export = new OvalButton(this->top_bar, wxID_ANY, _("Export G-code"));
+        this->btn_export->SetFont(ui_settings->small_font());
         
-        top_sizer->Add(btn_slice, 0, wxALL | wxALIGN_CENTER_VERTICAL, 10);
-        top_sizer->Add(btn_export, 0, wxALL | wxALIGN_CENTER_VERTICAL, 10);
+        top_sizer->Add(this->btn_slice, 0, wxALL | wxALIGN_CENTER_VERTICAL, 10);
+        top_sizer->Add(this->btn_export, 0, wxALL | wxALIGN_CENTER_VERTICAL, 10);
 
-        top_bar->SetSizer(top_sizer);
-        sizer->Add(top_bar, 0, wxEXPAND);
+        this->top_bar->SetSizer(top_sizer);
+        sizer->Add(this->top_bar, 0, wxEXPAND);
         // ---------------------------------------------
 
         sizer->Add(this->tabpanel, 1, wxEXPAND);
         
         // Navigation Logic Helper
-        auto update_nav = [=](FlatToggleButton* active) {
-            if (active != btn_prepare) btn_prepare->SetValue(false);
-            else btn_prepare->SetValue(true);
+        // Navigation Logic Helper
+        auto update_nav = [this](FlatToggleButton* active) {
+            if (this->btn_prepare) {
+                 auto btn = static_cast<FlatToggleButton*>(this->btn_prepare);
+                 if (active != btn) btn->SetValue(false);
+                 else btn->SetValue(true);
+            }
             
-            if (active != btn_preview) btn_preview->SetValue(false);
-            else btn_preview->SetValue(true);
+            if (this->btn_preview) {
+                auto btn = static_cast<FlatToggleButton*>(this->btn_preview);
+                if (active != btn) btn->SetValue(false);
+                else btn->SetValue(true);
+            }
 
-            if (active != btn_device) btn_device->SetValue(false);
-            else btn_device->SetValue(true);
+            if (this->btn_device) {
+                auto btn = static_cast<FlatToggleButton*>(this->btn_device);
+                if (active != btn) btn->SetValue(false);
+                else btn->SetValue(true);
+            }
         };
 
         // Wiring Events
-        btn_prepare->Bind(wxEVT_TOGGLEBUTTON, [=](wxCommandEvent& e) {
-             update_nav(btn_prepare);
+        this->btn_prepare->Bind(wxEVT_TOGGLEBUTTON, [=](wxCommandEvent& e) {
+             update_nav(dynamic_cast<FlatToggleButton*>(this->btn_prepare));
              this->tabpanel->SetSelection(0); // Show Plater Panel
              if (this->plater) this->plater->select_view_3d();
         });
 
-        btn_preview->Bind(wxEVT_TOGGLEBUTTON, [=](wxCommandEvent& e) {
-             update_nav(btn_preview);
+        this->btn_preview->Bind(wxEVT_TOGGLEBUTTON, [=](wxCommandEvent& e) {
+             update_nav(dynamic_cast<FlatToggleButton*>(this->btn_preview));
              this->tabpanel->SetSelection(0); // Stay on Plater
              if (this->plater) this->plater->select_view_preview();
         });
 
-        btn_device->Bind(wxEVT_TOGGLEBUTTON, [=](wxCommandEvent& e) {
-             update_nav(btn_device);
+        this->btn_device->Bind(wxEVT_TOGGLEBUTTON, [=](wxCommandEvent& e) {
+             update_nav(dynamic_cast<FlatToggleButton*>(this->btn_device));
              if (this->tabpanel->GetPageCount() > 1) this->tabpanel->SetSelection(1);
         });
 
         // Action Buttons
-        btn_slice->Bind(wxEVT_BUTTON, [this, btn_preview, update_nav](wxCommandEvent&) {
+        this->btn_slice->Bind(wxEVT_BUTTON, [this, update_nav](wxCommandEvent&) {
              if (this->plater) {
                  this->plater->slice();
                  // Automatically switch to preview after slicing for modern workflow
-                 update_nav(btn_preview); 
+                 update_nav(dynamic_cast<FlatToggleButton*>(this->btn_preview)); 
                  this->plater->select_view_preview();
              }
         });
 
-        btn_export->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) {
+        this->btn_export->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) {
              if (this->plater) this->plater->export_gcode();
         });
 
@@ -297,9 +295,8 @@ MainFrame::MainFrame(const wxString& title, const wxPoint& pos, const wxSize& si
         wxTheApp->SetTopWindow(this);
         ui_settings->restore_window_pos(this, "main_frame");
         
-        if (ui_settings->color->SOLID_BACKGROUNDCOLOR()) {
-            this->SetBackgroundColour(ui_settings->color->BACKGROUND_COLOR());
-        }
+        this->sync_colors();
+
         this->Show();
         this->Layout();
     }
@@ -559,6 +556,59 @@ void MainFrame::init_menubar()
 
     this->SetMenuBar(menubar);
 
+}
+
+void MainFrame::sync_colors() {
+    if (!ui_settings || !ui_settings->color) return;
+
+    wxColour btn_bg = wxSystemSettings::GetColour(wxSYS_COLOUR_FRAMEBK);
+    wxColour btn_fg = *wxBLACK;
+
+    if (ui_settings->color->SOLID_BACKGROUNDCOLOR()) {
+        this->SetBackgroundColour(ui_settings->color->BACKGROUND_COLOR());
+        if (this->top_bar) this->top_bar->SetBackgroundColour(ui_settings->color->TOP_COLOR());
+        btn_bg = ui_settings->color->TOP_COLOR();
+        btn_fg = *wxWHITE;
+    } else {
+        // FORCE Light Grey instead of asking System (which might return Dark Grey if OS is in Dark Mode)
+        wxColour light_bg(240, 240, 240); 
+        this->SetBackgroundColour(light_bg);
+        if (this->top_bar) this->top_bar->SetBackgroundColour(light_bg);
+        
+        // Ensure Text is Black in Light Mode
+        btn_fg = *wxBLACK;
+    }
+
+    if (btn_prepare) {
+        btn_prepare->SetBackgroundColour(btn_bg);
+        btn_prepare->SetForegroundColour(btn_fg);
+    }
+    if (btn_preview) {
+        btn_preview->SetBackgroundColour(btn_bg);
+        btn_preview->SetForegroundColour(btn_fg);
+    }
+    if (btn_device) {
+        btn_device->SetBackgroundColour(btn_bg);
+        btn_device->SetForegroundColour(btn_fg);
+    }
+
+    if (btn_slice) {
+        btn_slice->SetBackgroundColour(ui_settings->color->SELECTED_COLOR());
+        btn_slice->SetForegroundColour(*wxWHITE);
+    }
+
+    if (btn_export) {
+        if (ui_settings->dark_mode) {
+            btn_export->SetBackgroundColour(wxColour(100, 100, 100));
+        } else {
+            btn_export->SetBackgroundColour(wxColour(200, 200, 200));
+        }
+        btn_export->SetForegroundColour(ui_settings->dark_mode ? *wxWHITE : *wxBLACK);
+    }
+
+    this->Refresh();
+    if (this->plater) this->plater->Refresh();
+    if (this->controller) this->controller->Refresh();
 }
 
 }} // Namespace Slic3r::GUI

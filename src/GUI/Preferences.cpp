@@ -4,12 +4,22 @@
 #include "libslic3r/Config.hpp"
 #include "libslic3r/PrintConfig.hpp"
 #include <wx/statbox.h>
+#include <boost/any.hpp>
 
 namespace Slic3r { namespace GUI {
 
 PreferencesDialog::PreferencesDialog(wxWindow* parent)
     : wxDialog(parent, wxID_ANY, _("Preferences"), wxDefaultPosition, wxDefaultSize, wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER)
 {
+    // Apply Theme Colors
+    if (ui_settings && ui_settings->color->SOLID_BACKGROUNDCOLOR()) {
+        this->SetBackgroundColour(ui_settings->color->BACKGROUND_COLOR());
+        this->SetForegroundColour(*wxWHITE);
+    } else {
+        this->SetBackgroundColour(wxColour(240, 240, 240));
+        this->SetForegroundColour(*wxBLACK);
+    }
+
     auto sizer = new wxBoxSizer(wxVERTICAL);
     
     // Create a static box to hold the options
@@ -144,6 +154,15 @@ PreferencesDialog::PreferencesDialog(wxWindow* parent)
         optgroup->append_line(line);
     }
     
+    // Dark Mode
+    {
+        Line line(_("Enable Dark Mode"), _("If this is enabled, Slic3r will use a dark color scheme."));
+        Option opt("dark_mode", coBool, ConfigOptionBool(true));
+        opt.desc.label = _("Enable Dark Mode");
+        line.append_option(opt);
+        optgroup->append_line(line);
+    }
+    
     // Set initial values from App Settings
     if (SLIC3RAPP && SLIC3RAPP->settings()) {
         auto settings = SLIC3RAPP->settings();
@@ -161,6 +180,7 @@ PreferencesDialog::PreferencesDialog(wxWindow* parent)
         app_def.add("show_host", coBool);
         app_def.add("reload_hide_dialog", coBool);
         app_def.add("reload_preserve_trafo", coBool);
+        app_def.add("dark_mode", coBool);
         
         // Define enums in app_def so DynamicConfig creates the right objects
         {
@@ -195,6 +215,7 @@ PreferencesDialog::PreferencesDialog(wxWindow* parent)
         temp_config.setBool("show_host", settings->show_host);
         temp_config.setBool("reload_hide_dialog", settings->hide_reload_dialog);
         temp_config.setBool("reload_preserve_trafo", settings->reload_preserve_trafo);
+        temp_config.setBool("dark_mode", settings->dark_mode);
         
         // Handling enums (stored as indices or strings in Settings)
         // Settings stores ReloadBehavior enum, but UI uses int indices for this select
@@ -215,6 +236,22 @@ PreferencesDialog::PreferencesDialog(wxWindow* parent)
         optgroup->update_options(&temp_config);
     }
 
+    optgroup->on_change = [this](const std::string& key, boost::any value) {
+        if (key == "dark_mode") {
+            try {
+                bool val = boost::any_cast<bool>(value);
+                if (SLIC3RAPP && SLIC3RAPP->settings()) {
+                    auto settings = SLIC3RAPP->settings();
+                    if (settings->dark_mode != val) {
+                        settings->dark_mode = val;
+                        settings->apply_theme();
+                        this->Refresh(); // Refresh the dialog itself too
+                    }
+                }
+            } catch (...) {}
+        }
+    };
+
     sizer->Add(sb_sizer, 1, wxEXPAND | wxALL, 10);
 
     auto buttons = this->CreateStdDialogButtonSizer(wxOK | wxCANCEL);
@@ -224,6 +261,14 @@ PreferencesDialog::PreferencesDialog(wxWindow* parent)
 
     this->SetSizer(sizer);
     sizer->SetSizeHints(this);
+
+    // Apply theme on Show to ensure controls are realized and can be styled correclty
+    this->Bind(wxEVT_SHOW, [this](wxShowEvent& e) {
+        if (e.IsShown() && ui_settings) {
+             ui_settings->apply_theme_to_window(this);
+        }
+        e.Skip();
+    });
 }
 
 void PreferencesDialog::_accept() {
@@ -270,6 +315,14 @@ void PreferencesDialog::_accept() {
 
     if (auto f = optgroup->get_ui_field("reload_preserve_trafo"))
         settings->reload_preserve_trafo = f->get_bool();
+
+    if (auto f = optgroup->get_ui_field("dark_mode")) {
+        bool val = f->get_bool();
+        if (settings->dark_mode != val) {
+            settings->dark_mode = val;
+            settings->apply_theme();
+        }
+    }
 
     if (auto f = optgroup->get_ui_field("reload_behavior"))
         settings->reload = (ReloadBehavior)f->get_int();

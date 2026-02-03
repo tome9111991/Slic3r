@@ -5,7 +5,9 @@
 /// without the circular include headaches.
 
 #include "ColorScheme/ColorSchemeBase.hpp"
-#include "ColorScheme/Default.hpp"
+#include "ColorScheme/ColorSchemeBase.hpp"
+#include "ColorScheme/Light.hpp"
+#include "ColorScheme/Solarized.hpp"
 #include "ColorScheme/Solarized.hpp"
 #include "ColorScheme/Dark.hpp"
 

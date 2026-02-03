@@ -42,6 +42,8 @@ class Settings {
         bool hide_reload_dialog {false};
         bool reload_preserve_trafo {false};
 
+        bool dark_mode {true}; // Default to true as its most popular now
+
         ReloadBehavior reload {ReloadBehavior::all};
         std::unique_ptr<ColorScheme> color {new Slic3r::GUI::DarkColor};
         PathColor color_toolpaths_by {PathColor::role};
@@ -58,6 +60,8 @@ class Settings {
 
         void save_settings();
         void load_settings();
+        void apply_theme();
+        void apply_theme_to_window(wxWindow* win);
 
         std::array<std::vector<wxString>, preset_types> default_presets {};
 

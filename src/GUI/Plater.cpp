@@ -71,7 +71,8 @@ public:
              if (ui_settings->color->SOLID_BACKGROUNDCOLOR()) 
                  bg = ui_settings->color->TOP_COLOR();
              else
-                 bg = wxSystemSettings::GetColour(wxSYS_COLOUR_BTNFACE);
+                 // FORCE Light Grey instead of System Button Face (which is dark in Win Dark Mode)
+                 bg = wxColour(240, 240, 240);
         }
 
         dc.SetBackground(wxBrush(GetParent()->GetBackgroundColour())); 
@@ -242,6 +243,7 @@ Plater::Plater(wxWindow* parent, const wxString& title) :
             auto* text  {new wxStaticText(box, wxID_ANY, _("Object:"), wxDefaultPosition, wxDefaultSize, wxALIGN_LEFT)};
             text->SetFont(ui_settings->small_font());
             if (ui_settings->color->SOLID_BACKGROUNDCOLOR()) text->SetForegroundColour(*wxWHITE);
+            else text->SetForegroundColour(*wxBLACK); // Force Black on Light
             sizer->Add(text, 0, wxALIGN_CENTER_VERTICAL);
 
             /* We supply a bogus width to wxChoice (sizer will override it and stretch 
@@ -253,6 +255,9 @@ Plater::Plater(wxWindow* parent, const wxString& title) :
             if (ui_settings->color->SOLID_BACKGROUNDCOLOR()) {
                 this->object_info.choice->SetBackgroundColour(ui_settings->color->BACKGROUND_COLOR());
                 this->object_info.choice->SetForegroundColour(*wxWHITE);
+            } else {
+                // Ensure readability in Light Mode
+                this->object_info.choice->SetForegroundColour(*wxBLACK);
             }
             sizer->Add(this->object_info.choice, 1, wxALIGN_CENTER_VERTICAL);
 
