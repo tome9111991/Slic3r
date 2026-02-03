@@ -14,6 +14,9 @@
 #include <thread> 
 
 
+#include <wx/dcbuffer.h>
+
+
 #include "Plater.hpp"
 #include "Log.hpp"
 #include "MainFrame.hpp"
@@ -24,7 +27,130 @@
 #include "Dialogs/ObjectSettingsDialog.hpp"
 #include "Dialogs/PresetEditor.hpp"
 
+
 namespace Slic3r { namespace GUI {
+
+class ToolbarButton : public wxPanel {
+    wxString m_label;
+    wxBitmap m_icon;
+    bool m_hover;
+    bool m_down;
+
+public:
+    ToolbarButton(wxWindow* parent, int id, const wxString& label, const wxString& icon_name, const wxString& tooltip)
+        : wxPanel(parent, id, wxDefaultPosition, wxDefaultSize, wxBORDER_NONE | wxTAB_TRAVERSAL), m_label(label), m_hover(false), m_down(false)
+    {
+        if (!icon_name.IsEmpty()) {
+            // Load a 16px icon but we'll render it nicely
+            m_icon = get_bmp_bundle(icon_name).GetBitmap(wxSize(16,16)); 
+        }
+        
+        this->SetToolTip(tooltip);
+        this->SetBackgroundStyle(wxBG_STYLE_PAINT);
+        
+        this->Bind(wxEVT_PAINT, &ToolbarButton::OnPaint, this);
+        this->Bind(wxEVT_ENTER_WINDOW, &ToolbarButton::OnEnter, this);
+        this->Bind(wxEVT_LEAVE_WINDOW, &ToolbarButton::OnLeave, this);
+        this->Bind(wxEVT_LEFT_DOWN, &ToolbarButton::OnDown, this);
+        this->Bind(wxEVT_LEFT_UP, &ToolbarButton::OnUp, this);
+    }
+    
+    void OnPaint(wxPaintEvent& evt) {
+        wxAutoBufferedPaintDC dc(this);
+        Render(dc);
+    }
+    
+    void Render(wxDC& dc) {
+        wxColour bg = GetParent()->GetBackgroundColour(); // Match parent
+        
+        // Custom colors for state
+        if (m_down) bg = wxColour(100, 100, 100); 
+        else if (m_hover) bg = wxColour(80, 80, 80);
+        else {
+             // Transparent / Match Parent
+             if (ui_settings->color->SOLID_BACKGROUNDCOLOR()) 
+                 bg = ui_settings->color->TOP_COLOR();
+             else
+                 bg = wxSystemSettings::GetColour(wxSYS_COLOUR_BTNFACE);
+        }
+
+        dc.SetBackground(wxBrush(GetParent()->GetBackgroundColour())); 
+        dc.Clear();
+        
+        // Draw Rounded Rectangle if interacted
+        if (m_hover || m_down) {
+             dc.SetBrush(wxBrush(bg));
+             dc.SetPen(wxPen(bg));
+             dc.DrawRoundedRectangle(GetClientRect(), 4.0); // 4px radius
+        }
+
+        // Draw Content
+        int content_width = 0;
+        int gap = 4; // Use small gap as requested
+        
+        if (m_icon.IsOk()) content_width += m_icon.GetWidth();
+        if (!m_label.IsEmpty()) {
+            if (m_icon.IsOk()) content_width += gap;
+            dc.SetFont(ui_settings->small_font());
+            wxSize textSize = dc.GetTextExtent(m_label);
+            content_width += textSize.GetWidth();
+        }
+        
+        wxRect rect = GetClientRect();
+        int x = (rect.GetWidth() - content_width) / 2;
+        int y = rect.GetHeight() / 2;
+        
+        if (m_icon.IsOk()) {
+            dc.DrawBitmap(m_icon, x, y - m_icon.GetHeight()/2, true);
+            x += m_icon.GetWidth() + gap;
+        }
+        
+        if (!m_label.IsEmpty()) {
+            dc.SetFont(ui_settings->small_font());
+            if (!IsEnabled()) {
+                 dc.SetTextForeground(wxSystemSettings::GetColour(wxSYS_COLOUR_GRAYTEXT));
+            } else {
+                 if (ui_settings->color->SOLID_BACKGROUNDCOLOR()) dc.SetTextForeground(*wxWHITE);
+                 else dc.SetTextForeground(*wxBLACK);
+            }
+            wxSize textSize = dc.GetTextExtent(m_label);
+            dc.DrawText(m_label, x, y - textSize.GetHeight()/2);
+        }
+    }
+
+    void OnEnter(wxMouseEvent& e) { if(IsEnabled()) { m_hover = true; Refresh(); } e.Skip(); }
+    void OnLeave(wxMouseEvent& e) { m_hover = false; m_down = false; Refresh(); e.Skip(); }
+    void OnDown(wxMouseEvent& e) { if(IsEnabled()) { m_down = true; Refresh(); } e.Skip(); }
+    void OnUp(wxMouseEvent& e) { 
+        if (m_down && IsEnabled()) {
+            m_down = false; 
+            Refresh(); 
+            wxCommandEvent btnEvent(wxEVT_BUTTON, GetId());
+            btnEvent.SetEventObject(this);
+            GetEventHandler()->ProcessEvent(btnEvent);
+        }
+        e.Skip(); 
+    }
+    
+    wxSize DoGetBestSize() const override {
+        wxClientDC dc(const_cast<ToolbarButton*>(this));
+        dc.SetFont(ui_settings->small_font());
+        int w = 12; // horizontal padding (6px each side)
+        int h = 26; // min height
+        
+        if (m_icon.IsOk()) {
+            w += m_icon.GetWidth();
+            h = std::max(h, m_icon.GetHeight() + 8);
+        }
+        if (!m_label.IsEmpty()) {
+            w += dc.GetTextExtent(m_label).GetWidth();
+            if (m_icon.IsOk()) w += 4; // gap
+            h = std::max(h, dc.GetTextExtent(m_label).GetHeight() + 8);
+        }
+        return wxSize(w, h);
+    }
+};
+
 
 const auto TB_ADD           {wxNewId()};
 const auto TB_REMOVE        {wxNewId()};
@@ -695,39 +821,10 @@ void Plater::build_toolbar() {
     // Add leading spacer to center the buttons
     sizer->AddStretchSpacer();
 
-    // Helper to add a flat toolbar button
+    // Helper to add a custom toolbar button
     auto add_tool = [&](int id, const wxString& label, const wxString& icon_name, const wxString& tooltip) {
-        // Use standard wxButton which supports bitmaps + text on modern Windows
-        wxButton* btn = new wxButton(this->toolbar_panel, id, label, wxDefaultPosition, wxDefaultSize, wxBORDER_NONE);
-        if (!icon_name.IsEmpty()) {
-            btn->SetBitmap(get_bmp_bundle(icon_name));
-        }
-        btn->SetToolTip(tooltip);
+        ToolbarButton* btn = new ToolbarButton(this->toolbar_panel, id, label, icon_name, tooltip);
         
-        // Styling
-        btn->SetFont(ui_settings->small_font());
-        if (ui_settings->color->SOLID_BACKGROUNDCOLOR()) {
-            btn->SetBackgroundColour(ui_settings->color->TOP_COLOR());
-            btn->SetForegroundColour(*wxWHITE);
-        }
-
-        // Hover Effect
-        btn->Bind(wxEVT_ENTER_WINDOW, [btn](wxMouseEvent& e) {
-             if (ui_settings->color->SOLID_BACKGROUNDCOLOR()) {
-                 btn->SetBackgroundColour(wxColour(60, 60, 60)); // Lighter on hover
-                 btn->Refresh();
-             }
-             e.Skip();
-        });
-
-        btn->Bind(wxEVT_LEAVE_WINDOW, [btn](wxMouseEvent& e) {
-             if (ui_settings->color->SOLID_BACKGROUNDCOLOR()) {
-                 btn->SetBackgroundColour(ui_settings->color->TOP_COLOR()); // Back to normal
-                 btn->Refresh();
-             }
-             e.Skip();
-        });
-
         // Add to sizer
         sizer->Add(btn, 0, wxALIGN_CENTER_VERTICAL | wxALL, 2);
 
@@ -738,11 +835,18 @@ void Plater::build_toolbar() {
     };
 
     auto add_separator = [&]() {
-         sizer->AddSpacer(10); // Simple spacer instead of panel artifact
+         // Vertical line separator
+         auto* line = new wxPanel(this->toolbar_panel, wxID_ANY, wxDefaultPosition, wxSize(1, 24));
+         if (ui_settings->color->SOLID_BACKGROUNDCOLOR()) {
+             line->SetBackgroundColour(wxColour(100, 100, 100)); // Visible dark mode separator
+         } else {
+             line->SetBackgroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_BTNSHADOW));
+         }
+         sizer->Add(line, 0, wxALIGN_CENTER_VERTICAL | wxLEFT | wxRIGHT, 6); 
     };
 
     // Group 1: File/Object Management
-    wxButton* b;
+    wxWindow* b;
     b = add_tool(TB_ADD, _("Add"), "brick_add.png", _(L"Add object"));
     b->Bind(wxEVT_BUTTON, [this](wxCommandEvent &e) { this->add(); });
 

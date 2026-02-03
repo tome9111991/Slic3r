@@ -146,7 +146,7 @@ private:
 
     // Replacement for native toolbar
     wxPanel* toolbar_panel {nullptr}; 
-    std::map<int, wxButton*> toolbar_tools; 
+    std::map<int, wxWindow*> toolbar_tools; 
 
     // wxToolBar* htoolbar {nullptr}; //< toolbar for non-MSW platforms.
     wxBoxSizer* btoolbar {nullptr}; //< button-based toolbar for Windows

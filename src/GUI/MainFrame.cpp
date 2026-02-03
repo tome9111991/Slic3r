@@ -1,6 +1,8 @@
 #include <wx/accel.h>
 #include <wx/utils.h> 
 #include <wx/tglbtn.h>
+#include <wx/dcbuffer.h>
+#include <wx/graphics.h>
 
 #include "libslic3r.h"
 
@@ -11,7 +13,152 @@
 #include "ConfigWizard.hpp"
 #include "Preferences.hpp"
 
+
 namespace Slic3r { namespace GUI {
+
+// Custom "Flat" Toggle Button for Tabs
+class FlatToggleButton : public wxPanel {
+    wxString m_label;
+    bool m_value = false; 
+    bool m_hover = false;
+public:
+    FlatToggleButton(wxWindow* parent, int id, const wxString& label) 
+        : wxPanel(parent, id, wxDefaultPosition, wxDefaultSize, wxBORDER_NONE | wxTAB_TRAVERSAL), m_label(label) {
+        SetBackgroundStyle(wxBG_STYLE_PAINT);
+        Bind(wxEVT_PAINT, &FlatToggleButton::OnPaint, this);
+        Bind(wxEVT_ENTER_WINDOW, [this](wxMouseEvent& e){ m_hover=true; Refresh(); e.Skip(); });
+        Bind(wxEVT_LEAVE_WINDOW, [this](wxMouseEvent& e){ m_hover=false; Refresh(); e.Skip(); });
+        Bind(wxEVT_LEFT_UP, [this](wxMouseEvent& e){ 
+            // Emit TOGGLEBUTTON event on click
+            wxCommandEvent evt(wxEVT_TOGGLEBUTTON, GetId()); 
+            evt.SetEventObject(this); 
+            evt.SetInt(1); // Checked
+            GetEventHandler()->ProcessEvent(evt); 
+            e.Skip();
+        });
+    }
+    void SetValue(bool v) { m_value = v; Refresh(); }
+    bool GetValue() const { return m_value; }
+    
+    void OnPaint(wxPaintEvent& evt) {
+        wxAutoBufferedPaintDC dc(this);
+        wxColour parentBg = GetParent()->GetBackgroundColour();
+        dc.SetBackground(wxBrush(parentBg));
+        dc.Clear();
+        
+        dc.SetFont(GetFont());
+        wxColour fg = GetForegroundColour();
+        if (!fg.IsOk()) fg = *wxWHITE;
+        
+        // Background Logic: Show if Hovering OR Active (Value is true)
+        if (m_hover || m_value) {
+            wxColour baseBg = parentBg;
+            // Calculate a visible background color based on theme
+            wxColour drawBg = baseBg.ChangeLightness(120); 
+            if (baseBg.Red() > 200) drawBg = baseBg.ChangeLightness(90); // Handle light mode
+            
+            // If active, maybe make it slightly distinct or just keep the "active zone" look?
+            // User requested "keep the mouse over effect active".
+            
+            dc.SetPen(wxPen(drawBg));
+            dc.SetBrush(wxBrush(drawBg));
+            dc.DrawRoundedRectangle(GetClientRect(), 4);
+        }
+        
+        if (m_value) {
+            // Active Tab Style: Underline + Brighter Text
+            dc.SetPen(wxPen(fg, 3));
+            dc.DrawLine(4, GetClientSize().GetHeight()-2, GetClientSize().GetWidth()-4, GetClientSize().GetHeight()-2);
+        }
+        
+        dc.SetTextForeground(fg);
+        wxSize extent = dc.GetTextExtent(m_label);
+        dc.DrawText(m_label, (GetClientSize().GetWidth()-extent.GetWidth())/2, (GetClientSize().GetHeight()-extent.GetHeight())/2);
+    }
+    
+    wxSize DoGetBestSize() const override {
+         wxClientDC dc(const_cast<FlatToggleButton*>(this));
+         dc.SetFont(GetFont());
+         wxSize s = dc.GetTextExtent(m_label);
+         return wxSize(s.GetWidth() + 30, s.GetHeight() + 16);
+    }
+};
+
+// Custom "Oval" Action Button
+class OvalButton : public wxPanel {
+    wxString m_label;
+    bool m_hover = false;
+    bool m_down = false;
+public:
+    OvalButton(wxWindow* parent, int id, const wxString& label) 
+        : wxPanel(parent, id, wxDefaultPosition, wxDefaultSize, wxBORDER_NONE | wxTAB_TRAVERSAL), m_label(label) {
+        SetBackgroundStyle(wxBG_STYLE_PAINT);
+        Bind(wxEVT_PAINT, &OvalButton::OnPaint, this);
+        Bind(wxEVT_ENTER_WINDOW, [this](wxMouseEvent& e){ m_hover=true; Refresh(); e.Skip(); });
+        Bind(wxEVT_LEAVE_WINDOW, [this](wxMouseEvent& e){ m_hover=false; m_down=false; Refresh(); e.Skip(); });
+        Bind(wxEVT_LEFT_DOWN, [this](wxMouseEvent& e){ m_down=true; Refresh(); e.Skip(); });
+        Bind(wxEVT_LEFT_UP, [this](wxMouseEvent& e){ 
+            if(m_down) { 
+                m_down=false; Refresh(); 
+                wxCommandEvent evt(wxEVT_BUTTON, GetId()); 
+                evt.SetEventObject(this); 
+                GetEventHandler()->ProcessEvent(evt); 
+            }
+            e.Skip();
+        });
+    }
+    
+    void OnPaint(wxPaintEvent& evt) {
+        wxAutoBufferedPaintDC dc(this);
+        dc.SetBackground(wxBrush(GetParent()->GetBackgroundColour()));
+        dc.Clear();
+        
+        wxColour bg = GetBackgroundColour();
+        if (m_hover) bg = bg.ChangeLightness(110);
+        if (m_down) bg = bg.ChangeLightness(90);
+        
+        wxRect rect = GetClientRect();
+        
+        // Use GraphicsContext for anti-aliased Gradient
+        wxGraphicsContext* gc = wxGraphicsContext::Create(dc);
+        if (gc) {
+            wxGraphicsPath path = gc->CreatePath();
+            path.AddRoundedRectangle(rect.GetX(), rect.GetY(), rect.GetWidth(), rect.GetHeight(), rect.GetHeight()/2.0);
+            
+            // Modern Flat Look with minimal gradient for polish (Subtle)
+            // Instead of strong 3D, we use very subtle shift
+            wxColour colTop = bg.ChangeLightness(105);
+            wxColour colBot = bg.ChangeLightness(95);
+            
+            wxGraphicsBrush brush = gc->CreateLinearGradientBrush(
+                rect.GetX(), rect.GetY(), 
+                rect.GetX(), rect.GetY() + rect.GetHeight(),
+                colTop, colBot);
+                
+            gc->SetBrush(brush);
+            gc->FillPath(path);
+            
+            delete gc;
+        } else {
+            // Fallback
+            dc.SetBrush(wxBrush(bg));
+            dc.SetPen(wxPen(bg));
+            dc.DrawRoundedRectangle(rect, rect.GetHeight()/2.0);
+        }
+        
+        dc.SetFont(GetFont());
+        dc.SetTextForeground(GetForegroundColour());
+        wxSize extent = dc.GetTextExtent(m_label);
+        dc.DrawText(m_label, (rect.GetWidth()-extent.GetWidth())/2, (rect.GetHeight()-extent.GetHeight())/2);
+    }
+    
+    wxSize DoGetBestSize() const override {
+         wxClientDC dc(const_cast<OvalButton*>(this));
+         dc.SetFont(GetFont());
+         wxSize s = dc.GetTextExtent(m_label);
+         return wxSize(s.GetWidth() + 40, s.GetHeight() + 14);
+    }
+};
 
 wxBEGIN_EVENT_TABLE(MainFrame, wxFrame)
 wxEND_EVENT_TABLE()
@@ -48,26 +195,21 @@ MainFrame::MainFrame(const wxString& title, const wxPoint& pos, const wxSize& si
 
         wxBoxSizer* top_sizer = new wxBoxSizer(wxHORIZONTAL);
         
-        // Navigation Buttons (Toggle Buttons acting as Tabs)
-        // Reverted to natural size and standard button appearance for clarity
-        auto create_nav_tgl = [&](const wxString& label) -> wxToggleButton* {
-            wxToggleButton* b = new wxToggleButton(top_bar, wxID_ANY, label);
+        // Navigation Buttons (Acting as Tabs)
+        // Implemented as FlatToggleButton for clean, modern look
+        auto create_nav_tgl = [&](const wxString& label) -> FlatToggleButton* {
+            FlatToggleButton* b = new FlatToggleButton(top_bar, wxID_ANY, label);
             b->SetFont(ui_settings->medium_font()); 
             if (ui_settings->color->SOLID_BACKGROUNDCOLOR()) {
-                // Only set text color to white, let system handle button background/hover
-                // This improves visibility on hover states
-                // b->SetForegroundColour(*wxWHITE); // Standard windows buttons might ignore this or look bad if background is light.
-                // Actually, if we don't set background, it will be light grey. White text on light grey is bad.
-                // Let's try setting a slightly lighter dark background than the bar, which often helps Windows calculate hover correctly.
-                b->SetBackgroundColour(wxColour(60, 60, 60)); 
+                b->SetBackgroundColour(ui_settings->color->TOP_COLOR()); // Match bar background
                 b->SetForegroundColour(*wxWHITE);
             }
             return b;
         };
 
-        wxToggleButton* btn_prepare = create_nav_tgl(_("Prepare"));
-        wxToggleButton* btn_preview = create_nav_tgl(_("Preview"));
-        wxToggleButton* btn_device  = create_nav_tgl(_("Device"));
+        FlatToggleButton* btn_prepare = create_nav_tgl(_("Prepare"));
+        FlatToggleButton* btn_preview = create_nav_tgl(_("Preview"));
+        FlatToggleButton* btn_device  = create_nav_tgl(_("Device"));
 
         btn_prepare->SetValue(true); // Default selection
 
@@ -77,18 +219,18 @@ MainFrame::MainFrame(const wxString& title, const wxPoint& pos, const wxSize& si
         top_sizer->Add(btn_device,  0, wxALL | wxALIGN_CENTER_VERTICAL, 2);
         top_sizer->AddStretchSpacer(1);
         
-        // Right Side Actions - Restored to prominent style
-        wxButton* btn_slice = new wxButton(top_bar, wxID_ANY, _("Slice plate"));
+        // Right Side Actions - Oval Buttons
+        OvalButton* btn_slice = new OvalButton(top_bar, wxID_ANY, _("Slice plate"));
         btn_slice->SetBackgroundColour(ui_settings->color->SELECTED_COLOR()); 
         btn_slice->SetForegroundColour(*wxWHITE);
         wxFont slice_font = ui_settings->small_bold_font();
         slice_font.SetPointSize(slice_font.GetPointSize() + 1);
         btn_slice->SetFont(slice_font);
 
-        wxButton* btn_export = new wxButton(top_bar, wxID_ANY, _("Export G-code"));
+        OvalButton* btn_export = new OvalButton(top_bar, wxID_ANY, _("Export G-code"));
         btn_export->SetFont(ui_settings->small_font());
         if (ui_settings->color->SOLID_BACKGROUNDCOLOR()) {
-             btn_export->SetBackgroundColour(ui_settings->color->TOP_COLOR());
+             btn_export->SetBackgroundColour(wxColour(100, 100, 100)); // Darker grey for secondary action
              btn_export->SetForegroundColour(*wxWHITE);
         }
         
@@ -102,7 +244,7 @@ MainFrame::MainFrame(const wxString& title, const wxPoint& pos, const wxSize& si
         sizer->Add(this->tabpanel, 1, wxEXPAND);
         
         // Navigation Logic Helper
-        auto update_nav = [=](wxToggleButton* active) {
+        auto update_nav = [=](FlatToggleButton* active) {
             if (active != btn_prepare) btn_prepare->SetValue(false);
             else btn_prepare->SetValue(true);
             
