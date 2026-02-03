@@ -27,4 +27,4 @@ jobs:
       uses: actions/upload-artifact@v4 
       with:
         name: Slic3r-Windows
-        path: build/target/slic3r.exe
+        path: build/target/
