@@ -123,6 +123,8 @@ public:
     void select_view_3d();
     void select_view_preview();
     void select_view(Direction dir);
+
+    void update_ui_from_settings();
 private:
     std::shared_ptr<Slic3r::Print> print {std::make_shared<Print>(Slic3r::Print())};
     std::shared_ptr<Slic3r::Model> model {std::make_shared<Model>(Slic3r::Model())};

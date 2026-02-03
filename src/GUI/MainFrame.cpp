@@ -609,8 +609,17 @@ void MainFrame::sync_colors() {
     }
 
     this->Refresh();
-    if (this->plater) this->plater->Refresh();
+    if (this->plater) {
+        this->plater->Refresh();
+        this->plater->update_ui_from_settings();
+    }
     if (this->controller) this->controller->Refresh();
+
+    // Rebuild the menubar to update icons with the new theme colors
+    // We must delete the old one after replacing it, as SetMenuBar detaches it.
+    wxMenuBar* oldMenu = this->GetMenuBar();
+    this->init_menubar();
+    if (oldMenu) delete oldMenu;
 }
 
 }} // Namespace Slic3r::GUI

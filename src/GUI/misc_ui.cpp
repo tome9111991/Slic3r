@@ -1,3 +1,4 @@
+#include "Theme/ThemeManager.hpp"
 #include "misc_ui.hpp"
 #include "utils.hpp"
 #include <wx/stdpaths.h>
@@ -43,29 +44,16 @@ wxBitmapBundle get_bmp_bundle(const wxString& name, int size) {
         else if (base_name.Contains("32px")) size = 32;
     }
 
-    wxString svg_path = var("images/" + base_name + ".svg");
-    if (wxFileExists(svg_path)) {
-        return wxBitmapBundle::FromSVGFile(svg_path, wxSize(size, size));
+    // Try via ThemeManager first (Supports automatic recoloring)
+    // We request the 'text' color, which is White in Dark Mode and Dark in Light Mode.
+    // This effectively solves the "White in Dark Mode, Dark in Light Mode" requirement.
+    wxBitmapBundle svgBundle = ThemeManager::GetSVG(base_name, wxSize(size, size), ThemeManager::GetColors().text);
+    if (svgBundle.IsOk()) {
+        return svgBundle;
     }
 
-    // Check for PNG in images/ folder (new structure)
-    wxString png_images_path = var("images/" + base_name + ".png");
-    if (wxFileExists(png_images_path)) {
-         return wxBitmapBundle::FromBitmap(wxBitmap(png_images_path, wxBITMAP_TYPE_PNG));
-    }
-
-    // Fallback to legacy PNG path if SVG missing
-    wxString png_path = var(name);
-    if (!wxFileExists(png_path) && !name.EndsWith(".png")) {
-        png_path = var(name + ".png");
-    }
-
-    if (wxFileExists(png_path)) {
-        return wxBitmapBundle::FromBitmap(wxBitmap(png_path, wxBITMAP_TYPE_PNG));
-    }
-    
-    // Last resort: just try to load what was asked
-    return wxBitmapBundle::FromBitmap(wxBitmap(var(name), wxBITMAP_TYPE_PNG));
+    // No fallback to PNG anymore as requested.
+    return wxBitmapBundle();
 }
 
 const wxString bin() { 

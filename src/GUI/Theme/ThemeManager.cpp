@@ -6,7 +6,7 @@
 
 namespace Slic3r { namespace GUI {
 
-bool ThemeManager::m_isDark = false;
+bool ThemeManager::m_isDark = true;
 
 void ThemeManager::SetDarkMode(bool dark) {
     m_isDark = dark;
@@ -77,6 +77,9 @@ wxBitmapBundle ThemeManager::GetSVG(const wxString& iconName, const wxSize& size
         // But for 'tick.svg' it uses #333.
         svgContent.Replace("#333", hexColor); 
         svgContent.Replace("#000000", hexColor);
+        svgContent.Replace("#000", hexColor);
+        svgContent.Replace("fill=\"black\"", "fill=\"" + hexColor + "\"");
+        svgContent.Replace("stroke=\"black\"", "stroke=\"" + hexColor + "\"");
         svgContent.Replace("stroke=\"currentColor\"", "stroke=\"" + hexColor + "\"");
         svgContent.Replace("fill=\"currentColor\"", "fill=\"" + hexColor + "\"");
     }

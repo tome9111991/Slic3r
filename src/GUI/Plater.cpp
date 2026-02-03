@@ -33,13 +33,14 @@ namespace Slic3r { namespace GUI {
 
 class ToolbarButton : public wxPanel {
     wxString m_label;
+    wxString m_icon_name;
     wxBitmap m_icon;
     bool m_hover;
     bool m_down;
 
 public:
     ToolbarButton(wxWindow* parent, int id, const wxString& label, const wxString& icon_name, const wxString& tooltip)
-        : wxPanel(parent, id, wxDefaultPosition, wxDefaultSize, wxBORDER_NONE | wxTAB_TRAVERSAL), m_label(label), m_hover(false), m_down(false)
+        : wxPanel(parent, id, wxDefaultPosition, wxDefaultSize, wxBORDER_NONE | wxTAB_TRAVERSAL), m_label(label), m_icon_name(icon_name), m_hover(false), m_down(false)
     {
         if (!icon_name.IsEmpty()) {
             // Load a 16px icon but we'll render it nicely
@@ -54,6 +55,13 @@ public:
         this->Bind(wxEVT_LEAVE_WINDOW, &ToolbarButton::OnLeave, this);
         this->Bind(wxEVT_LEFT_DOWN, &ToolbarButton::OnDown, this);
         this->Bind(wxEVT_LEFT_UP, &ToolbarButton::OnUp, this);
+    }
+
+    void UpdateTheme() {
+        if (!m_icon_name.IsEmpty()) {
+            m_icon = get_bmp_bundle(m_icon_name).GetBitmap(wxSize(16,16));
+        }
+        Refresh();
     }
     
     void OnPaint(wxPaintEvent& evt) {
@@ -351,7 +359,31 @@ Plater::Plater(wxWindow* parent, const wxString& title) :
 
     
 
-    void Plater::select_view_3d() {
+    
+void Plater::update_ui_from_settings() {
+     // Update Background
+    if (ThemeManager::IsDark()) {
+         this->SetBackgroundColour(ThemeManager::GetColors().bg);
+    } else {
+         this->SetBackgroundColour(wxColour(240, 240, 240)); 
+    }
+    
+    // Update Toolbar Buttons
+    for (auto const& [id, win] : this->toolbar_tools) {
+        if (ToolbarButton* btn = dynamic_cast<ToolbarButton*>(win)) {
+            btn->UpdateTheme();
+        }
+    }
+
+    // Update Warning Icon
+    if (this->object_info.manifold_warning_icon) {
+        this->object_info.manifold_warning_icon->SetBitmap(get_bmp_bundle("error.png"));
+    }
+    
+    this->Refresh();
+}
+
+void Plater::select_view_3d() {
 
     
     if (this->preview_notebook) this->preview_notebook->SetSelection(0);
