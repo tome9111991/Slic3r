@@ -1,5 +1,6 @@
 @echo off
 setlocal enabledelayedexpansion
+set "EXIT_CODE=0"
 
 echo ==========================================
 echo       Slic3r Build Script (Live-Log)
@@ -22,20 +23,20 @@ if not exist "%GLOBAL_BUILD_DIR%" mkdir "%GLOBAL_BUILD_DIR%"
 if not exist "%DEPS_DIR%" mkdir "%DEPS_DIR%"
 
 :: --- Checks ---
-where cmake >nul 2>nul || (echo [ERROR] CMake not found. & goto :END)
-where git >nul 2>nul || (echo [ERROR] Git not found. & goto :END)
-where ninja >nul 2>nul || (echo [ERROR] Ninja not found. & goto :END)
+where cmake >nul 2>nul || (echo [ERROR] CMake not found. & set "EXIT_CODE=1" & goto :END)
+where git >nul 2>nul || (echo [ERROR] Git not found. & set "EXIT_CODE=1" & goto :END)
+where ninja >nul 2>nul || (echo [ERROR] Ninja not found. & set "EXIT_CODE=1" & goto :END)
 
 :: --- Find Visual Studio ---
 set "VSWHERE=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
 for /f "usebackq tokens=*" %%i in (`"%VSWHERE%" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do (
     set "VS_PATH=%%i"
 )
-if not exist "%VS_PATH%" (echo [ERROR] Visual Studio 2022 not found. & goto :END)
+if not exist "%VS_PATH%" (echo [ERROR] Visual Studio 2022 not found. & set "EXIT_CODE=1" & goto :END)
 
 :: --- Setup Environment ---
 echo [INFO] Setting up VC++ Environment...
-call "%VS_PATH%\VC\Auxiliary\Build\vcvars64.bat" || (echo [ERROR] vcvars64.bat failed. & goto :END)
+call "%VS_PATH%\VC\Auxiliary\Build\vcvars64.bat" || (echo [ERROR] vcvars64.bat failed. & set "EXIT_CODE=1" & goto :END)
 
 :: --- Vcpkg Setup ---
 if not exist "%VCPKG_DIR%" (
@@ -59,6 +60,7 @@ powershell -Command "& { cmake -S '%SOURCE_DIR%' -B '%CMAKE_BUILD_DIR%' -G 'Ninj
 if %errorlevel% neq 0 (
     echo.
     echo [ERROR] CMake Configuration failed.
+    set "EXIT_CODE=1"
     goto :END
 )
 
@@ -72,6 +74,7 @@ if %errorlevel% neq 0 (
     echo ----- FOUND ERRORS IN LOG -----
     powershell -Command "Get-Content '%LOG_FILE%' | Where-Object { $_ -match ':\s+error\s+' -or $_ -match 'fatal\s+error' -or $_ -match '^FAILED:' } | ForEach-Object { Write-Host $_ }"
     echo -------------------------------
+    set "EXIT_CODE=1"
     goto :END
 )
 
@@ -84,7 +87,9 @@ echo [SUCCESS] Build complete!
 echo Binary: %CMAKE_BUILD_DIR%\slic3r.exe
 echo.
 
+
 :END
 echo.
 echo [INFO] Script finished.
-pause
+if "%GITHUB_ACTIONS%"=="" pause
+exit /b %EXIT_CODE%
