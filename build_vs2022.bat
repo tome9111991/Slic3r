@@ -14,7 +14,8 @@ if "%BASE_DIR:~-1%"=="\" set "BASE_DIR=%BASE_DIR:~0,-1%"
 set "GLOBAL_BUILD_DIR=%BASE_DIR%\build"
 set "DEPS_DIR=%GLOBAL_BUILD_DIR%\deps"
 set "VCPKG_DIR=%DEPS_DIR%\vcpkg"
-set "CMAKE_BUILD_DIR=%GLOBAL_BUILD_DIR%\target"
+set "CMAKE_BUILD_DIR=%GLOBAL_BUILD_DIR%\obj"
+set "TARGET_DIR=%GLOBAL_BUILD_DIR%\target"
 set "SOURCE_DIR=%BASE_DIR%"
 set "LOG_FILE=%BASE_DIR%\build_log.txt"
 
@@ -78,13 +79,18 @@ if %errorlevel% neq 0 (
     goto :END
 )
 
+echo [INFO] Installing artifacts to target...
+if not exist "%TARGET_DIR%" mkdir "%TARGET_DIR%"
+copy "%CMAKE_BUILD_DIR%\slic3r.exe" "%TARGET_DIR%\" >nul
+if exist "%CMAKE_BUILD_DIR%\*.dll" copy "%CMAKE_BUILD_DIR%\*.dll" "%TARGET_DIR%\" >nul
+
 echo [INFO] Copying resources...
-if not exist "%CMAKE_BUILD_DIR%\resources" mkdir "%CMAKE_BUILD_DIR%\resources"
-xcopy /E /I /Y "%BASE_DIR%\resources" "%CMAKE_BUILD_DIR%\resources" >nul
+if not exist "%TARGET_DIR%\resources" mkdir "%TARGET_DIR%\resources"
+xcopy /E /I /Y "%BASE_DIR%\resources" "%TARGET_DIR%\resources" >nul
 
 echo.
 echo [SUCCESS] Build complete!
-echo Binary: %CMAKE_BUILD_DIR%\slic3r.exe
+echo Binary: %TARGET_DIR%\slic3r.exe
 echo.
 
 
