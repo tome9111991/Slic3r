@@ -58,6 +58,13 @@ void ThemedButton::OnPaint(wxPaintEvent&) {
     }
 }
 
+wxSize ThemedButton::DoGetBestSize() const {
+    wxClientDC dc(const_cast<ThemedButton*>(this));
+    dc.SetFont(GetFont());
+    wxSize s = dc.GetTextExtent(m_label);
+    return wxSize(s.GetWidth() + 30, s.GetHeight() + 16);
+}
+
 // --- ThemedCheckBox ---
 
 ThemedCheckBox::ThemedCheckBox(wxWindow* parent, wxWindowID id, const wxString& label, const wxPoint& pos, const wxSize& size)
@@ -92,25 +99,41 @@ void ThemedCheckBox::OnPaint(wxPaintEvent&) {
     
     auto theme = ThemeManager::GetColors();
     
-    // Icon (checked or unchecked)
-    // Note: Ensure "checked.svg" and "unchecked.svg" exist in resources/icons/{theme}/
-    // For fallback if missing, we could draw a simple rectangle
-    wxBitmapBundle bundle = ThemeManager::GetSVG(m_checked ? "checked" : "unchecked", wxSize(20, 20));
+    // Choose icon and color
+    wxString iconName = m_checked ? "checkbox_checked" : "checkbox_unchecked";
+    wxColour iconColor = m_checked ? theme.accent : theme.textMuted;
+    
+    // Load and Draw SVG (14x14 fits better with small text)
+    wxBitmapBundle bundle = ThemeManager::GetSVG(iconName, wxSize(14, 14), iconColor);
+    
+    // Center vertically
+    int yPos = (GetSize().y - 14) / 2;
+    // Ensure we don't draw off-canvas if squeezed
+    if (yPos < 0) yPos = 0;
     
     if (bundle.IsOk()) {
-        dc.DrawBitmap(bundle.GetBitmapFor(this), 0, (GetSize().y - 20) / 2, true);
-    } else {
-        // Fallback drawing if SVG missing
-        dc.SetPen(wxPen(theme.text));
-        dc.SetBrush(m_checked ? wxBrush(theme.accent) : *wxTRANSPARENT_BRUSH);
-        dc.DrawRectangle(0, (GetSize().y - 16)/2, 16, 16);
+        dc.DrawBitmap(bundle.GetBitmapFor(this), 0, yPos, true);
     }
 
-    // Text
-    dc.SetTextForeground(theme.text);
+    // Text (if any)
+    if (!m_label.IsEmpty()) {
+        dc.SetTextForeground(theme.text);
+        dc.SetFont(GetFont());
+        wxSize extent = dc.GetTextExtent(m_label);
+        dc.DrawText(m_label, 18, (GetSize().y - extent.y) / 2);
+    }
+}
+
+wxSize ThemedCheckBox::DoGetBestSize() const {
+    // Return enough height to fit the 14px icon comfortably
+    if (m_label.IsEmpty()) return wxSize(18, 18);
+    
+    wxClientDC dc(const_cast<ThemedCheckBox*>(this));
     dc.SetFont(GetFont());
-    wxSize extent = dc.GetTextExtent(m_label);
-    dc.DrawText(m_label, 24, (GetSize().y - extent.y) / 2);
+    wxSize text = dc.GetTextExtent(m_label);
+    // Height should be max of icon(14) or text, plus some padding
+    int h = std::max(18, text.GetHeight() + 2);
+    return wxSize(18 + text.GetWidth() + 8, h);
 }
 
 // --- ThemedSelect ---
@@ -189,7 +212,7 @@ void ThemedSelect::OnPaint(wxPaintEvent&) {
     }
     
     // Arrow Icon
-    wxBitmapBundle arrow = ThemeManager::GetSVG("arrow_down", wxSize(10, 10));
+    wxBitmapBundle arrow = ThemeManager::GetSVG("arrow_down", wxSize(10, 10), theme.text);
     if (arrow.IsOk()) {
         dc.DrawBitmap(arrow.GetBitmapFor(this), GetSize().x - 18, (GetSize().y - 10) / 2, true);
     } else {
@@ -198,6 +221,10 @@ void ThemedSelect::OnPaint(wxPaintEvent&) {
         dc.DrawLine(GetSize().x - 15, 10, GetSize().x - 10, 18);
         dc.DrawLine(GetSize().x - 10, 18, GetSize().x - 5, 10);
     }
+}
+
+wxSize ThemedSelect::DoGetBestSize() const {
+    return wxSize(150, 30);
 }
 
 }} // namespace Slic3r::GUI

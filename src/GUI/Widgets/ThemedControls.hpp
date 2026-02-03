@@ -13,6 +13,8 @@ public:
     ThemedButton(wxWindow* parent, wxWindowID id, const wxString& label, 
                  const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize(100, 35));
 
+    wxSize DoGetBestSize() const override;
+
 private:
     void OnPaint(wxPaintEvent& evt);
     
@@ -30,6 +32,8 @@ public:
     bool IsChecked() const { return m_checked; }
     void SetValue(bool val);
 
+    wxSize DoGetBestSize() const override;
+
 private:
     void OnPaint(wxPaintEvent& evt);
     
@@ -45,6 +49,8 @@ public:
 
     wxString GetValue() const { return m_current; }
     void SetValue(const wxString& val);
+
+    wxSize DoGetBestSize() const override;
 
 private:
     void OpenPopup(wxMouseEvent& evt);

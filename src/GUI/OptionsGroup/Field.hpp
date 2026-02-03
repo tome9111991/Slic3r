@@ -23,6 +23,7 @@
 #include <wx/colour.h>
 #include <wx/clrpicker.h>
 #include <wx/slider.h>
+#include "../Widgets/ThemedControls.hpp"
 
 namespace Slic3r { namespace GUI {
 
@@ -100,7 +101,7 @@ public:
 class UI_Checkbox : public UI_Window {
 public:
     UI_Checkbox(wxWindow* parent, Slic3r::ConfigOptionDef _opt, wxWindowID checkid = wxID_ANY) : UI_Window(parent, _opt) {
-        _check = new wxCheckBox(parent, checkid, "");
+        _check = new ThemedCheckBox(parent, checkid, "");
         this->window = _check;
 
         if (this->opt.readonly) { this->_check->Disable(); }
@@ -112,9 +113,9 @@ public:
 
     ~UI_Checkbox() { }
 
-    wxCheckBox* check() { return _check; }
+    ThemedCheckBox* check() { return _check; }
 
-    virtual bool get_bool() override { return _check->GetValue();}
+    virtual bool get_bool() override { return _check->IsChecked();}
 
     virtual void set_value(boost::any value) override { this->_check->SetValue(boost::any_cast<bool>(value)); }
 
@@ -129,7 +130,7 @@ protected:
         }
     }
 private:
-    wxCheckBox* _check {nullptr};
+    ThemedCheckBox* _check {nullptr};
 
 };
 

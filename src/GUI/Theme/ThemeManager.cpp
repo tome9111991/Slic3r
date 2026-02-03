@@ -1,6 +1,8 @@
 #include "ThemeManager.hpp"
 #include <wx/stdpaths.h>
 #include <wx/filename.h>
+#include <wx/wfstream.h>
+#include <wx/sstream.h>
 
 namespace Slic3r { namespace GUI {
 
@@ -39,31 +41,47 @@ ThemeColors ThemeManager::GetColors() {
     };
 }
 
-wxBitmapBundle ThemeManager::GetSVG(const wxString& iconName, const wxSize& size) {
-    // Determine the base path for resources
-    // In a real deployment this might need to be smarter (e.g. referencing an installed share dir)
-    // For now, we assume "resources/icons/" is relative to the working directory or executable
-    
+wxBitmapBundle ThemeManager::GetSVG(const wxString& iconName, const wxSize& size, const wxColour& color) {
     // Attempt to locate resources relative to the executable
     wxString exePath = wxStandardPaths::Get().GetExecutablePath();
     wxFileName fname(exePath);
     wxString appDir = fname.GetPath();
 
     // Check standard locations (dev vs installed)
-    wxString resourceBase = appDir + "/../resources/icons/";
+    wxString resourceBase = appDir + "/../resources/images/";
     if (!wxDirExists(resourceBase)) {
-        resourceBase = "resources/icons/"; // Fallback to current working directory
+        resourceBase = "resources/images/"; // Fallback to current working directory
     }
     
-    wxString themeSubDir = m_isDark ? "dark/" : "light/";
-    wxString fullPath = resourceBase + themeSubDir + iconName + ".svg";
+    wxString fullPath = resourceBase + iconName + ".svg";
 
     if (!wxFileExists(fullPath)) {
-        // Fallback or warning? For now just return empty bundle or try to load anyway (wx might handle it)
-        // If file doesn't exist, Create might fail gracefully or return empty bitmap
+        // Fallback: Try with 'icons' folder just in case
+        fullPath = resourceBase + "../icons/" + (m_isDark ? "dark/" : "light/") + iconName + ".svg";
+        if (!wxFileExists(fullPath)) return wxBitmapBundle();
     }
 
-    return wxBitmapBundle::FromSVGFile(fullPath, size);
+    // Read SVG content
+    wxFileInputStream input(fullPath);
+    if (!input.IsOk()) return wxBitmapBundle();
+    
+    wxString svgContent;
+    wxStringOutputStream output(&svgContent);
+    input.Read(output);
+
+    // Recolor if requested
+    if (color.IsOk()) {
+        wxString hexColor = color.GetAsString(wxC2S_HTML_SYNTAX);
+        // Replace standard placeholders or common colors
+        // Ideally SVGs should use a specific placeholder like #PLACEHOLDER
+        // But for 'tick.svg' it uses #333.
+        svgContent.Replace("#333", hexColor); 
+        svgContent.Replace("#000000", hexColor);
+        svgContent.Replace("stroke=\"currentColor\"", "stroke=\"" + hexColor + "\"");
+        svgContent.Replace("fill=\"currentColor\"", "fill=\"" + hexColor + "\"");
+    }
+
+    return wxBitmapBundle::FromSVG(svgContent.ToStdString().c_str(), size);
 }
 
 }} // namespace Slic3r::GUI

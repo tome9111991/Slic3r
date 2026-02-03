@@ -72,7 +72,8 @@ We enforce a strict separation between Application UI and 3D Canvas rendering:
     *   **Manager:** `src/GUI/Theme/ThemeManager.hpp`
     *   **Usage:** Use `ThemeManager::GetColors()` to access `bg`, `surface`, `text`, `accent`, `header`.
     *   **Dark Mode Check:** `ThemeManager::IsDark()`.
-    *   **Icons:** `ThemeManager::GetSVG("name", size)`.
+    *   **Icons:** `ThemeManager::GetSVG("name", size, color)`.
+    *   **Recoloring:** The manager replaces `#333` with `color` automatically. Use generic icons in `resources/images/`.
 
 *   **3D Canvas (Plater, Preview, Toolpaths):**
     *   **Manager:** `src/GUI/Theme/CanvasTheme.hpp`

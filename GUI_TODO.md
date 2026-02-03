@@ -22,6 +22,8 @@ Hier geht es um die Basisklassen und das Management von Ressourcen.
 
 Wir müssen native Windows-Controls ersetzen oder "wrappen", da diese sich oft nicht umfärben lassen.
 
+- [x] **ThemedCheckBox:**
+    - Ersetzt `wxCheckBox`. Nutzt `tick.svg` mit dynamischem Recoloring.
 - [ ] **ThemedTextInput (Eingabefelder):**
     - *Problem:* `wxTextCtrl` lässt sich schwer stylen (Rahmenfarbe).
     - *Lösung:* Ein `wxPanel` als Container zeichnen (unser Border & Background), darin ein rahmenloses natives `wxTextCtrl` platzieren.

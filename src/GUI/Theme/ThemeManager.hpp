@@ -27,8 +27,9 @@ public:
     static ThemeColors GetColors();
 
     // Automatically loads the correct SVG depending on the theme
-    // Expected path: resources/icons/light/name.svg or resources/icons/dark/name.svg
-    static wxBitmapBundle GetSVG(const wxString& iconName, const wxSize& size);
+    // Expected path: resources/images/name.svg
+    // If color is provided, attempts to recolor the SVG stroke/fill
+    static wxBitmapBundle GetSVG(const wxString& iconName, const wxSize& size, const wxColour& color = wxNullColour);
 
 private:
     static bool m_isDark;
