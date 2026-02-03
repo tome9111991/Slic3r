@@ -26,12 +26,12 @@ core
 CMakeCache.txt
 *.cmake
 *.exe
-src/test/test_options.hpp
+
 build/*
 serial.txt
 .vscode
 
-slic3r
+/slic3r
 gui_test
 slic3r_test
 compile_commands.json
