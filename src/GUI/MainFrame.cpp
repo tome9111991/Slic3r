@@ -20,9 +20,17 @@ MainFrame::MainFrame(const wxString& title, const wxPoint& pos, const wxSize& si
         : wxFrame(NULL, wxID_ANY, title, pos, size), loaded(false),
         tabpanel(nullptr), controller(nullptr), plater(nullptr), preset_editor_tabs(std::map<preset_t, PresetEditor*>())
 {
-    this->SetIcon(wxIcon(var("Slic3r_128px.png"), wxBITMAP_TYPE_PNG));        
-
-    this->init_tabpanel();
+        wxIconBundle icons;
+        // User requested to keep using PNG for the main app icon for now
+        wxString png_path = var("images/Slic3r_128px.png");
+        if (wxFileExists(png_path)) {
+            icons.AddIcon(wxIcon(png_path, wxBITMAP_TYPE_PNG));
+        } else {
+             // Fallback
+             icons.AddIcon(wxIcon(var("Slic3r_128px.png"), wxBITMAP_TYPE_PNG));
+        }
+        this->SetIcons(icons);
+        this->init_tabpanel();
     this->init_menubar();
 
     wxToolTip::SetAutoPop(TOOLTIP_TIMER);

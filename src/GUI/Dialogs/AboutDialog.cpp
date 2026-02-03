@@ -75,7 +75,8 @@ AboutDialog::AboutDialog(wxWindow* parent) : wxDialog(parent, -1, _("About Slic3
 AboutDialogLogo::AboutDialogLogo(wxWindow* parent) : 
     wxPanel(parent, -1, wxDefaultPosition, wxDefaultSize) 
 { 
-    this->logo = wxBitmap(var("Slic3r_192px.png"), wxBITMAP_TYPE_PNG);
+    // User requested to keep using PNG for the logo for now
+    this->logo = wxBitmap(var("images/Slic3r_192px.png"), wxBITMAP_TYPE_PNG);
     this->SetMinSize(wxSize(this->logo.GetWidth(), this->logo.GetHeight()));
 
     this->Bind(wxEVT_PAINT, [=](wxPaintEvent& e) { this->repaint(e);});

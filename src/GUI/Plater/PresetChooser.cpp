@@ -52,7 +52,7 @@ PresetChooser::PresetChooser(wxWindow* parent, std::weak_ptr<Print> print, Setti
         }
 
         // Settings button
-        auto* settings_btn {new wxBitmapButton(this, wxID_ANY, wxBitmap(var("cog.png"), wxBITMAP_TYPE_PNG), wxDefaultPosition, wxDefaultSize, wxBORDER_NONE)};
+        auto* settings_btn {new wxBitmapButton(this, wxID_ANY, get_bmp_bundle("cog.png"), wxDefaultPosition, wxDefaultSize, wxBORDER_NONE)};
         if (_settings->color->SOLID_BACKGROUNDCOLOR()) {
             settings_btn->SetBackgroundColour(_settings->color->BACKGROUND_COLOR());
         }
@@ -104,21 +104,21 @@ void PresetChooser::load(std::array<Presets, preset_types> presets) {
             chooser->Clear();
             assert(chooser->GetCount() == 0);
             for (auto preset : current_list) {
-                wxBitmap bitmap;
+                wxBitmapBundle bitmap;
                 switch (group) {
                     case preset_t::Print:
-                        bitmap = wxBitmap(var("cog.png"), wxBITMAP_TYPE_PNG);
+                        bitmap = get_bmp_bundle("cog.png");
                         break;
                     case preset_t::Material: 
                         if (auto config =  preset.config().lock()) {
                             if (preset.default_preset || !config->has("filament_colour"))
-                                bitmap = wxBitmap(var("spool.png"), wxBITMAP_TYPE_PNG);
+                                bitmap = get_bmp_bundle("spool.png");
                         } else { // fall back if for some reason the config is dead.
-                            bitmap = wxBitmap(var("spool.png"), wxBITMAP_TYPE_PNG);
+                            bitmap = get_bmp_bundle("spool.png");
                         }
                         break;
                     case preset_t::Printer: 
-                        bitmap = wxBitmap(var("printer_empty.png"), wxBITMAP_TYPE_PNG);
+                        bitmap = get_bmp_bundle("printer_empty.png");
                         break;
                     default: break;
                 }

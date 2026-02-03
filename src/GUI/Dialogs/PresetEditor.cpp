@@ -29,8 +29,8 @@ PresetEditor::PresetEditor(wxWindow* parent, t_config_option_keys options) :
         this->_presets_choice->SetFont(ui_settings->small_font());
 
         // buttons
-        this->_btn_save_preset = new wxBitmapButton(this, wxID_ANY, wxBitmap(var("disk.png"), wxBITMAP_TYPE_PNG), wxDefaultPosition, wxDefaultSize, wxBORDER_NONE);
-        this->_btn_delete_preset = new wxBitmapButton(this, wxID_ANY, wxBitmap(var("delete.png"), wxBITMAP_TYPE_PNG), wxDefaultPosition, wxDefaultSize, wxBORDER_NONE);
+        this->_btn_save_preset = new wxBitmapButton(this, wxID_ANY, get_bmp_bundle("disk.png"), wxDefaultPosition, wxDefaultSize, wxBORDER_NONE);
+        this->_btn_delete_preset = new wxBitmapButton(this, wxID_ANY, get_bmp_bundle("delete.png"), wxDefaultPosition, wxDefaultSize, wxBORDER_NONE);
 
         this->_btn_delete_preset->Disable();
 
@@ -95,7 +95,7 @@ PresetPage* PresetEditor::add_options_page(const wxString& _title, const wxStrin
     
     int icon_idx = -1;
     if (!_icon.empty()) {
-        wxBitmap bmp(var(_icon), wxBITMAP_TYPE_PNG);
+        wxBitmap bmp = get_bmp_bundle(_icon).GetBitmap(wxSize(16, 16));
         if (bmp.IsOk()) {
              icon_idx = this->_icons->Add(bmp);
         }

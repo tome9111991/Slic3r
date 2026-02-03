@@ -11,6 +11,7 @@
 #include <wx/filename.h>
 #include <wx/stdpaths.h>
 #include <wx/dir.h>
+#include <wx/bmpbndl.h>
 #include <map>
 #include <utility>
 #include <memory>
@@ -105,6 +106,9 @@ const wxString var(const wxString& in);
 
 /// Provide a path to where Slic3r exec'd from.
 const wxString bin();
+
+/// Helper to load SVG icons from var/images, falling back to PNG if needed.
+wxBitmapBundle get_bmp_bundle(const wxString& name, int size = 16);
 
 /// Always returns path to home directory.
 const wxString home(const wxString& in = "Slic3r");

@@ -30,6 +30,44 @@ const wxString var(const wxString& in) {
     }
 }
 
+wxBitmapBundle get_bmp_bundle(const wxString& name, int size) {
+    wxString base_name = name;
+    if (base_name.EndsWith(".png")) base_name.RemoveLast(4);
+    if (base_name.EndsWith(".svg")) base_name.RemoveLast(4);
+    
+    // Determine size if not explicitly handled well by the caller using legacy names
+    // Some legacy names have size embedded
+    if (size == 16) { // Default check
+        if (base_name.Contains("128px")) size = 128;
+        else if (base_name.Contains("192px")) size = 192;
+        else if (base_name.Contains("32px")) size = 32;
+    }
+
+    wxString svg_path = var("images/" + base_name + ".svg");
+    if (wxFileExists(svg_path)) {
+        return wxBitmapBundle::FromSVGFile(svg_path, wxSize(size, size));
+    }
+
+    // Check for PNG in images/ folder (new structure)
+    wxString png_images_path = var("images/" + base_name + ".png");
+    if (wxFileExists(png_images_path)) {
+         return wxBitmapBundle::FromBitmap(wxBitmap(png_images_path, wxBITMAP_TYPE_PNG));
+    }
+
+    // Fallback to legacy PNG path if SVG missing
+    wxString png_path = var(name);
+    if (!wxFileExists(png_path) && !name.EndsWith(".png")) {
+        png_path = var(name + ".png");
+    }
+
+    if (wxFileExists(png_path)) {
+        return wxBitmapBundle::FromBitmap(wxBitmap(png_path, wxBITMAP_TYPE_PNG));
+    }
+    
+    // Last resort: just try to load what was asked
+    return wxBitmapBundle::FromBitmap(wxBitmap(var(name), wxBITMAP_TYPE_PNG));
+}
+
 const wxString bin() { 
     wxFileName f(wxStandardPaths::Get().GetExecutablePath());
     wxString appPath(f.GetPath());
@@ -77,11 +115,7 @@ wxMenuItem* append_submenu(wxMenu* menu, const wxString& name, const wxString& h
 
 void set_menu_item_icon(wxMenuItem* item, const wxString& icon) {
     if (!icon.IsEmpty()) {
-        wxBitmap ico;
-        if(ico.LoadFile(var(icon), wxBITMAP_TYPE_PNG))  
-            item->SetBitmap(ico);
-        else 
-            std::cerr<< var(icon) << " failed to load \n";
+        item->SetBitmap(get_bmp_bundle(icon));
     }
 }
 

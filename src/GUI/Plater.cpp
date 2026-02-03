@@ -156,7 +156,7 @@ Plater::Plater(wxWindow* parent, const wxString& title) :
             this->object_info.manifold->SetFont(ui_settings->small_font());
             if (ui_settings->color->SOLID_BACKGROUNDCOLOR()) this->object_info.manifold->SetForegroundColour(*wxWHITE);
 
-            this->object_info.manifold_warning_icon = new wxStaticBitmap(box, wxID_ANY, wxBitmap(var("error.png"), wxBITMAP_TYPE_PNG));
+            this->object_info.manifold_warning_icon = new wxStaticBitmap(box, wxID_ANY, get_bmp_bundle("error.png"));
             this->object_info.manifold_warning_icon->Hide();
 
             auto* h_sizer {new wxBoxSizer(wxHORIZONTAL)};
@@ -697,11 +697,11 @@ void Plater::build_toolbar() {
 
     // Helper to add a flat toolbar button
     auto add_tool = [&](int id, const wxString& label, const wxString& icon_name, const wxString& tooltip) {
-        wxBitmap bmp(var(icon_name), wxBITMAP_TYPE_PNG);
-        
         // Use standard wxButton which supports bitmaps + text on modern Windows
         wxButton* btn = new wxButton(this->toolbar_panel, id, label, wxDefaultPosition, wxDefaultSize, wxBORDER_NONE);
-        btn->SetBitmap(bmp);
+        if (!icon_name.IsEmpty()) {
+            btn->SetBitmap(get_bmp_bundle(icon_name));
+        }
         btn->SetToolTip(tooltip);
         
         // Styling
