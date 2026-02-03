@@ -21,14 +21,14 @@
 #include "Preset.hpp"
 
 #include "Plater/PlaterObject.hpp"
-#include "Plater/Plate2D.hpp"
+
 #include "Plater/Plate3D.hpp"
 #include "Plater/Preview3D.hpp"
 // #include "Plater/PreviewDLP.hpp"
 #include "Plater/PresetChooser.hpp"
 
 #include "Settings.hpp"
-
+#include "Theme/ThemeManager.hpp"
 #include "MainFrame.hpp"
 
 namespace Slic3r { namespace GUI {
@@ -49,7 +49,7 @@ using ObjIdx = unsigned int;
 using ObjRef = std::vector<PlaterObject>::iterator;
 
 class PlaterObject;
-class Plate2D;
+
 class MainFrame;
 
 /// Struct to group object info text fields together
@@ -151,7 +151,7 @@ private:
     // wxToolBar* htoolbar {nullptr}; //< toolbar for non-MSW platforms.
     wxBoxSizer* btoolbar {nullptr}; //< button-based toolbar for Windows
 
-    Plate2D* canvas2D {nullptr}; //< 2D plater canvas
+
     Plate3D* canvas3D {nullptr}; //< 3D plater canvas
 
     Preview3D* preview3D {nullptr}; //< 3D Preview 
@@ -286,12 +286,12 @@ static void add_info_field(wxWindow* parent, T*& field, wxString name, wxGridSiz
     name << ":";
     auto* text {new wxStaticText(parent, wxID_ANY, name, wxDefaultPosition, wxDefaultSize, wxALIGN_LEFT)};
     text->SetFont(ui_settings->small_font());
-    if (ui_settings->color->SOLID_BACKGROUNDCOLOR()) text->SetForegroundColour(*wxWHITE);
+    if (ThemeManager::IsDark()) text->SetForegroundColour(*wxWHITE);
     sizer->Add(text, 0);
 
     field = new wxStaticText(parent, wxID_ANY, "", wxDefaultPosition, wxDefaultSize, wxALIGN_LEFT);
     field->SetFont(ui_settings->small_font());
-    if (ui_settings->color->SOLID_BACKGROUNDCOLOR()) field->SetForegroundColour(*wxWHITE);
+    if (ThemeManager::IsDark()) field->SetForegroundColour(*wxWHITE);
     sizer->Add(field, 0);
 }
 

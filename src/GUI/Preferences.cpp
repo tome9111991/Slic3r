@@ -1,6 +1,7 @@
 #include "Preferences.hpp"
 #include "GUI.hpp"
 #include "Settings.hpp"
+#include "Theme/ThemeManager.hpp"
 #include "libslic3r/Config.hpp"
 #include "libslic3r/PrintConfig.hpp"
 #include <wx/statbox.h>
@@ -12,8 +13,8 @@ PreferencesDialog::PreferencesDialog(wxWindow* parent)
     : wxDialog(parent, wxID_ANY, _("Preferences"), wxDefaultPosition, wxDefaultSize, wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER)
 {
     // Apply Theme Colors
-    if (ui_settings && ui_settings->color->SOLID_BACKGROUNDCOLOR()) {
-        this->SetBackgroundColour(ui_settings->color->BACKGROUND_COLOR());
+    if (ThemeManager::IsDark()) {
+        this->SetBackgroundColour(ThemeManager::GetColors().bg);
         this->SetForegroundColour(*wxWHITE);
     } else {
         this->SetBackgroundColour(wxColour(240, 240, 240));

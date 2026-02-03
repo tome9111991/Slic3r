@@ -12,7 +12,8 @@
 #include <array>
 
 #include "libslic3r.h"
-#include "ColorScheme.hpp"
+#include "Theme/ThemeManager.hpp"
+#include "Theme/CanvasTheme.hpp"
 #include "Preset.hpp"
 
 namespace Slic3r { namespace GUI {
@@ -45,7 +46,7 @@ class Settings {
         bool dark_mode {true}; // Default to true as its most popular now
 
         ReloadBehavior reload {ReloadBehavior::all};
-        std::unique_ptr<ColorScheme> color {new Slic3r::GUI::DarkColor};
+        // std::unique_ptr<ColorScheme> color; // REMOVED: Replaced by CanvasTheme
         PathColor color_toolpaths_by {PathColor::role};
 
         float nudge {1.0}; //< 2D plater nudge amount in mm

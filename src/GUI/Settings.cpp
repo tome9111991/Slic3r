@@ -150,31 +150,29 @@ void Settings::restore_window_pos(wxWindow* ref, wxString name) {
 
 // Pure Internal Theme Switching + Simple Native Flag
 void Settings::apply_theme() {
-    if (this->dark_mode) {
-        this->color = std::make_unique<DarkColor>();
-    } else {
-        this->color = std::make_unique<LightColor>();
-    }
+    ThemeManager::SetDarkMode(this->dark_mode);
 
 #ifdef _WIN32
-    // if (SLIC3RAPP) SLIC3RAPP->MSWEnableDarkMode(this->dark_mode ? 1 : 0);
+    if (SLIC3RAPP) SLIC3RAPP->MSWForceDarkMode(this->dark_mode);
 #endif
     
     // Refresh all top-level windows if they exist
-    // Refresh all top-level windows if they exist
-    // Refresh all top-level windows if they exist
      for (wxWindow* win : wxTopLevelWindows) {
-        if (win) this->apply_theme_to_window(win);
+        if (win) {
+            this->apply_theme_to_window(win);
+            #ifdef _WIN32
+             // Re-apply title bar color specifically for this window as iterating wxTopLevelWindows in App::MSWForceDarkMode might miss new ones
+             if(SLIC3RAPP) SLIC3RAPP->MSWForceDarkMode(this->dark_mode);
+            #endif
+        }
      }
 }
 
 void Settings::apply_theme_to_window(wxWindow* win) {
      if (!win) return;
      
-     wxColour target_bg = wxColour(240, 240, 240); // Hardcoded Light Grey for consistency
-     if (this->color->SOLID_BACKGROUNDCOLOR()) {
-         target_bg = this->color->BACKGROUND_COLOR();
-     }
+     auto theme = ThemeManager::GetColors();
+     wxColour target_bg = theme.bg;
      
      win->SetBackgroundColour(target_bg);
      win->Refresh();
@@ -195,7 +193,7 @@ void Settings::apply_theme_to_window(wxWindow* win) {
               }
               
               // Fix Controls in Light Mode (force White BG / Black Text)
-              if (!this->color->SOLID_BACKGROUNDCOLOR()) {
+              if (!ThemeManager::IsDark()) {
                   // Text Inputs, Combo Boxes - Force White BG, Black Text
                   if (dynamic_cast<wxTextCtrl*>(child) || dynamic_cast<wxChoice*>(child) || dynamic_cast<wxComboBox*>(child)) {
                       child->SetBackgroundColour(*wxWHITE);
@@ -207,16 +205,12 @@ void Settings::apply_theme_to_window(wxWindow* win) {
                   }
               } else {
                   // Dark Mode Handling
-                  
-                  // Fix for Checkboxes: 
-                  // The user confirmed Light Mode works (Black Check on Light Background).
-                  // Since the Checkbox has NO text (label is separate), we can safely force 
-                  // it to look exactly like it does in Light Mode.
-                  if (dynamic_cast<wxCheckBox*>(child)) {
-                       child->SetBackgroundColour(wxColour(240, 240, 240)); // Standard Light Grey
-                       child->SetForegroundColour(*wxBLACK);                // Standard Black Check
+                  if (dynamic_cast<wxCheckBox*>(child) || dynamic_cast<wxRadioButton*>(child)) {
+                       // Allow background to be transparent/inherited (which matches the panel's dark bg)
+                       // Force text to white for visibility
+                       child->SetForegroundColour(*wxWHITE); 
                   }
-                  else if (dynamic_cast<wxStaticText*>(child) || dynamic_cast<wxRadioButton*>(child)) {
+                  else if (dynamic_cast<wxStaticText*>(child)) {
                        child->SetForegroundColour(*wxWHITE); // Keep text white
                   }
               }

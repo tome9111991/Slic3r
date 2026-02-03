@@ -109,6 +109,60 @@ bool App::OnInit()
     }
 }
 
+#ifdef _WIN32
+#include <windows.h>
+#include <dwmapi.h>
+
+#ifndef DWMWA_USE_IMMERSIVE_DARK_MODE
+#define DWMWA_USE_IMMERSIVE_DARK_MODE 20
+#endif
+
+void App::MSWForceDarkMode(bool use_dark_mode) 
+{
+    // 1. Force Title Bars of all current windows
+    HMODULE hDwmapi = LoadLibraryA("dwmapi.dll");
+    if (hDwmapi) {
+        typedef HRESULT(WINAPI * t_DwmSetWindowAttribute)(HWND, DWORD, LPCVOID, DWORD);
+        t_DwmSetWindowAttribute pDwmSetWindowAttribute = (t_DwmSetWindowAttribute)GetProcAddress(hDwmapi, "DwmSetWindowAttribute");
+        
+        if (pDwmSetWindowAttribute) {
+            BOOL value = use_dark_mode ? TRUE : FALSE;
+            
+            // Apply to all top-level windows (MainFrame, Dialogs, etc.)
+            for (wxWindow* win : wxTopLevelWindows) {
+                if (win && win->GetHWND()) {
+                    pDwmSetWindowAttribute((HWND)win->GetHWND(), DWMWA_USE_IMMERSIVE_DARK_MODE, &value, sizeof(value));
+                    
+                    // Force redraw of the non-client area (Title bar)
+                    ::SetWindowPos((HWND)win->GetHWND(), NULL, 0, 0, 0, 0, 
+                        SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
+                }
+            }
+        }
+        FreeLibrary(hDwmapi);
+    }
+
+    // 2. Hint common controls (Explorer, Open/Save Dialogs) via undocumented uxtheme API
+    // Ordinal 135 is SetPreferredAppMode (Windows 10 1903+)
+    HMODULE hUxtheme = LoadLibraryA("uxtheme.dll");
+    if (hUxtheme) {
+        typedef void (WINAPI * t_SetPreferredAppMode)(int);
+        t_SetPreferredAppMode pSetPreferredAppMode = (t_SetPreferredAppMode)GetProcAddress(hUxtheme, MAKEINTRESOURCEA(135));
+        
+        if (pSetPreferredAppMode) {
+            // 0: Default, 1: AllowDark, 2: ForceDark, 3: ForceMax
+            // We use 2 for ForceDark if active, else 0 (Default/Light)
+            int mode = use_dark_mode ? 2 : 0;
+            pSetPreferredAppMode(mode);
+            
+            // Also need to flush the theme change? 
+            // Usually DwmSetWindowAttribute + SetWindowPos triggers enough of a repaint.
+        }
+        FreeLibrary(hUxtheme);
+    }
+}
+#endif
+
 void App::save_window_pos(const wxTopLevelWindow* window, const wxString& name ) {
     ui_settings->window_pos[name] = 
         std::make_tuple<wxPoint, wxSize, bool>(

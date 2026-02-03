@@ -55,6 +55,36 @@ This script handles `vcpkg` dependencies and CMake configuration automatically.
 4.  **Style:** Follow the surrounding C++ code style (indentation, naming).
 5.  **Forward Thinking:** When implementing new features, always design with future scalability and modularity in mind. Don't just port the logic; consider how it can be improved or extended in the modern C++ context.
 
+## GUI Development & Theming
+To ensure full control over Light/Dark modes independent of system settings, we use a custom "Owner-Drawn" approach for UI controls.
+
+### 1. New Widgets
+*   **Location:** `src/GUI/Widgets/`
+*   **Implementation:** Inherit from `wxControl` or `wxPanel`.
+*   **Painting:** Override `OnPaint` (using `wxAutoBufferedPaintDC`) and draw manually using `wxGraphicsContext`.
+*   **Events:** Emit standard wxWidgets events (e.g., `wxEVT_BUTTON`, `wxEVT_CHECKBOX`) so usage remains standard.
+*   **Do NOT** use native controls (like standard `wxButton` or `wxCheckBox`) if they don't support full recoloring on Windows.
+
+### 2. Theming Architecture
+We enforce a strict separation between Application UI and 3D Canvas rendering:
+
+*   **UI Elements (Windows, Panels, Buttons, Text):**
+    *   **Manager:** `src/GUI/Theme/ThemeManager.hpp`
+    *   **Usage:** Use `ThemeManager::GetColors()` to access `bg`, `surface`, `text`, `accent`, `header`.
+    *   **Dark Mode Check:** `ThemeManager::IsDark()`.
+    *   **Icons:** `ThemeManager::GetSVG("name", size)`.
+
+*   **3D Canvas (Plater, Preview, Toolpaths):**
+    *   **Manager:** `src/GUI/Theme/CanvasTheme.hpp`
+    *   **Usage:** Use `CanvasTheme::GetColors()` to access `bed_color`, `grid_color`, `canvas_bg_top`.
+    *   **Note:** Only use this for OpenGL rendering contexts.
+
+### 3. Workflow for New Elements
+1.  Define the control in `src/GUI/Widgets/ThemedControls.hpp` (or a new file if complex).
+2.  Implement drawing logic in `.cpp`, referencing `ThemeManager` for all colors.
+3.  Add the source file to `CMakeLists.txt` (if new file created).
+4.  Verify appearance in both Light (`ThemeManager::SetDarkMode(false)`) and Dark modes.
+
 ## Useful References
 - **Perl GUI:** `port/lib/Slic3r/GUI/`
 - **C++ GUI:** `src/GUI/`

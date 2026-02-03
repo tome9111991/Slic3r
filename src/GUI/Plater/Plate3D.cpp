@@ -1,4 +1,5 @@
 #include "Plater/Plate3D.hpp"
+#include "Theme/CanvasTheme.hpp"
 #include "misc_ui.hpp"
 
 namespace Slic3r { namespace GUI {
@@ -111,7 +112,7 @@ void Plate3D::color_volumes(){
             for(ModelVolume* volume: modelobj->volumes){
                 auto& rendervolume = volumes.at(i);
                 rendervolume.selected = object.selected;
-                rendervolume.color = ui_settings->color->COLOR_PARTS();
+                rendervolume.color = CanvasTheme::GetColors().color_parts;
                 i++;
             }
         }

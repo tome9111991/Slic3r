@@ -425,7 +425,7 @@ IF(wxWidgets_FOUND AND OPENGL_FOUND AND Enable_GUI)
     ${GUI_LIBDIR}/Plater.cpp
     ${GUI_LIBDIR}/Preset.cpp
     ${GUI_LIBDIR}/Scene3D.cpp
-    ${GUI_LIBDIR}/Plater/Plate2D.cpp
+
     ${GUI_LIBDIR}/Plater/Plate3D.cpp
     ${GUI_LIBDIR}/Plater/Preview3D.cpp
     ${GUI_LIBDIR}/Plater/PlaterObject.cpp
@@ -443,6 +443,9 @@ IF(wxWidgets_FOUND AND OPENGL_FOUND AND Enable_GUI)
     ${LIBDIR}/slic3r/GUI/3DScene.cpp
     ${GUI_LIBDIR}/ConfigWizard.cpp
     ${GUI_LIBDIR}/Preferences.cpp
+    ${GUI_LIBDIR}/Theme/ThemeManager.cpp
+    ${GUI_LIBDIR}/Theme/CanvasTheme.cpp
+    ${GUI_LIBDIR}/Widgets/ThemedControls.cpp
     )
     target_compile_features(slic3r_gui PUBLIC cxx_std_17)
     target_include_directories(slic3r_gui PUBLIC ${SLIC3R_GUI_INCLUDES} ${SLIC3R_INCLUDES} )

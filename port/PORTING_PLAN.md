@@ -41,7 +41,7 @@ A deep scan of the codebase reveals that the migration is currently incomplete. 
 | **Object Parts** | `ObjectSettingsDialog.cpp` | Ability to set different settings for sub-parts of a model. |
 | **Background Processing**| `Plater.cpp` | Logic to stop/pause background slicing when settings change. |
 | **Object Manipulation** | `Plater.cpp` | Advanced scaling, cutting, and mirroring logic. |
-| **2D Bed View** | `Plate2D.cpp` | Bounding box rendering and collision detection. |
+
 
 ---
 

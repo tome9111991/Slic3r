@@ -1,4 +1,5 @@
 #include "Scene3D.hpp"
+#include "Theme/CanvasTheme.hpp"
 #include "Line.hpp"
 #include "ClipperUtils.hpp"
 #include "misc_ui.hpp"
@@ -640,9 +641,10 @@ void Scene3D::draw_background(){
     glLoadIdentity();
     
     glBegin(GL_QUADS);
-    auto bottom = ui_settings->color->BOTTOM_COLOR(), top = ui_settings->color->TOP_COLOR();
-    if(ui_settings->color->SOLID_BACKGROUNDCOLOR()){
-         bottom = top = ui_settings->color->BACKGROUND_COLOR();
+    auto colors = CanvasTheme::GetColors();
+    auto bottom = colors.canvas_bg_bottom, top = colors.canvas_bg_top;
+    if(colors.solid_background){
+         bottom = top = colors.canvas_bg_top;
     }
     glColor3ub(bottom.Red(), bottom.Green(), bottom.Blue());
     glVertex2f(-1.0,-1.0);
@@ -674,7 +676,8 @@ void Scene3D::draw_ground(){
     } else {*/
     // fall back on old behavior
     glVertexPointer(3, GL_FLOAT, 0, bed_verts.data());
-    const auto ground = ui_settings->color->GROUND_COLOR(), grid = ui_settings->color->GRID_COLOR();
+    auto colors = CanvasTheme::GetColors();
+    const auto ground = colors.ground_color, grid = colors.grid_color;
         
     glColor4ub(ground.Red(), ground.Green(), ground.Blue(),ground.Alpha());
     glNormal3d(0,0,1);

@@ -28,6 +28,10 @@ public:
     virtual bool OnInit() override;
     App() : wxApp() {}
 
+#ifdef _WIN32
+    void MSWForceDarkMode(bool use_dark_mode);
+#endif
+
     /// Save position, size, and maximize state for a TopLevelWindow (includes Frames) by name in Settings.
     void save_window_pos(const wxTopLevelWindow* window, const wxString& name );
 

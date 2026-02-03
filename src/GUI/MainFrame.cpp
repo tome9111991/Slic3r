@@ -9,6 +9,7 @@
 #include "MainFrame.hpp"
 #include "misc_ui.hpp"
 #include "misc_ui.hpp"
+#include "Theme/ThemeManager.hpp"
 #include "Dialogs/AboutDialog.hpp"
 #include "ConfigWizard.hpp"
 #include "Preferences.hpp"
@@ -198,8 +199,8 @@ MainFrame::MainFrame(const wxString& title, const wxPoint& pos, const wxSize& si
         auto create_nav_tgl = [&](const wxString& label) -> FlatToggleButton* {
             FlatToggleButton* b = new FlatToggleButton(this->top_bar, wxID_ANY, label);
             b->SetFont(ui_settings->medium_font()); 
-            if (ui_settings->color->SOLID_BACKGROUNDCOLOR()) {
-                b->SetBackgroundColour(ui_settings->color->TOP_COLOR()); // Match bar background
+            if (ThemeManager::IsDark()) {
+                b->SetBackgroundColour(ThemeManager::GetColors().header); // Match bar background
                 b->SetForegroundColour(*wxWHITE);
             }
             return b;
@@ -559,15 +560,16 @@ void MainFrame::init_menubar()
 }
 
 void MainFrame::sync_colors() {
-    if (!ui_settings || !ui_settings->color) return;
+    if (!ui_settings) return;
 
     wxColour btn_bg = wxSystemSettings::GetColour(wxSYS_COLOUR_FRAMEBK);
     wxColour btn_fg = *wxBLACK;
+    auto colors = ThemeManager::GetColors();
 
-    if (ui_settings->color->SOLID_BACKGROUNDCOLOR()) {
-        this->SetBackgroundColour(ui_settings->color->BACKGROUND_COLOR());
-        if (this->top_bar) this->top_bar->SetBackgroundColour(ui_settings->color->TOP_COLOR());
-        btn_bg = ui_settings->color->TOP_COLOR();
+    if (colors.isDark) {
+        this->SetBackgroundColour(colors.bg);
+        if (this->top_bar) this->top_bar->SetBackgroundColour(colors.header);
+        btn_bg = colors.header;
         btn_fg = *wxWHITE;
     } else {
         // FORCE Light Grey instead of asking System (which might return Dark Grey if OS is in Dark Mode)
@@ -593,7 +595,7 @@ void MainFrame::sync_colors() {
     }
 
     if (btn_slice) {
-        btn_slice->SetBackgroundColour(ui_settings->color->SELECTED_COLOR());
+        btn_slice->SetBackgroundColour(colors.accent);
         btn_slice->SetForegroundColour(*wxWHITE);
     }
 

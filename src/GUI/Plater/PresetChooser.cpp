@@ -1,6 +1,6 @@
 #include "PresetChooser.hpp"
 #include "misc_ui.hpp"
-
+#include "Theme/ThemeManager.hpp"
 #include "Plater.hpp"
 
 namespace Slic3r { namespace GUI {
@@ -12,8 +12,8 @@ PresetChooser::PresetChooser(wxWindow* parent, std::weak_ptr<Print> print, Setti
     _local_sizer(new wxFlexGridSizer(3,3,1,2)), _parent(parent), _settings(external_settings), _print(print), _presets(external_presets)
 {
     // Apply panel background
-    if (_settings->color->SOLID_BACKGROUNDCOLOR()) {
-        this->SetBackgroundColour(_settings->color->BACKGROUND_COLOR());
+    if (ThemeManager::IsDark()) {
+        this->SetBackgroundColour(ThemeManager::GetColors().bg);
     }
 
     _local_sizer->AddGrowableCol(1, 1);
@@ -36,7 +36,7 @@ PresetChooser::PresetChooser(wxWindow* parent, std::weak_ptr<Print> print, Setti
         }
         auto* text {new wxStaticText(this, wxID_ANY, name, wxDefaultPosition, wxDefaultSize, wxALIGN_RIGHT)};
         text->SetFont(_settings->small_font());
-        if (_settings->color->SOLID_BACKGROUNDCOLOR()) {
+        if (ThemeManager::IsDark()) {
             text->SetForegroundColour(*wxWHITE);
         }
 
@@ -44,8 +44,8 @@ PresetChooser::PresetChooser(wxWindow* parent, std::weak_ptr<Print> print, Setti
         this->preset_choosers[get_preset(group)].push_back(choice);
         
         // Apply Dark Theme to ComboBox
-        if (_settings->color->SOLID_BACKGROUNDCOLOR()) {
-            choice->SetBackgroundColour(_settings->color->BACKGROUND_COLOR());
+        if (ThemeManager::IsDark()) {
+            choice->SetBackgroundColour(ThemeManager::GetColors().bg);
             choice->SetForegroundColour(*wxWHITE);
             // Note: On Windows, pure OwnerDrawn is needed for full dark mode on ComboBox dropdown list itself,
             // but this helps the control itself blend in.
@@ -53,8 +53,8 @@ PresetChooser::PresetChooser(wxWindow* parent, std::weak_ptr<Print> print, Setti
 
         // Settings button
         auto* settings_btn {new wxBitmapButton(this, wxID_ANY, get_bmp_bundle("cog.png"), wxDefaultPosition, wxDefaultSize, wxBORDER_NONE)};
-        if (_settings->color->SOLID_BACKGROUNDCOLOR()) {
-            settings_btn->SetBackgroundColour(_settings->color->BACKGROUND_COLOR());
+        if (ThemeManager::IsDark()) {
+            settings_btn->SetBackgroundColour(ThemeManager::GetColors().bg);
         }
         
         settings_btn->Bind(wxEVT_BUTTON, [this, group](wxCommandEvent& e) {

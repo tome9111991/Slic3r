@@ -18,6 +18,7 @@
 
 
 #include "Plater.hpp"
+#include "Theme/ThemeManager.hpp"
 #include "Log.hpp"
 #include "MainFrame.hpp"
 #include "BoundingBox.hpp"
@@ -68,8 +69,8 @@ public:
         else if (m_hover) bg = wxColour(80, 80, 80);
         else {
              // Transparent / Match Parent
-             if (ui_settings->color->SOLID_BACKGROUNDCOLOR()) 
-                 bg = ui_settings->color->TOP_COLOR();
+             if (ThemeManager::IsDark()) 
+                 bg = ThemeManager::GetColors().header;
              else
                  // FORCE Light Grey instead of System Button Face (which is dark in Win Dark Mode)
                  bg = wxColour(240, 240, 240);
@@ -111,7 +112,7 @@ public:
             if (!IsEnabled()) {
                  dc.SetTextForeground(wxSystemSettings::GetColour(wxSYS_COLOUR_GRAYTEXT));
             } else {
-                 if (ui_settings->color->SOLID_BACKGROUNDCOLOR()) dc.SetTextForeground(*wxWHITE);
+                 if (ThemeManager::IsDark()) dc.SetTextForeground(*wxWHITE);
                  else dc.SetTextForeground(*wxBLACK);
             }
             wxSize textSize = dc.GetTextExtent(m_label);
@@ -175,8 +176,8 @@ Plater::Plater(wxWindow* parent, const wxString& title) :
     wxPanel(parent, wxID_ANY, wxDefaultPosition, wxDefaultSize, 0, title),
     _presets(new PresetChooser(dynamic_cast<wxWindow*>(this), this->print))
 {
-    if (ui_settings->color->SOLID_BACKGROUNDCOLOR()) {
-        this->SetBackgroundColour(ui_settings->color->BACKGROUND_COLOR());
+    if (ThemeManager::IsDark()) {
+        this->SetBackgroundColour(ThemeManager::GetColors().bg);
     }
 
     // Set callback for status event for worker threads
@@ -242,7 +243,7 @@ Plater::Plater(wxWindow* parent, const wxString& title) :
             object_info_sizer->Add(sizer, 0, wxEXPAND | wxBOTTOM, 5);
             auto* text  {new wxStaticText(box, wxID_ANY, _("Object:"), wxDefaultPosition, wxDefaultSize, wxALIGN_LEFT)};
             text->SetFont(ui_settings->small_font());
-            if (ui_settings->color->SOLID_BACKGROUNDCOLOR()) text->SetForegroundColour(*wxWHITE);
+            if (ThemeManager::IsDark()) text->SetForegroundColour(*wxWHITE);
             else text->SetForegroundColour(*wxBLACK); // Force Black on Light
             sizer->Add(text, 0, wxALIGN_CENTER_VERTICAL);
 
@@ -252,8 +253,8 @@ Plater::Plater(wxWindow* parent, const wxString& title) :
              */
             this->object_info.choice = new wxChoice(box, wxID_ANY, wxDefaultPosition, wxSize(100, -1));
             this->object_info.choice->SetFont(ui_settings->small_font());
-            if (ui_settings->color->SOLID_BACKGROUNDCOLOR()) {
-                this->object_info.choice->SetBackgroundColour(ui_settings->color->BACKGROUND_COLOR());
+            if (ThemeManager::IsDark()) {
+                this->object_info.choice->SetBackgroundColour(ThemeManager::GetColors().bg);
                 this->object_info.choice->SetForegroundColour(*wxWHITE);
             } else {
                 // Ensure readability in Light Mode
@@ -280,12 +281,12 @@ Plater::Plater(wxWindow* parent, const wxString& title) :
             wxString name {"Manifold:"};
             auto* text {new wxStaticText(box, wxID_ANY, name, wxDefaultPosition, wxDefaultSize, wxALIGN_LEFT)};
             text->SetFont(ui_settings->small_font());
-            if (ui_settings->color->SOLID_BACKGROUNDCOLOR()) text->SetForegroundColour(*wxWHITE);
+            if (ThemeManager::IsDark()) text->SetForegroundColour(*wxWHITE);
             grid_sizer->Add(text, 0);
 
             this->object_info.manifold = new wxStaticText(box, wxID_ANY, "", wxDefaultPosition, wxDefaultSize, wxALIGN_LEFT);
             this->object_info.manifold->SetFont(ui_settings->small_font());
-            if (ui_settings->color->SOLID_BACKGROUNDCOLOR()) this->object_info.manifold->SetForegroundColour(*wxWHITE);
+            if (ThemeManager::IsDark()) this->object_info.manifold->SetForegroundColour(*wxWHITE);
 
             this->object_info.manifold_warning_icon = new wxStaticBitmap(box, wxID_ANY, get_bmp_bundle("error.png"));
             this->object_info.manifold_warning_icon->Hide();
@@ -301,7 +302,7 @@ Plater::Plater(wxWindow* parent, const wxString& title) :
     }
     
     this->selection_changed();
-    if (this->canvas2D) this->canvas2D->update_bed_size();
+
 
     // Toolbar
     this->build_toolbar();
@@ -619,8 +620,7 @@ void Plater::on_thumbnail_made(size_t idx) {
 }
 
 void Plater::refresh_canvases() {
-    if (this->canvas2D != nullptr)
-        this->canvas2D->Refresh();
+
     if (this->canvas3D != nullptr)
         this->canvas3D->update();
     if (this->preview3D != nullptr)
@@ -724,8 +724,7 @@ void Plater::select_object() {
 }
 
 void Plater::selection_changed() {
-    // Remove selection in 2D plater
-    if (this->canvas2D) this->canvas2D->set_selected(-1, -1);
+
     this->canvas3D->selection_changed();
 
     auto obj = this->selected_object();
@@ -816,8 +815,8 @@ void Plater::build_toolbar() {
     
     // Create the main toolbar panel
     this->toolbar_panel = new wxPanel(this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxBORDER_NONE);
-    if (ui_settings->color->SOLID_BACKGROUNDCOLOR()) {
-        this->toolbar_panel->SetBackgroundColour(ui_settings->color->TOP_COLOR());
+    if (ThemeManager::IsDark()) {
+        this->toolbar_panel->SetBackgroundColour(ThemeManager::GetColors().header);
     }
 
     auto* sizer = new wxBoxSizer(wxHORIZONTAL);
@@ -842,7 +841,7 @@ void Plater::build_toolbar() {
     auto add_separator = [&]() {
          // Vertical line separator
          auto* line = new wxPanel(this->toolbar_panel, wxID_ANY, wxDefaultPosition, wxSize(1, 24));
-         if (ui_settings->color->SOLID_BACKGROUNDCOLOR()) {
+         if (ThemeManager::IsDark()) {
              line->SetBackgroundColour(wxColour(100, 100, 100)); // Visible dark mode separator
          } else {
              line->SetBackgroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_BTNSHADOW));

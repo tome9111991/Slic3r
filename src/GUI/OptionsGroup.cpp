@@ -1,5 +1,6 @@
 #include "OptionsGroup.hpp"
 #include "OptionsGroup/Field.hpp"
+#include "Theme/ThemeManager.hpp"
 #include <wx/sizer.h>
 #include <wx/stattext.h>
 #include <wx/statbox.h>
@@ -34,7 +35,7 @@ void OptionsGroup::append_single_option_line(const t_config_option_key& opt_key)
     }
     
     auto* label = new wxStaticText(parent, wxID_ANY, wxString::FromUTF8(label_text + ":"));
-    if (ui_settings && ui_settings->color->SOLID_BACKGROUNDCOLOR()) label->SetForegroundColour(*wxWHITE);
+    if (ThemeManager::IsDark()) label->SetForegroundColour(*wxWHITE);
     else label->SetForegroundColour(*wxBLACK);
     line_sizer->Add(label, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 5);
     if (this->get_option(opt_key).desc.type == coBool) {
@@ -53,7 +54,7 @@ void OptionsGroup::append_line(const Line& line) {
     
     if (!line.label.empty()) {
         auto* label = new wxStaticText(parent, wxID_ANY, wxString::FromUTF8(line.label + ":"));
-        if (ui_settings && ui_settings->color->SOLID_BACKGROUNDCOLOR()) label->SetForegroundColour(*wxWHITE);
+        if (ThemeManager::IsDark()) label->SetForegroundColour(*wxWHITE);
         else label->SetForegroundColour(*wxBLACK);
         line_sizer->Add(label, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 5);
     }
