@@ -328,7 +328,7 @@ target_include_directories(poly2tri PUBLIC ${COMMON_INCLUDES})
 target_compile_options(poly2tri PRIVATE -w)
 
 if(WIN32)
-    add_executable(slic3r src/slic3r.cpp package/win/slic3r.rc)
+    add_executable(slic3r src/slic3r.cpp package/win/slic3r.rc package/win/slic3r.exe.manifest)
 else()
     add_executable(slic3r src/slic3r.cpp)
 endif()
