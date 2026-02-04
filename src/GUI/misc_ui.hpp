@@ -107,7 +107,7 @@ const wxString var(const wxString& in);
 /// Provide a path to where Slic3r exec'd from.
 const wxString bin();
 
-/// Helper to load SVG icons from var/images, falling back to PNG if needed.
+/// Helper to load SVG icons from var/images. Returns empty bundle if not found.
 wxBitmapBundle get_bmp_bundle(const wxString& name, int size = 16);
 
 /// Always returns path to home directory.

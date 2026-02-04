@@ -92,7 +92,7 @@ void PrintEditor::_on_preset_loaded() {
 
 void PrintEditor::_build() {
     {
-        auto* page = this->add_options_page("Layers and perimeters", "layers.png");
+        auto* page = this->add_options_page("Layers and perimeters", "layers.svg");
         {
             auto* optgroup = page->new_optgroup("Layer height");
             optgroup->append_single_option_line("layer_height");
@@ -128,7 +128,7 @@ void PrintEditor::_build() {
     }
     
     {
-        auto* page = this->add_options_page("Infill", "infill.png");
+        auto* page = this->add_options_page("Infill", "infill.svg");
         {
             auto* optgroup = page->new_optgroup("Infill");
             optgroup->append_single_option_line("fill_density");
@@ -156,7 +156,7 @@ void PrintEditor::_build() {
     }
     
     {
-        auto* page = this->add_options_page("Skirt and brim", "box.png");
+        auto* page = this->add_options_page("Skirt and brim", "box.svg");
         {
             auto* optgroup = page->new_optgroup("Skirt");
             optgroup->append_single_option_line("skirts");
@@ -175,7 +175,7 @@ void PrintEditor::_build() {
     }
 
     {
-        auto* page = this->add_options_page("Support material", "building.png");
+        auto* page = this->add_options_page("Support material", "building.svg");
         {
             auto* optgroup = page->new_optgroup("Support material");
             optgroup->append_single_option_line("support_material");
@@ -203,7 +203,7 @@ void PrintEditor::_build() {
     }
 
     {
-        auto* page = this->add_options_page("Speed", "time.png");
+        auto* page = this->add_options_page("Speed", "time.svg");
         {
             auto* optgroup = page->new_optgroup("Speed for print moves");
             optgroup->append_single_option_line("perimeter_speed");
@@ -241,7 +241,7 @@ void PrintEditor::_build() {
     }
 
     {
-        auto* page = this->add_options_page("Multiple extruders", "funnel.png");
+        auto* page = this->add_options_page("Multiple extruders", "funnel.svg");
         {
             auto* optgroup = page->new_optgroup("Extruders");
             optgroup->append_single_option_line("perimeter_extruder");
@@ -263,7 +263,7 @@ void PrintEditor::_build() {
     }
 
     {
-        auto* page = this->add_options_page("Advanced", "wand.png");
+        auto* page = this->add_options_page("Advanced", "wand.svg");
         {
             auto* optgroup = page->new_optgroup("Extrusion width");
             optgroup->append_single_option_line("extrusion_width");
@@ -292,7 +292,7 @@ void PrintEditor::_build() {
     }
 
     {
-        auto* page = this->add_options_page("Output options", "page_white_go.png");
+        auto* page = this->add_options_page("Output options", "page_white_go.svg");
         {
             auto* optgroup = page->new_optgroup("Sequential printing");
             optgroup->append_single_option_line("complete_objects");
@@ -315,7 +315,7 @@ void PrintEditor::_build() {
     }
 
     {
-        auto* page = this->add_options_page("Notes", "note.png");
+        auto* page = this->add_options_page("Notes", "note.svg");
         {
             auto* optgroup = page->new_optgroup("Notes");
             optgroup->append_single_option_line("notes");

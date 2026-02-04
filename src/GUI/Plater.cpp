@@ -18,6 +18,7 @@
 
 
 #include "Plater.hpp"
+#include "GUI.hpp"
 #include "Theme/ThemeManager.hpp"
 #include "Log.hpp"
 #include "MainFrame.hpp"
@@ -296,7 +297,7 @@ Plater::Plater(wxWindow* parent, const wxString& title) :
             this->object_info.manifold->SetFont(ui_settings->small_font());
             if (ThemeManager::IsDark()) this->object_info.manifold->SetForegroundColour(*wxWHITE);
 
-            this->object_info.manifold_warning_icon = new wxStaticBitmap(box, wxID_ANY, get_bmp_bundle("error.png"));
+            this->object_info.manifold_warning_icon = new wxStaticBitmap(box, wxID_ANY, get_bmp_bundle("error.svg"));
             this->object_info.manifold_warning_icon->Hide();
 
             auto* h_sizer {new wxBoxSizer(wxHORIZONTAL)};
@@ -312,23 +313,39 @@ Plater::Plater(wxWindow* parent, const wxString& title) :
     this->selection_changed();
 
 
+    // Quick Settings Placeholder
+    wxStaticBoxSizer* shortcut_sizer {nullptr};
+    {
+        auto* box {new wxStaticBox(this, wxID_ANY, _("Quick Settings"))};
+        shortcut_sizer = new wxStaticBoxSizer(box, wxVERTICAL);
+        shortcut_sizer->SetMinSize(wxSize(350, 60)); // Small height for now
+        
+        this->quick_settings_label = new wxStaticText(box, wxID_ANY, _("Pinned settings will appear here..."), wxDefaultPosition, wxDefaultSize, wxALIGN_CENTER_HORIZONTAL);
+        this->quick_settings_label->SetFont(ui_settings->small_font());
+        if (ThemeManager::IsDark()) this->quick_settings_label->SetForegroundColour(*wxWHITE);
+        shortcut_sizer->Add(this->quick_settings_label, 1, wxEXPAND | wxTOP | wxBOTTOM, 15);
+    }
+
+
     // Toolbar
     this->build_toolbar();
 
     // Finally assemble the sizers into the display.
     
-    // right panel sizer
-    auto* right_sizer {this->right_sizer};
-    right_sizer->Add(this->_presets, 0, wxEXPAND | wxTOP, 10);
+    // left panel sizer
+    auto* left_sizer {this->left_sizer};
+    left_sizer->Add(this->_presets, 0, wxEXPAND | wxTOP, 10);
     this->_presets->Show();
 
+    left_sizer->Add(shortcut_sizer, 0, wxEXPAND | wxTOP, 5);
+
 //    $right_sizer->Add($self->{settings_override_panel}, 1, wxEXPAND, 5);
-    right_sizer->Add(object_info_sizer, 0, wxEXPAND, 0);
+    left_sizer->Add(object_info_sizer, 0, wxEXPAND, 0);
 //    $right_sizer->Add($object_info_sizer, 0, wxEXPAND, 0);
 
 
     auto hsizer {new wxBoxSizer(wxHORIZONTAL)};
-    hsizer->Add(right_sizer, 0, wxEXPAND | wxLEFT | wxRIGHT, 3);
+    hsizer->Add(left_sizer, 0, wxEXPAND | wxLEFT | wxRIGHT, 3);
     
     // Add vertical separator
     auto* line = new wxStaticLine(this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxLI_VERTICAL);
@@ -345,21 +362,9 @@ Plater::Plater(wxWindow* parent, const wxString& title) :
     sizer->SetSizeHints(this);
     this->SetSizer(sizer);
 
-            // Initialize the toolbar
+    this->selection_changed();
+}
 
-            this->selection_changed();
-
-        
-
-            this->selection_changed();
-
-        }
-
-        
-
-    
-
-    
 void Plater::update_ui_from_settings() {
      // Update Background
     if (ThemeManager::IsDark()) {
@@ -377,10 +382,62 @@ void Plater::update_ui_from_settings() {
 
     // Update Warning Icon
     if (this->object_info.manifold_warning_icon) {
-        this->object_info.manifold_warning_icon->SetBitmap(get_bmp_bundle("error.png"));
+        this->object_info.manifold_warning_icon->SetBitmap(get_bmp_bundle("error.svg"));
     }
     
+    if (this->_presets) {
+        this->_presets->UpdateTheme();
+    }
+
+    if (this->quick_settings_label) {
+        if (ThemeManager::IsDark()) this->quick_settings_label->SetForegroundColour(*wxWHITE);
+        else this->quick_settings_label->SetForegroundColour(*wxBLACK);
+    }
+
     this->Refresh();
+}
+
+void Plater::load_current_presets() {
+    if (!SLIC3RAPP) return;
+
+    auto* settings = SLIC3RAPP->settings();
+    auto& preset_store = SLIC3RAPP->presets;
+    
+    // Order: Printer -> Print -> Material
+    // This ensures that material overrides (like temps) take precedence, 
+    // and printer limits are respected (though logic might vary, usually apply() overwrites).
+    
+    // Actually, Slic3r applies them in specific order. 
+    // Let's assume: Printer first (base), then Print (params), then Material (filament specifics).
+    
+    auto apply_group = [&](preset_t group) {
+        size_t group_idx = static_cast<size_t>(group);
+        // Safety check
+        if (group_idx >= settings->default_presets.size()) return;
+        
+        const auto& defaults = settings->default_presets[group_idx];
+        if (defaults.empty()) return;
+        
+        std::string name = defaults[0].ToStdString(); 
+        
+        // Find preset
+        for (auto& preset : preset_store[group_idx]) {
+             if (preset.name == name) {
+                 if (auto cfg = preset.config().lock()) {
+                     this->config->apply(cfg->config());
+                     Slic3r::Log::info(LogChannel, "Applied preset config: " + name);
+                 }
+                 return;
+             }
+        }
+    };
+    
+    apply_group(preset_t::Printer);
+    apply_group(preset_t::Print);
+    apply_group(preset_t::Material);
+    
+    // Sync to Print object
+    this->print->apply_config(this->config->config());
 }
 
 void Plater::select_view_3d() {
@@ -1517,6 +1574,7 @@ void Plater::export_gcode() {
     std::string output_file = saveFileDialog.GetPath().ToStdString();
 
     // Apply config
+    this->load_current_presets();
     this->print->apply_config(this->config->config());
 
     // Validate
@@ -1570,6 +1628,7 @@ void Plater::slice() {
     }
 
     // Apply config
+    this->load_current_presets();
     this->print->apply_config(this->config->config());
     
     // Auto-detect threads if not set or set to 1

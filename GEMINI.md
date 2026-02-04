@@ -5,6 +5,8 @@ This project is an active effort to port the original Perl-based Slic3r applicat
 The goal is to eliminate the Perl dependency entirely, resulting in a faster, more maintainable, and self-contained executable.
 
 *   **Current Status:** Core slicing engine (`libslic3r`) is fully ported. The GUI is approximately 50% complete.
+    *   **Completed:** Build system migration (CMake/vcpkg), Basic Theme Infrastructure (Fonts, HiDPI, SVG).
+    *   **Active:** Phase 2 "Un-vendoring" of external libraries (Clipper, Admesh, Poly2Tri).
 *   **Active Development:** `src/` (C++).
 *   **Legacy Reference:** `port/` (Perl/XS code moved here for reference).
 
@@ -13,10 +15,11 @@ The project follows a strict porting roadmap defined in `port/PORTING_PLAN.md`.
 The legacy Perl code in `port/lib/` and `port/xs/` serves as the "source of truth" for logic that needs to be reimplemented in `src/`.
 
 **Key Gaps (To-Do):**
-1.  **Preset Management:** Saving/Loading config profiles (`.ini`).
-2.  **Configuration Wizard:** First-run setup logic.
-3.  **Undo/Redo:** History stack for the Plater.
-4.  **2D/3D Interaction:** Advanced object manipulation (Cut, Mirror, etc.).
+1.  **Un-vendoring:** Replace local sources in `src/` (Clipper, Admesh, Poly2Tri) with vcpkg packages.
+2.  **Preset Management:** Saving/Loading config profiles (`.ini`).
+3.  **Configuration Wizard:** First-run setup logic.
+4.  **Undo/Redo:** History stack for the Plater.
+5.  **2D/3D Interaction:** Advanced object manipulation (Cut, Mirror, etc.).
 
 ## Directory Structure
 
@@ -28,7 +31,7 @@ The legacy Perl code in `port/lib/` and `port/xs/` serves as the "source of trut
 | **`port/xs/`** | Legacy XS bindings. |
 | **`build/`** | Build artifacts. |
 | **`package/`** | Packaging scripts. |
-| **`var/`** | Application resources (icons, models). |
+| **`resources/`** | Application resources (icons, models). |
 
 ## Building & Running
 
@@ -54,6 +57,7 @@ This script handles `vcpkg` dependencies and CMake configuration automatically.
 3.  **Verify:** Ensure the C++ behavior matches the legacy Perl behavior.
 4.  **Style:** Follow the surrounding C++ code style (indentation, naming).
 5.  **Forward Thinking:** When implementing new features, always design with future scalability and modularity in mind. Don't just port the logic; consider how it can be improved or extended in the modern C++ context.
+6.  **Comments:** Always include concise comments explaining the logic and intent behind the code to ensure maintainability and clarity during the porting process.
 
 ## GUI Development & Theming
 To ensure full control over Light/Dark modes independent of system settings, we use a custom "Owner-Drawn" approach for UI controls.

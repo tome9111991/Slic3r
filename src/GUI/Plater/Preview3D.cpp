@@ -4,7 +4,7 @@
 #include "ExtrusionEntity.hpp"
 #include "Layer.hpp"
 #include <fstream>
-#include "../../slic3r/GUI/3DScene.hpp"
+#include "ExtrusionGeometry.hpp"
 #include "ExtrusionEntityCollection.hpp"
 
 namespace Slic3r { namespace GUI {
@@ -61,7 +61,7 @@ void PreviewScene3D::load_print_toolpaths(std::shared_ptr<Slic3r::Print> print) 
             }
 
             if(!lines.empty()) {
-                ::Slic3r::_3DScene::_extrusionentity_to_verts_do(lines, widths, heights, closed, top_z, Point(0,0), &qverts_out, &tverts_out);
+                ::Slic3r::ExtrusionGeometry::_extrusionentity_to_verts_do(lines, widths, heights, closed, top_z, Point(0,0), &qverts_out, &tverts_out);
             }
         }
     };

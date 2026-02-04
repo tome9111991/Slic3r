@@ -63,7 +63,7 @@ void PrinterEditor::_update(const std::string& opt_key) {
 
 void PrinterEditor::_build() {
     {
-        auto* page = this->add_options_page("General", "printer_empty.png");
+        auto* page = this->add_options_page("General", "printer_empty.svg");
         {
             auto* optgroup = page->new_optgroup("Size and coordinates");
             // Bed shape button missing in C++ framework, skipped.
@@ -104,7 +104,7 @@ void PrinterEditor::_build() {
     }
 
     {
-        auto* page = this->add_options_page("Custom G-code", "script.png");
+        auto* page = this->add_options_page("Custom G-code", "script.svg");
         {
             auto* optgroup = page->new_optgroup("Start G-code");
             optgroup->append_single_option_line("start_gcode");
@@ -133,7 +133,7 @@ void PrinterEditor::_build() {
     
     // Extruder 1 (Static for now)
     {
-        auto* page = this->add_options_page("Extruder 1", "funnel.png");
+        auto* page = this->add_options_page("Extruder 1", "funnel.svg");
         {
             auto* optgroup = page->new_optgroup("Size");
             optgroup->append_single_option_line("nozzle_diameter");
@@ -171,7 +171,7 @@ void PrinterEditor::_build() {
     }
 
     {
-        auto* page = this->add_options_page("Notes", "note.png");
+        auto* page = this->add_options_page("Notes", "note.svg");
         {
             auto* optgroup = page->new_optgroup("Notes");
             optgroup->append_single_option_line("printer_notes");

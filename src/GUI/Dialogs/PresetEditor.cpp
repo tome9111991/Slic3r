@@ -6,6 +6,7 @@
 #include "Log.hpp"
 #include <wx/textdlg.h>
 #include <wx/msgdlg.h>
+#include "../Theme/ThemeManager.hpp"
 
 namespace Slic3r { namespace GUI {
 
@@ -29,8 +30,8 @@ PresetEditor::PresetEditor(wxWindow* parent, t_config_option_keys options) :
         this->_presets_choice->SetFont(ui_settings->small_font());
 
         // buttons
-        this->_btn_save_preset = new wxBitmapButton(this, wxID_ANY, get_bmp_bundle("disk.png"), wxDefaultPosition, wxDefaultSize, wxBORDER_NONE);
-        this->_btn_delete_preset = new wxBitmapButton(this, wxID_ANY, get_bmp_bundle("delete.png"), wxDefaultPosition, wxDefaultSize, wxBORDER_NONE);
+        this->_btn_save_preset = new wxBitmapButton(this, wxID_ANY, get_bmp_bundle("disk.svg"), wxDefaultPosition, wxDefaultSize, wxBORDER_NONE);
+        this->_btn_delete_preset = new wxBitmapButton(this, wxID_ANY, get_bmp_bundle("delete.svg"), wxDefaultPosition, wxDefaultSize, wxBORDER_NONE);
 
         this->_btn_delete_preset->Disable();
 
@@ -85,6 +86,11 @@ PresetEditor::PresetEditor(wxWindow* parent, t_config_option_keys options) :
 
     this->_treectrl->AddRoot("root");
     this->_treectrl->SetIndent(0);
+    
+    // Ensure initial coloring is correct
+    // We must invoke this because the panel is created with default colors initially
+    // and if UpdateUI() hasn't run recently on this specific instance, it stays default.
+    ThemeManager::ApplyThemeRecursive(this);
 }
 
 PresetPage* PresetEditor::add_options_page(const wxString& _title, const wxString& _icon) {

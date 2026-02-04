@@ -91,6 +91,14 @@ private:
 
     /// Update Settings presets with the state of this system
     void _update_preset_settings(preset_t preset);
+
+public:
+    /// Update UI colors and icons for the current theme
+    void UpdateTheme();
+
+private:
+    std::vector<wxStaticText*> m_labels;
+    std::vector<wxBitmapButton*> m_settings_buttons;
 };
 
 }} // Slic3r::GUI

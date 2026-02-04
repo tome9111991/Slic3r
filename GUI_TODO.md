@@ -10,12 +10,12 @@ Hier geht es um die Basisklassen und das Management von Ressourcen.
 - [x] **ThemeManager Basic:** Verwaltung von Farben und Dark-Mode Toggle.
 - [x] **CanvasTheme Separation:** Trennung von UI- und 3D-Farben (`Legacy ColorScheme` entfernt).
 - [x] **SVG Support:** Automatisches Laden von Icons je nach Theme.
-- [ ] **Font Manager:**
+- [x] **Font Manager:**
     - Zentrale Verwaltung von Schriftarten (Größen, Gewichte).
     - Anstatt `GetFont()` überall manuell zu setzen -> `ThemeManager::GetFont(FontSize::Small, FontWeight::Bold)`.
-- [ ] **HiDPI Scaling:**
+- [x] **HiDPI Scaling:**
     - Sicherstellen, dass alle `DrawRoundedRectangle` und SVGs auf 4K-Monitoren skalieren (Multiplikator aus `wxWindow::GetContentScaleFactor()` nutzen).
-- [ ] **State Persistence:**
+- [x] **State Persistence:**
     - Speichern der User-Präferenz (Dark/Light) in der `slic3r.ini`, damit die App beim Neustart richtig aussieht.
 
 ## 🧩 Phase 2: Essentielle Controls (Die Bausteine)
@@ -24,10 +24,10 @@ Wir müssen native Windows-Controls ersetzen oder "wrappen", da diese sich oft n
 
 - [x] **ThemedCheckBox:**
     - Ersetzt `wxCheckBox`. Nutzt `tick.svg` mit dynamischem Recoloring.
-- [ ] **ThemedTextInput (Eingabefelder):**
+- [x] **ThemedTextInput (Eingabefelder):**
     - *Problem:* `wxTextCtrl` lässt sich schwer stylen (Rahmenfarbe).
     - *Lösung:* Ein `wxPanel` als Container zeichnen (unser Border & Background), darin ein rahmenloses natives `wxTextCtrl` platzieren.
-- [ ] **ThemedNumberInput (Spinner):**
+- [x] **ThemedNumberInput (Spinner):**
     - Wichtig für Slic3r (Layerhöhe, Temperaturen).
     - Kombination aus `ThemedTextInput` und zwei kleinen `ThemedButtons` (Up/Down).
 - [ ] **ThemedSlider:**
@@ -58,7 +58,7 @@ Wir müssen native Windows-Controls ersetzen oder "wrappen", da diese sich oft n
 
 ## 🛠 Phase 5: Developer Experience & Testing
 
-- [ ] **Widget Gallery (Showcase):**
+- [x] **Widget Gallery (Showcase):**
     - Ein separates Fenster (nur für Devs), in dem alle Controls untereinander angezeigt werden.
     - Dient zum Testen von Änderungen am Theme, ohne die ganze App bedienen zu müssen.
     - Wie "Storybook" in der Webentwicklung.

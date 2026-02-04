@@ -9,16 +9,12 @@ namespace Slic3r { namespace GUI {
 std::unique_ptr<Settings> ui_settings {nullptr}; 
 
 Settings::Settings() {
-    // Initialize fonts
-    this->_small_font = wxSystemSettings::GetFont(wxSYS_DEFAULT_GUI_FONT);
-    if (the_os == OS::Mac) _small_font.SetPointSize(11);
-    this->_small_bold_font = wxSystemSettings::GetFont(wxSYS_DEFAULT_GUI_FONT);
-    if (the_os == OS::Mac) _small_bold_font.SetPointSize(11);
-    this->_small_bold_font.MakeBold();
-    this->_medium_font = wxSystemSettings::GetFont(wxSYS_DEFAULT_GUI_FONT);
-    this->_medium_font.SetPointSize(12);
+    // Initialize fonts using ThemeManager
+    this->_small_font = ThemeManager::GetFont(ThemeManager::FontSize::Small);
+    this->_small_bold_font = ThemeManager::GetFont(ThemeManager::FontSize::Small, ThemeManager::FontWeight::Bold);
+    this->_medium_font = ThemeManager::GetFont(ThemeManager::FontSize::Medium);
 
-    this->_scroll_step = wxSystemSettings::GetFont(wxSYS_DEFAULT_GUI_FONT).GetPointSize();
+    this->_scroll_step = this->_small_font.GetPointSize();
 }
 void Settings::save_settings() {
     if (!SLIC3RAPP) return;
@@ -150,76 +146,19 @@ void Settings::restore_window_pos(wxWindow* ref, wxString name) {
 
 // Pure Internal Theme Switching + Simple Native Flag
 void Settings::apply_theme() {
+    // ThemeManager::SetDarkMode will trigger UpdateUI() which handles 
+    // coloring all windows, including MainFrame and Dialogs.
     ThemeManager::SetDarkMode(this->dark_mode);
 
 #ifdef _WIN32
     if (SLIC3RAPP) SLIC3RAPP->MSWForceDarkMode(this->dark_mode);
 #endif
-    
-    // Refresh all top-level windows if they exist
-     for (wxWindow* win : wxTopLevelWindows) {
-        if (win) {
-            this->apply_theme_to_window(win);
-            #ifdef _WIN32
-             // Re-apply title bar color specifically for this window as iterating wxTopLevelWindows in App::MSWForceDarkMode might miss new ones
-             if(SLIC3RAPP) SLIC3RAPP->MSWForceDarkMode(this->dark_mode);
-            #endif
-        }
-     }
 }
 
 void Settings::apply_theme_to_window(wxWindow* win) {
      if (!win) return;
-     
-     auto theme = ThemeManager::GetColors();
-     wxColour target_bg = theme.bg;
-     
-     win->SetBackgroundColour(target_bg);
-     win->Refresh();
-     
-     // Special handling for MainFrame to update its custom panels
-     if (MainFrame* main = dynamic_cast<MainFrame*>(win)) {
-         main->sync_colors();
-     }
-
-     // Aggressively recurse children to force background color AND text color
-     // This fixes issues where panels inside dialogs stick to System Dark Mode colors
-     std::function<void(wxWindow*)> recurse_children = [&](wxWindow* parent) {
-         for (wxWindow* child : parent->GetChildren()) {
-              // Skip simple buttons or text controls, mainly target Panels/Notebooks
-              // casting to wxPanel check is good heuristic for containers
-              if (dynamic_cast<wxPanel*>(child) || dynamic_cast<wxNotebook*>(child) || dynamic_cast<wxSimplebook*>(child)) {
-                  child->SetBackgroundColour(target_bg);
-              }
-              
-              // Fix Controls in Light Mode (force White BG / Black Text)
-              if (!ThemeManager::IsDark()) {
-                  // Text Inputs, Combo Boxes - Force White BG, Black Text
-                  if (dynamic_cast<wxTextCtrl*>(child) || dynamic_cast<wxChoice*>(child) || dynamic_cast<wxComboBox*>(child)) {
-                      child->SetBackgroundColour(*wxWHITE);
-                      child->SetForegroundColour(*wxBLACK);
-                  }
-                  // Static Text, Checkboxes - Force Transparent/Target BG, Black Text
-                  if (dynamic_cast<wxStaticText*>(child) || dynamic_cast<wxCheckBox*>(child) || dynamic_cast<wxRadioButton*>(child)) {
-                       child->SetForegroundColour(*wxBLACK);
-                  }
-              } else {
-                  // Dark Mode Handling
-                  if (dynamic_cast<wxCheckBox*>(child) || dynamic_cast<wxRadioButton*>(child)) {
-                       // Allow background to be transparent/inherited (which matches the panel's dark bg)
-                       // Force text to white for visibility
-                       child->SetForegroundColour(*wxWHITE); 
-                  }
-                  else if (dynamic_cast<wxStaticText*>(child)) {
-                       child->SetForegroundColour(*wxWHITE); // Keep text white
-                  }
-              }
-              
-              child->Refresh();
-              recurse_children(child);
-         }
-     };
-     recurse_children(win);
+     // Forward to centralized logic
+     ThemeManager::ApplyThemeRecursive(win);
 }
 
 }} // namespace Slic3r::GUI

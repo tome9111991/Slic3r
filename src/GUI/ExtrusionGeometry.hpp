@@ -1,5 +1,5 @@
-#ifndef slic3r_3DScene_hpp_
-#define slic3r_3DScene_hpp_
+#ifndef slic3r_ExtrusionGeometry_hpp_
+#define slic3r_ExtrusionGeometry_hpp_
 
 #include "../../libslic3r/libslic3r.h"
 #include "../../libslic3r/Point.hpp"
@@ -46,7 +46,7 @@ class GLVertexArray {
     }
 };
 
-class _3DScene
+class ExtrusionGeometry
 {
     public:
     static void _extrusionentity_to_verts_do(const Lines &lines, const std::vector<double> &widths,

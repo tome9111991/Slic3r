@@ -17,6 +17,12 @@
    - Iterated through all children of `Plater` at the end of the constructor and called `Hide()` on anything that wasn't a known managed component. **The artifact persisted**, suggesting it might not be a standard `wxWindow` child or it's being re-drawn/re-created after the constructor.
 6. **Flag Removal**: 
    - Removed `wxTAB_TRAVERSAL` from `Plater` constructor. Artifact remained.
+7. **wxCLIP_CHILDREN Strategy**:
+   - Added `wxCLIP_CHILDREN` to `Plater`. This caused the `toolbar_panel` background to disappear (transparency issue).
+   - Removed `wxCLIP_CHILDREN` from `toolbar_panel` but kept on `Plater`. Artifact reappeared.
+8. **Off-Screen Creation Strategy**:
+   - Initialized `toolbar_panel`, buttons, separators, `preview_notebook`, and `_presets` at position `(1000, 1000)` to prevent ghosting at `(0,0)` before the first layout. 
+   - **Result:** Failed. Artifact persists or reappears once layout stabilizes.
 
 ## Theories for Future Investigation
 - **Native OS Artifact**: Could be a native Win32 artifact from a `wxToolBar` that was previously attached via `SetToolBar` or similar legacy code in `MainFrame` that hasn't been fully cleaned.

@@ -52,7 +52,7 @@ wxBitmapBundle get_bmp_bundle(const wxString& name, int size) {
         return svgBundle;
     }
 
-    // No fallback to PNG anymore as requested.
+    // Return empty bundle if SVG is not found.
     return wxBitmapBundle();
 }
 

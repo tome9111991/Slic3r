@@ -14,9 +14,9 @@ ConfigWizardPage::ConfigWizardPage(wxWizard* parent, const wxString& title, cons
     
     // Title
     wxStaticText* title_txt = new wxStaticText(this, wxID_ANY, title);
-    wxFont font = title_txt->GetFont();
+    // Use ThemeManager for consistent Large font
+    wxFont font = ThemeManager::GetFont(ThemeManager::FontSize::Large);
     font.SetWeight(wxFONTWEIGHT_BOLD);
-    font.SetPointSize(14);
     title_txt->SetFont(font);
     
     main_sizer->Add(title_txt, 0, wxALL, 10);

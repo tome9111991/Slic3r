@@ -29,7 +29,7 @@ void MaterialEditor::_update(const std::string& opt_key) {
 
 void MaterialEditor::_build() {
     {
-        auto* page = this->add_options_page("Filament", "spool.png");
+        auto* page = this->add_options_page("Filament", "spool.svg");
         {
             auto* optgroup = page->new_optgroup("Filament");
             optgroup->append_single_option_line("filament_colour");
@@ -56,7 +56,7 @@ void MaterialEditor::_build() {
     }
     
     {
-        auto* page = this->add_options_page("Cooling", "hourglass.png");
+        auto* page = this->add_options_page("Cooling", "hourglass.svg");
         {
             auto* optgroup = page->new_optgroup("Enable");
             optgroup->append_single_option_line("fan_always_on");
@@ -81,7 +81,7 @@ void MaterialEditor::_build() {
     }
     
     {
-        auto* page = this->add_options_page("Custom G-code", "script.png");
+        auto* page = this->add_options_page("Custom G-code", "script.svg");
         {
             auto* optgroup = page->new_optgroup("Start G-code");
             optgroup->append_single_option_line("start_filament_gcode");
@@ -93,7 +93,7 @@ void MaterialEditor::_build() {
     }
     
     {
-        auto* page = this->add_options_page("Notes", "note.png");
+        auto* page = this->add_options_page("Notes", "note.svg");
         {
             auto* optgroup = page->new_optgroup("Notes");
             optgroup->append_single_option_line("filament_notes");
@@ -101,7 +101,7 @@ void MaterialEditor::_build() {
     }
     
     {
-        auto* page = this->add_options_page("Overrides", "wrench.png");
+        auto* page = this->add_options_page("Overrides", "wrench.svg");
         {
             auto* optgroup = page->new_optgroup("Overrides");
             optgroup->append_single_option_line("filament_max_volumetric_speed");

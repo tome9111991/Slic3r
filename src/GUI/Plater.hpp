@@ -125,6 +125,10 @@ public:
     void select_view(Direction dir);
 
     void update_ui_from_settings();
+    
+    /// Load configuration from currently selected presets into 'this->config' and 'this->print'
+    void load_current_presets();
+
 private:
     std::shared_ptr<Slic3r::Print> print {std::make_shared<Print>(Slic3r::Print())};
     std::shared_ptr<Slic3r::Model> model {std::make_shared<Model>(Slic3r::Model())};
@@ -144,7 +148,7 @@ private:
     std::stack<UndoOperation> _redo {}; 
 
     wxSimplebook* preview_notebook {nullptr};
-    wxBoxSizer* right_sizer {new wxBoxSizer(wxVERTICAL)};
+    wxBoxSizer* left_sizer {new wxBoxSizer(wxVERTICAL)};
 
     // Replacement for native toolbar
     wxPanel* toolbar_panel {nullptr}; 
@@ -161,6 +165,7 @@ private:
     // PreviewDLP* previewDLP {nullptr}; //< DLP/SLA Preview canvas
 
     wxStaticBoxSizer* object_info_size {nullptr};
+    wxStaticText* quick_settings_label {nullptr};
 
     /// Handles the actual load of the file from the dialog handoff.
     std::vector<int> load_file(const std::string file, const int obj_idx_to_load = -1);

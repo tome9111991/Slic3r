@@ -40,6 +40,8 @@ PresetChooser::PresetChooser(wxWindow* parent, std::weak_ptr<Print> print, Setti
             text->SetForegroundColour(*wxWHITE);
         }
 
+        m_labels.push_back(text);
+        
         auto* choice {new wxBitmapComboBox(this, wxID_ANY, "", wxDefaultPosition, wxDefaultSize, 0, nullptr, wxCB_READONLY)};
         this->preset_choosers[get_preset(group)].push_back(choice);
         
@@ -52,7 +54,9 @@ PresetChooser::PresetChooser(wxWindow* parent, std::weak_ptr<Print> print, Setti
         }
 
         // Settings button
-        auto* settings_btn {new wxBitmapButton(this, wxID_ANY, get_bmp_bundle("cog.png"), wxDefaultPosition, wxDefaultSize, wxBORDER_NONE)};
+        auto* settings_btn {new wxBitmapButton(this, wxID_ANY, get_bmp_bundle("cog.svg"), wxDefaultPosition, wxDefaultSize, wxBORDER_NONE)};
+        m_settings_buttons.push_back(settings_btn);
+
         if (ThemeManager::IsDark()) {
             settings_btn->SetBackgroundColour(ThemeManager::GetColors().bg);
         }
@@ -107,18 +111,18 @@ void PresetChooser::load(std::array<Presets, preset_types> presets) {
                 wxBitmapBundle bitmap;
                 switch (group) {
                     case preset_t::Print:
-                        bitmap = get_bmp_bundle("cog.png");
+                        bitmap = get_bmp_bundle("cog.svg");
                         break;
                     case preset_t::Material: 
                         if (auto config =  preset.config().lock()) {
                             if (preset.default_preset || !config->has("filament_colour"))
-                                bitmap = get_bmp_bundle("spool.png");
+                                bitmap = get_bmp_bundle("spool.svg");
                         } else { // fall back if for some reason the config is dead.
-                            bitmap = get_bmp_bundle("spool.png");
+                            bitmap = get_bmp_bundle("spool.svg");
                         }
                         break;
                     case preset_t::Printer: 
-                        bitmap = get_bmp_bundle("printer_empty.png");
+                        bitmap = get_bmp_bundle("printer_empty.svg");
                         break;
                     default: break;
                 }
@@ -250,5 +254,45 @@ void PresetChooser::_on_change_combobox(preset_t preset, wxBitmapComboBox* choic
 */
 }
 
+
+
+void PresetChooser::UpdateTheme()
+{
+    bool dark = ThemeManager::IsDark();
+    auto colors = ThemeManager::GetColors();
+
+    if (dark) {
+        this->SetBackgroundColour(colors.bg);
+    } else {
+        this->SetBackgroundColour(wxNullColour);
+    }
+
+    for (auto* text : m_labels) {
+        text->SetForegroundColour(dark ? *wxWHITE : *wxBLACK);
+    }
+
+    for (auto& group : preset_choosers) {
+        for (auto* choice : group) {
+            if (dark) {
+                choice->SetBackgroundColour(colors.bg);
+                choice->SetForegroundColour(*wxWHITE);
+            } else {
+                choice->SetBackgroundColour(wxNullColour);
+                choice->SetForegroundColour(*wxBLACK);
+            }
+        }
+    }
+
+    for (auto* btn : m_settings_buttons) {
+        btn->SetBitmap(get_bmp_bundle("cog.svg"));
+        if (dark) {
+            btn->SetBackgroundColour(colors.bg);
+        } else {
+            btn->SetBackgroundColour(wxNullColour);
+        }
+    }
+    
+    this->Refresh();
+}
 
 }} // Slic3r::GUI

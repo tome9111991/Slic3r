@@ -1,10 +1,10 @@
-#include "3DScene.hpp"
+#include "ExtrusionGeometry.hpp"
 
 namespace Slic3r {
 
 // caller is responsible for supplying NO lines with zero length
 void
-_3DScene::_extrusionentity_to_verts_do(const Lines &lines, const std::vector<double> &widths,
+ExtrusionGeometry::_extrusionentity_to_verts_do(const Lines &lines, const std::vector<double> &widths,
         const std::vector<double> &heights, bool closed, double top_z, const Point &copy,
         GLVertexArray* qverts, GLVertexArray* tverts)
 {

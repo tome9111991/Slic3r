@@ -8,7 +8,7 @@
 #include <wx/glcanvas.h>
 #include "Settings.hpp"
 #include "Point.hpp"
-#include "3DScene.hpp"
+#include "ExtrusionGeometry.hpp"
 #include "BoundingBox.hpp"
 #include "Model.hpp"
 

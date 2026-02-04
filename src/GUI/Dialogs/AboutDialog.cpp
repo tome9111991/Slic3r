@@ -1,4 +1,5 @@
 #include "Dialogs/AboutDialog.hpp"
+#include "Theme/ThemeManager.hpp"
 
 namespace Slic3r { namespace GUI {
 
@@ -20,8 +21,8 @@ AboutDialog::AboutDialog(wxWindow* parent) : wxDialog(parent, -1, _("About Slic3
 
         // title
         auto* title     { new wxStaticText(this, -1, "Slic3r", wxDefaultPosition, wxDefaultSize)};
+        // Title is very specific (Roman, 24pt), so we keep manual styling but could base it on ThemeManager if needed.
         auto title_font { wxSystemSettings::GetFont(wxSYS_DEFAULT_GUI_FONT)};
-
         title_font.SetWeight(wxFONTWEIGHT_BOLD);
         title_font.SetFamily(wxFONTFAMILY_ROMAN);
         title_font.SetPointSize(24);
@@ -32,8 +33,12 @@ AboutDialog::AboutDialog(wxWindow* parent) : wxDialog(parent, -1, _("About Slic3
         // version
         
         auto* version {new wxStaticText(this, -1, wxString("Version ") + wxString(SLIC3R_VERSION), wxDefaultPosition, wxDefaultSize)};
-        auto version_font { wxSystemSettings::GetFont(wxSYS_DEFAULT_GUI_FONT) };
-        version_font.SetPointSize((the_os == OS::Windows ? 9 : 11));
+        // Use ThemeManager for standard UI font
+        auto version_font = ThemeManager::GetFont(ThemeManager::FontSize::Small);
+        // On Windows it was using 9, which maps to Small in our ThemeManager roughly (Mac uses 11).
+        // If we want to be strictly identical to previous logic:
+        // previous: (the_os == OS::Windows ? 9 : 11)
+        // ThemeManager::Small: Default GUI font (usually 9 on Win) or 11 on Mac.
         version->SetFont(version_font);
         vsizer->Add(version, 0, wxALIGN_LEFT | wxBOTTOM, 10);
 

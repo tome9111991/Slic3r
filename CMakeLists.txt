@@ -400,7 +400,6 @@ target_link_libraries(libslic3r PUBLIC ${LIBSLIC3R_DEPENDS})
 
 set(SLIC3R_GUI_INCLUDES
     ${LIBDIR}/libslic3r
-    ${LIBDIR}/slic3r/GUI
     ${GUI_LIBDIR}
     ${OPENGL_INCLUDE_DIR}
     ${wxWidgets_INCLUDE}
@@ -430,7 +429,6 @@ IF(wxWidgets_FOUND AND OPENGL_FOUND AND Enable_GUI)
     ${GUI_LIBDIR}/Plater/Preview3D.cpp
     ${GUI_LIBDIR}/Plater/PlaterObject.cpp
     ${GUI_LIBDIR}/Plater/PresetChooser.cpp
-    ${GUI_LIBDIR}/ProgressStatusBar.cpp
     ${GUI_LIBDIR}/Settings.cpp
     ${GUI_LIBDIR}/misc_ui.cpp
     ${GUI_LIBDIR}/OptionsGroup.cpp
@@ -440,12 +438,13 @@ IF(wxWidgets_FOUND AND OPENGL_FOUND AND Enable_GUI)
     ${GUI_LIBDIR}/OptionsGroup/UI_Point3.cpp
     ${GUI_LIBDIR}/OptionsGroup/UI_Color.cpp
     ${GUI_LIBDIR}/OptionsGroup/UI_Slider.cpp
-    ${LIBDIR}/slic3r/GUI/3DScene.cpp
+    ${GUI_LIBDIR}/ExtrusionGeometry.cpp
     ${GUI_LIBDIR}/ConfigWizard.cpp
     ${GUI_LIBDIR}/Preferences.cpp
     ${GUI_LIBDIR}/Theme/ThemeManager.cpp
     ${GUI_LIBDIR}/Theme/CanvasTheme.cpp
     ${GUI_LIBDIR}/Widgets/ThemedControls.cpp
+    ${GUI_LIBDIR}/Dialogs/WidgetGallery.cpp
     )
     target_compile_features(slic3r_gui PUBLIC cxx_std_17)
     target_include_directories(slic3r_gui PUBLIC ${SLIC3R_GUI_INCLUDES} ${SLIC3R_INCLUDES} )

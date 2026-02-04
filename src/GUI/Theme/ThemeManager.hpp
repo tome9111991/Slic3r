@@ -26,10 +26,30 @@ public:
 
     static ThemeColors GetColors();
 
+    // Trigger a global refresh of the UI
+    static void UpdateUI();
+    
+    // Apply styling to a window and its children recursively
+    static void ApplyThemeRecursive(wxWindow* root);
+
     // Automatically loads the correct SVG depending on the theme
     // Expected path: resources/images/name.svg
     // If color is provided, attempts to recolor the SVG stroke/fill
     static wxBitmapBundle GetSVG(const wxString& iconName, const wxSize& size, const wxColour& color = wxNullColour);
+
+    // Font Management
+    enum class FontSize {
+        Small,  // Standard UI elements
+        Medium, // Headers, Important labels (approx 12pt)
+        Large   // Section headers
+    };
+
+    enum class FontWeight {
+        Normal,
+        Bold
+    };
+
+    static wxFont GetFont(FontSize size = FontSize::Small, FontWeight weight = FontWeight::Normal);
 
 private:
     static bool m_isDark;
