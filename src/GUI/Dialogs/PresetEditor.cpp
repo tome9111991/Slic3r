@@ -26,14 +26,17 @@ PresetEditor::PresetEditor(wxWindow* parent, t_config_option_keys options) :
 
     {
         // choice menu
-        this->_presets_choice = new wxChoice(this, wxID_ANY, wxDefaultPosition, wxSize(left_col_width, -1));
-        this->_presets_choice->SetFont(ui_settings->small_font());
+        // choice menu
+        this->_presets_choice = new ThemedSelect(this, wxID_ANY, wxArrayString(), wxDefaultPosition, wxSize(left_col_width, 30));
 
         // buttons
-        this->_btn_save_preset = new wxBitmapButton(this, wxID_ANY, get_bmp_bundle("disk.svg"), wxDefaultPosition, wxDefaultSize, wxBORDER_NONE);
-        this->_btn_delete_preset = new wxBitmapButton(this, wxID_ANY, get_bmp_bundle("delete.svg"), wxDefaultPosition, wxDefaultSize, wxBORDER_NONE);
+        this->_btn_save_preset = new ThemedButton(this, wxID_ANY, "", wxDefaultPosition, wxDefaultSize);
+        this->_btn_save_preset->SetBitmap(get_bmp_bundle("disk.svg"));
+        
+        this->_btn_delete_preset = new ThemedButton(this, wxID_ANY, "", wxDefaultPosition, wxDefaultSize);
+        this->_btn_delete_preset->SetBitmap(get_bmp_bundle("delete.svg"));
 
-        this->_btn_delete_preset->Disable();
+        this->_btn_delete_preset->Enable(false);
 
         wxBoxSizer* hsizer = new wxBoxSizer(wxHORIZONTAL);
         left_sizer->Add(hsizer, 0, wxEXPAND | wxBOTTOM, 5);
@@ -41,7 +44,7 @@ PresetEditor::PresetEditor(wxWindow* parent, t_config_option_keys options) :
         hsizer->Add(this->_btn_save_preset, 0, wxALIGN_CENTER_VERTICAL);
         hsizer->Add(this->_btn_delete_preset, 0, wxALIGN_CENTER_VERTICAL);
 
-        this->_presets_choice->Bind(wxEVT_CHOICE, [this](wxCommandEvent&) {
+        this->_presets_choice->Bind(wxEVT_COMBOBOX, [this](wxCommandEvent&) {
             this->_on_select_preset();
         });
 

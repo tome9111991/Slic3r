@@ -27,12 +27,19 @@ ThemedButton::ThemedButton(wxWindow* parent, wxWindowID id, const wxString& labe
     });
 }
 
+
+
+void ThemedButton::SetBitmap(const wxBitmapBundle& bmp) {
+    m_icon = bmp;
+    Refresh();
+}
+
 void ThemedButton::OnPaint(wxPaintEvent&) {
     wxAutoBufferedPaintDC dc(this);
     dc.Clear();
     auto theme = ThemeManager::GetColors();
     
-    // Draw background to match parent if needed, or rely on Clear() if parent has same bg
+    // Draw background to match parent if needed
     dc.SetBackground(wxBrush(theme.bg));
     dc.Clear();
 
@@ -47,16 +54,49 @@ void ThemedButton::OnPaint(wxPaintEvent&) {
         }
 
         gc->SetBrush(wxBrush(currentBg));
-        gc->SetPen(wxPen(theme.border, 1)); // 1 physical pixel usually fine for border
+        gc->SetPen(wxPen(theme.border, 1)); 
         
         double scale = GetContentScaleFactor();
         gc->DrawRoundedRectangle(0, 0, GetSize().x, GetSize().y, 5 * scale);
 
-        // Text
-        gc->SetFont(GetFont(), theme.text);
-        double tw, th;
-        gc->GetTextExtent(m_label, &tw, &th);
-        gc->DrawText(m_label, (GetSize().x - tw) / 2, (GetSize().y - th) / 2);
+        // Calculate content layout
+        double contentW = 0;
+        double gap = 6 * scale;
+        
+        // Measure text
+        double tw = 0, th = 0;
+        if (!m_label.IsEmpty()) {
+            gc->SetFont(GetFont(), theme.text);
+            gc->GetTextExtent(m_label, &tw, &th);
+            contentW += tw;
+        }
+
+        // Measure icon
+        wxBitmap iconBmp;
+        if (m_icon.IsOk()) {
+            // Use height of button minus padding for icon size target? 
+            // Or just use natural size (usually 16x16)
+            iconBmp = m_icon.GetBitmapFor(this);
+            contentW += iconBmp.GetWidth();
+            if (!m_label.IsEmpty()) contentW += gap;
+        }
+
+        // Draw Content Centered
+        double x = (GetSize().x - contentW) / 2.0;
+        double cy = GetSize().y / 2.0;
+
+        if (iconBmp.IsOk()) {
+             double iy = cy - (iconBmp.GetHeight() / 2.0);
+             // GraphicsContext DrawBitmap allows drawing wxBitmap
+             gc->DrawBitmap(iconBmp, x, iy, iconBmp.GetWidth(), iconBmp.GetHeight());
+             x += iconBmp.GetWidth() + gap;
+        }
+
+        if (!m_label.IsEmpty()) {
+             double ty = cy - (th / 2.0);
+             gc->DrawText(m_label, x, ty);
+        }
+
         delete gc;
     }
 }
@@ -66,7 +106,18 @@ wxSize ThemedButton::DoGetBestSize() const {
     dc.SetFont(GetFont());
     wxSize s = dc.GetTextExtent(m_label);
     double scale = GetContentScaleFactor();
-    return wxSize(s.GetWidth() + (30 * scale), s.GetHeight() + (16 * scale));
+    
+    int w = s.GetWidth();
+    int h = s.GetHeight();
+    
+    if (m_icon.IsOk()) {
+        wxBitmap bmp = m_icon.GetBitmap(wxSize(16,16)); // Probe size
+        w += bmp.GetWidth();
+        if (!m_label.IsEmpty()) w += (6 * scale);
+        h = std::max(h, bmp.GetHeight());
+    }
+    
+    return wxSize(w + (30 * scale), h + (16 * scale));
 }
 
 // --- ThemedCheckBox ---
@@ -147,6 +198,9 @@ wxSize ThemedCheckBox::DoGetBestSize() const {
 ThemedSelect::ThemedSelect(wxWindow* parent, wxWindowID id, const wxArrayString& options, const wxPoint& pos, const wxSize& size)
     : wxControl(parent, id, pos, size, wxBORDER_NONE), m_options(options)
 {
+    // Don't auto-select first item if it might be empty or valid to not select? 
+    // wxChoice usually starts with -1 (no selection) unless SetSelection is called.
+    // But for dropdown, we usually want checking.
     if (!options.IsEmpty()) m_current = options[0];
     
     SetBackgroundStyle(wxBG_STYLE_PAINT);
@@ -159,22 +213,85 @@ void ThemedSelect::SetValue(const wxString& val) {
     Refresh();
 }
 
+int ThemedSelect::GetSelection() const {
+    if (m_options.IsEmpty()) return wxNOT_FOUND;
+    for (size_t i = 0; i < m_options.size(); ++i) {
+        if (m_options[i] == m_current) return (int)i;
+    }
+    return wxNOT_FOUND;
+}
+
+void ThemedSelect::SetSelection(int n) {
+    if (n == wxNOT_FOUND) {
+        m_current = "";
+    } else if (n >= 0 && n < (int)m_options.size()) {
+        m_current = m_options[n];
+    }
+    Refresh();
+}
+
+void ThemedSelect::Clear() {
+    m_options.Clear();
+    m_icons.clear();
+    m_current = "";
+    Refresh();
+}
+
+void ThemedSelect::Append(const wxString& item, const wxBitmapBundle& icon) {
+    m_options.Add(item);
+    // Pad m_icons if it was lagging (shouldn't happen if consistently using Append)
+    while (m_icons.size() < m_options.size() - 1) m_icons.push_back(wxBitmapBundle());
+    m_icons.push_back(icon);
+    
+    if (m_options.GetCount() == 1 && m_current.IsEmpty()) {
+        m_current = item; // Auto-select first if previously empty?
+    }
+    Refresh();
+}
+
+wxString ThemedSelect::GetString(int n) const {
+    if (n >= 0 && n < (int)m_options.size()) return m_options[n];
+    return "";
+}
+
+int ThemedSelect::FindString(const wxString& s) const {
+    for (size_t i = 0; i < m_options.size(); ++i) {
+        if (m_options[i] == s) return (int)i;
+    }
+    return wxNOT_FOUND;
+}
+
+void ThemedSelect::SetString(int n, const wxString& s) {
+    if (n >= 0 && n < (int)m_options.size()) {
+        m_options[n] = s;
+        if (m_current == m_options[n]) { // Update current if it matched? 
+            // Actually if we rename the selected item, m_current (which is string based) might surely mismatch if we don't update it?
+            // But m_current tracks the VALUE. If we change the option in the list, does the selected value change?
+            // Usually SetString changes the label.
+            // If the renamed item WAS selected, we should probably update m_current to the new string so it stays valid.
+        }
+        // Actually, logic: check if index n is the currently selected index.
+        if (GetSelection() == n) {
+             m_current = s;
+        }
+        Refresh();
+    }
+}
+
 void ThemedSelect::OpenPopup(wxMouseEvent&) {
     wxMenu menu;
+    // Map ID to index
+    // Note: wxMenu with bitmaps
     for (size_t i = 0; i < m_options.size(); ++i) {
-        // Use a base ID + index. 
-        // Note: In a real complex app, you might want better ID handling to avoid collisions
         int itemId = 20000 + (int)i; 
-        menu.Append(itemId, m_options[i]);
-        
-        // We can't easily bind to the specific ID here with a lambda in a loop in standard wxWidgets 
-        // without careful capture, but Bind works on the menu object or window.
-        // Easiest is to bind the range to the window processing the menu.
-        // But here we are in a control.
-        
-        // Actually, PopupMenu blocks. So we can handle events? No, on wxWidgets it returns immediately or blocks depending on platform.
-        // Better: Bind to the menu itself if supported, or use a specific event handler.
+        wxMenuItem* item = new wxMenuItem(&menu, itemId, m_options[i]);
+        if (i < m_icons.size() && m_icons[i].IsOk()) {
+            item->SetBitmap(m_icons[i]);
+        }
+        menu.Append(item);
     }
+        
+
     
     // Handle menu selection
     menu.Bind(wxEVT_MENU, [this](wxCommandEvent& e) {
@@ -208,13 +325,31 @@ void ThemedSelect::OnPaint(wxPaintEvent&) {
         gc->SetBrush(wxBrush(theme.surface));
         gc->DrawRoundedRectangle(0, 0, GetSize().x, GetSize().y, 3 * scale);
         
-        // Text
+        // Text and Icon
         gc->SetFont(GetFont(), theme.text);
         double tw, th;
         gc->GetTextExtent(m_current, &tw, &th);
         
+        double x = 8 * scale;
+        
+        // Find current icon
+        wxBitmap iconBmp;
+        // This is O(N) but N is small.
+        for(size_t i=0; i<m_options.size(); i++) {
+            if (m_options[i] == m_current && i < m_icons.size()) {
+                 iconBmp = m_icons[i].GetBitmapFor(this);
+                 break;
+            }
+        }
+        
+        if (iconBmp.IsOk()) {
+             double iy = (GetSize().y - iconBmp.GetHeight()) / 2.0;
+             gc->DrawBitmap(iconBmp, x, iy, iconBmp.GetWidth(), iconBmp.GetHeight());
+             x += iconBmp.GetWidth() + (6 * scale);
+        }
+        
         // Left align with padding
-        gc->DrawText(m_current, 8 * scale, (GetSize().y - th) / 2);
+        gc->DrawText(m_current, x, (GetSize().y - th) / 2);
         
         delete gc;
     }
@@ -463,10 +598,12 @@ void ThemedNumberInput::OnLeftDown(wxMouseEvent& evt) {
     if (m_upRect.Contains(pt)) {
         m_btnState = ButtonState::UpPressed;
         SetValue(m_value + m_inc);
+        FireChangeEvent();
         Refresh();
     } else if (m_downRect.Contains(pt)) {
         m_btnState = ButtonState::DownPressed;
         SetValue(m_value - m_inc);
+        FireChangeEvent();
         Refresh();
     } else {
         // Focus text if clicked elsewhere (outside inner control but on panel)
@@ -517,11 +654,6 @@ void ThemedNumberInput::OnPaint(wxPaintEvent&) {
         // Draw Button Backgrounds if pressed
         if (m_btnState == ButtonState::UpPressed) {
             gc->SetBrush(wxBrush(theme.accent.ChangeLightness(140)));
-            // Small inset to not overwrite border? Or just draw over.
-            // Using DrawRectangle ensures sharp corners fitting the divider.
-            // But we have rounded corners on the right side... 
-            // Simple approach: Clip or just paint.
-            // Let's just paint a simple rect for feedback.
             gc->DrawRectangle(m_upRect.GetX(), m_upRect.GetY(), m_upRect.GetWidth(), m_upRect.GetHeight());
         } else if (m_btnState == ButtonState::DownPressed) {
             gc->SetBrush(wxBrush(theme.accent.ChangeLightness(140)));
@@ -557,6 +689,13 @@ wxSize ThemedNumberInput::DoGetBestSize() const {
     wxSize inner = m_textCtrl->GetBestSize();
     // Text width + Button width + padding
     return wxSize(120 * scale, inner.y + (10 * scale));
+}
+
+void ThemedNumberInput::FireChangeEvent() {
+    wxCommandEvent event(wxEVT_TEXT, GetId());
+    event.SetEventObject(this);
+    event.SetString(wxString::Format("%.2f", m_value));
+    GetEventHandler()->ProcessEvent(event);
 }
 
 }} // namespace Slic3r::GUI

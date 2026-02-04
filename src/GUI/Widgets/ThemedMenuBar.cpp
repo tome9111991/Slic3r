@@ -172,8 +172,10 @@ void ThemedMenuBar::OpenMenu(int index)
     
     popup->SetOnDismissCallback([this]() {
         m_openMenuIndex = -1;
+        m_hoveredIndex = -1; // Ensure stale hover doesn't keep it highlighted
         m_currentPopup = nullptr;
         Refresh();
+        Update(); 
     });
 
     wxPoint screenPos = ClientToScreen(wxPoint(entry.rect.GetLeft(), entry.rect.GetBottom()));

@@ -42,24 +42,13 @@ PresetChooser::PresetChooser(wxWindow* parent, std::weak_ptr<Print> print, Setti
 
         m_labels.push_back(text);
         
-        auto* choice {new wxBitmapComboBox(this, wxID_ANY, "", wxDefaultPosition, wxDefaultSize, 0, nullptr, wxCB_READONLY)};
+        auto* choice = new ThemedSelect(this, wxID_ANY, wxArrayString(), wxDefaultPosition, wxDefaultSize);
         this->preset_choosers[get_preset(group)].push_back(choice);
         
-        // Apply Dark Theme to ComboBox
-        if (ThemeManager::IsDark()) {
-            choice->SetBackgroundColour(ThemeManager::GetColors().bg);
-            choice->SetForegroundColour(*wxWHITE);
-            // Note: On Windows, pure OwnerDrawn is needed for full dark mode on ComboBox dropdown list itself,
-            // but this helps the control itself blend in.
-        }
-
         // Settings button
-        auto* settings_btn {new wxBitmapButton(this, wxID_ANY, get_bmp_bundle("cog.svg"), wxDefaultPosition, wxDefaultSize, wxBORDER_NONE)};
+        auto* settings_btn = new ThemedButton(this, wxID_ANY, "", wxDefaultPosition, wxSize(30, 30));
+        settings_btn->SetBitmap(get_bmp_bundle("cog.svg"));
         m_settings_buttons.push_back(settings_btn);
-
-        if (ThemeManager::IsDark()) {
-            settings_btn->SetBackgroundColour(ThemeManager::GetColors().bg);
-        }
         
         settings_btn->Bind(wxEVT_BUTTON, [this, group](wxCommandEvent& e) {
              if (auto plater = dynamic_cast<Plater*>(this->GetParent())) {
@@ -73,6 +62,7 @@ PresetChooser::PresetChooser(wxWindow* parent, std::weak_ptr<Print> print, Setti
         
         // setup listener. 
         // On a combobox event, puts a call to _on_change_combobox() on the evt_idle stack.
+        // ThemedSelect fires wxEVT_COMBOBOX
         choice->Bind(wxEVT_COMBOBOX, 
             [=](wxCommandEvent& e) { 
                 wxTheApp->CallAfter([=]() { this->_on_change_combobox(group, choice);} );
@@ -162,8 +152,18 @@ bool PresetChooser::select_preset_by_name(wxString name, preset_t group, size_t 
     return updated;
 }
 
-bool PresetChooser::select_preset_by_name(wxString name, wxBitmapComboBox* chooser) {
-    auto index { chooser->FindString(name) };
+bool PresetChooser::select_preset_by_name(wxString name, ThemedSelect* chooser) {
+    if (chooser->GetCount() == 0) return false;
+    
+    // FindString replacement
+    int index = wxNOT_FOUND;
+    for(size_t i=0; i<chooser->GetCount(); ++i) {
+        if(chooser->GetString(i) == name) {
+            index = (int)i;
+            break;
+        }
+    }
+
     if (index != wxNOT_FOUND) {
         chooser->SetSelection(index);
         return true;
@@ -208,7 +208,7 @@ wxString PresetChooser::_get_selected_preset(preset_t group, size_t index) const
     if (index > selected.size()) { return wxString(""); }
     return selected.at(index);
 }
-void PresetChooser::_on_change_combobox(preset_t preset, wxBitmapComboBox* choice) {
+void PresetChooser::_on_change_combobox(preset_t preset, ThemedSelect* choice) {
     
     // Prompt for unsaved changes and undo selections if cancelled and return early
     // Callback to close preset editor tab, close editor tabs, reload presets.
@@ -273,23 +273,14 @@ void PresetChooser::UpdateTheme()
 
     for (auto& group : preset_choosers) {
         for (auto* choice : group) {
-            if (dark) {
-                choice->SetBackgroundColour(colors.bg);
-                choice->SetForegroundColour(*wxWHITE);
-            } else {
-                choice->SetBackgroundColour(wxNullColour);
-                choice->SetForegroundColour(*wxBLACK);
-            }
+            // choice->UpdateTheme(); // If ThemedSelect exposes it? It repaints nicely on usage.
+            choice->Refresh();
         }
     }
 
     for (auto* btn : m_settings_buttons) {
-        btn->SetBitmap(get_bmp_bundle("cog.svg"));
-        if (dark) {
-            btn->SetBackgroundColour(colors.bg);
-        } else {
-            btn->SetBackgroundColour(wxNullColour);
-        }
+        btn->SetBitmap(get_bmp_bundle("cog.svg")); 
+        btn->Refresh();
     }
     
     this->Refresh();

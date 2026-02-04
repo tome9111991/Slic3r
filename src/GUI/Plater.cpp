@@ -205,9 +205,6 @@ Plater::Plater(wxWindow* parent, const wxString& title) :
     auto on_double_click {[this]() { if (this->selected_object() != this->objects.end()) this->object_settings_dialog(); }};
     auto on_right_click {[this](wxPanel* canvas, const wxPoint& pos) 
         {
-            auto obj = this->selected_object();
-            if (obj == this->objects.end()) return;
-
             auto menu = this->object_menu();
             // Use custom popup with ownership transfer
             ThemedMenuPopup* popup = new ThemedMenuPopup(canvas, menu);
@@ -264,19 +261,22 @@ Plater::Plater(wxWindow* parent, const wxString& title) :
              * the control anyway), because if we leave the default (-1) it will stretch
              * too much according to the contents, and this is bad with long file names.
              */
-            this->object_info.choice = new wxChoice(box, wxID_ANY, wxDefaultPosition, wxSize(100, -1));
+            this->object_info.choice = new ThemedSelect(box, wxID_ANY, wxArrayString(), wxDefaultPosition, wxSize(100, 30));
             this->object_info.choice->SetFont(ui_settings->small_font());
-            if (ThemeManager::IsDark()) {
-                this->object_info.choice->SetBackgroundColour(ThemeManager::GetColors().bg);
-                this->object_info.choice->SetForegroundColour(*wxWHITE);
-            } else {
-                // Ensure readability in Light Mode
-                this->object_info.choice->SetForegroundColour(*wxBLACK);
-            }
+            // ThemedSelect handles colors internally via ThemeManager
+
             sizer->Add(this->object_info.choice, 1, wxALIGN_CENTER_VERTICAL);
 
             // Select object on change.
-            this->Bind(wxEVT_CHOICE, [this](wxCommandEvent& e) { this->select_object(this->object_info.choice->GetSelection()); this->refresh_canvases();});
+            this->Bind(wxEVT_COMBOBOX, [this](wxCommandEvent& e) {  
+                // Verify event source? Bind on 'this' catches all. 
+                // But we only have one choice/select here so it's fine.
+                // Ideally bind to the control instance if possible, but ThemedSelect is custom.
+                if (e.GetEventObject() == this->object_info.choice) {
+                   this->select_object(this->object_info.choice->GetSelection()); 
+                   this->refresh_canvases();
+                }
+            });
                 
         }
         
@@ -1417,67 +1417,73 @@ ThemedMenu* Plater::object_menu() {
     auto* frame {this->GetFrame()};
     auto* menu {new ThemedMenu()};
 
-    append_menu_item(menu, _("Delete"), _("Remove the selected object."), [=](wxCommandEvent& e) { this->remove();}, wxID_ANY, "brick_delete.png", "Ctrl+Del");
-    append_menu_item(menu, _("Increase copies"), _("Place one more copy of the selected object."), [=](wxCommandEvent& e) { this->increase();}, wxID_ANY, "add.png", "Ctrl++");
-    append_menu_item(menu, _("Decrease copies"), _("Remove one copy of the selected object."), [=](wxCommandEvent& e) { this->decrease();}, wxID_ANY, "delete.png", "Ctrl+-");
-    append_menu_item(menu, _(L"Set number of copies\u2026"), _("Change the number of copies of the selected object."), [=](wxCommandEvent& e) { this->set_number_of_copies();}, wxID_ANY, "textfield.png");
+    bool has_selection = this->selected_object() != this->objects.end();
+
+    append_menu_item(menu, _("Add\u2026"), _("Add an object to the platter."), [=](wxCommandEvent& e) { this->add();}, wxID_ANY, "brick_add");
+    append_menu_item(menu, _("Arrange"), _("Arrange objects on the bed."), [=](wxCommandEvent& e) { this->arrange();}, wxID_ANY, "application_view_tile");
     menu->AppendSeparator();
-    append_menu_item(menu, _(L"Move to bed center"), _(L"Center object around bed center."), [=](wxCommandEvent& e) { this->center_selected_object_on_bed();}, wxID_ANY, "arrow_in.png");
-    append_menu_item(menu, _(L"Rotate 45\u00B0 clockwise"), _(L"Rotate the selected object by 45\u00B0 clockwise."), [=](wxCommandEvent& e) { this->rotate(45);}, wxID_ANY, "arrow_rotate_clockwise.png");
-    append_menu_item(menu, _(L"Rotate 45\u00B0 counter-clockwise"), _(L"Rotate the selected object by 45\u00B0 counter-clockwise."), [=](wxCommandEvent& e) { this->rotate(-45);}, wxID_ANY, "arrow_rotate_anticlockwise.png");
+
+    append_menu_item(menu, _("Delete"), _("Remove the selected object."), [=](wxCommandEvent& e) { this->remove();}, wxID_ANY, "brick_delete", "Ctrl+Del")->isEnabled = has_selection;
+    append_menu_item(menu, _("Increase copies"), _("Place one more copy of the selected object."), [=](wxCommandEvent& e) { this->increase();}, wxID_ANY, "add", "Ctrl++")->isEnabled = has_selection;
+    append_menu_item(menu, _("Decrease copies"), _("Remove one copy of the selected object."), [=](wxCommandEvent& e) { this->decrease();}, wxID_ANY, "delete", "Ctrl+-")->isEnabled = has_selection;
+    append_menu_item(menu, _(L"Set number of copies\u2026"), _("Change the number of copies of the selected object."), [=](wxCommandEvent& e) { this->set_number_of_copies();}, wxID_ANY, "textfield")->isEnabled = has_selection;
+    menu->AppendSeparator();
+    append_menu_item(menu, _(L"Move to bed center"), _(L"Center object around bed center."), [=](wxCommandEvent& e) { this->center_selected_object_on_bed();}, wxID_ANY, "arrow_in")->isEnabled = has_selection;
+    append_menu_item(menu, _(L"Rotate 45\u00B0 clockwise"), _(L"Rotate the selected object by 45\u00B0 clockwise."), [=](wxCommandEvent& e) { this->rotate(45);}, wxID_ANY, "arrow_rotate_clockwise")->isEnabled = has_selection;
+    append_menu_item(menu, _(L"Rotate 45\u00B0 counter-clockwise"), _(L"Rotate the selected object by 45\u00B0 counter-clockwise."), [=](wxCommandEvent& e) { this->rotate(-45);}, wxID_ANY, "arrow_rotate_anticlockwise")->isEnabled = has_selection;
     
     // Rotate Submenu
     {
         auto* rotateMenu {new ThemedMenu};
-        append_menu_item(rotateMenu, _(L"Around X axis\u2026"), _("Rotate the selected object by an arbitrary angle around X axis."), [this](wxCommandEvent& e) { this->rotate(X); }, wxID_ANY, "bullet_red.png");
-        append_menu_item(rotateMenu, _(L"Around Y axis\u2026"), _("Rotate the selected object by an arbitrary angle around Y axis."), [this](wxCommandEvent& e) { this->rotate(Y); }, wxID_ANY, "bullet_green.png");
-        append_menu_item(rotateMenu, _(L"Around Z axis\u2026"), _("Rotate the selected object by an arbitrary angle around Z axis."), [this](wxCommandEvent& e) { this->rotate(Z); }, wxID_ANY, "bullet_blue.png");
-        append_submenu(menu, _("Rotate"), _("Rotate the selected object by an arbitrary angle"), rotateMenu, wxID_ANY, "textfield.png");
+        append_menu_item(rotateMenu, _(L"Around X axis\u2026"), _("Rotate the selected object by an arbitrary angle around X axis."), [this](wxCommandEvent& e) { this->rotate(X); }, wxID_ANY, "bullet_red");
+        append_menu_item(rotateMenu, _(L"Around Y axis\u2026"), _("Rotate the selected object by an arbitrary angle around Y axis."), [this](wxCommandEvent& e) { this->rotate(Y); }, wxID_ANY, "bullet_green");
+        append_menu_item(rotateMenu, _(L"Around Z axis\u2026"), _("Rotate the selected object by an arbitrary angle around Z axis."), [this](wxCommandEvent& e) { this->rotate(Z); }, wxID_ANY, "bullet_blue");
+        append_submenu(menu, _("Rotate"), _("Rotate the selected object by an arbitrary angle"), rotateMenu, wxID_ANY, "textfield")->isEnabled = has_selection;
     }
 
     // Mirror Submenu
     {
         auto* mirrorMenu {new ThemedMenu};
-        append_menu_item(mirrorMenu, _(L"Along X axis"), _("Mirror the selected object along the X axis"), [this](wxCommandEvent& e) { this->mirror(X); }, wxID_ANY, "shape_flip_horizontal_x.png");
-        append_menu_item(mirrorMenu, _(L"Along Y axis"), _("Mirror the selected object along the Y axis"), [this](wxCommandEvent& e) { this->mirror(Y); }, wxID_ANY, "shape_flip_horizontal_y.png");
-        append_menu_item(mirrorMenu, _(L"Along Z axis"), _("Mirror the selected object along the Z axis"), [this](wxCommandEvent& e) { this->mirror(Z); }, wxID_ANY, "shape_flip_horizontal_z.png");
-        append_submenu(menu, _("Mirror"), _("Mirror the selected object"), mirrorMenu, wxID_ANY, "shape_flip_horizontal.png");
+        append_menu_item(mirrorMenu, _(L"Along X axis"), _("Mirror the selected object along the X axis"), [this](wxCommandEvent& e) { this->mirror(X); }, wxID_ANY, "shape_flip_horizontal_x");
+        append_menu_item(mirrorMenu, _(L"Along Y axis"), _("Mirror the selected object along the Y axis"), [this](wxCommandEvent& e) { this->mirror(Y); }, wxID_ANY, "shape_flip_horizontal_y");
+        append_menu_item(mirrorMenu, _(L"Along Z axis"), _("Mirror the selected object along the Z axis"), [this](wxCommandEvent& e) { this->mirror(Z); }, wxID_ANY, "shape_flip_horizontal_z");
+        append_submenu(menu, _("Mirror"), _("Mirror the selected object"), mirrorMenu, wxID_ANY, "shape_flip_horizontal")->isEnabled = has_selection;
     }
 
     // Scale Submenu
     {
         auto* scaleMenu {new ThemedMenu};
         append_menu_item(scaleMenu, _(L"Uniformly\u2026"), _("Scale the selected object along the XYZ axes"), [this](wxCommandEvent& e) { this->changescale(false); }, wxID_ANY);
-        append_menu_item(scaleMenu, _(L"Along X axis\u2026"), _("Scale the selected object along the X axis"), [this](wxCommandEvent& e) { this->changescale(X, false); }, wxID_ANY, "bullet_red.png");
-        append_menu_item(scaleMenu, _(L"Along Y axis\u2026"), _("Scale the selected object along the Y axis"), [this](wxCommandEvent& e) { this->changescale(Y, false); }, wxID_ANY, "bullet_green.png");
-        append_menu_item(scaleMenu, _(L"Along Z axis\u2026"), _("Scale the selected object along the Z axis"), [this](wxCommandEvent& e) { this->changescale(Z, false); }, wxID_ANY, "bullet_blue.png");
-        append_submenu(menu, _("Scale"), _("Scale the selected object by a given factor"), scaleMenu, wxID_ANY, "arrow_out.png");
+        append_menu_item(scaleMenu, _(L"Along X axis\u2026"), _("Scale the selected object along the X axis"), [this](wxCommandEvent& e) { this->changescale(X, false); }, wxID_ANY, "bullet_red");
+        append_menu_item(scaleMenu, _(L"Along Y axis\u2026"), _("Scale the selected object along the Y axis"), [this](wxCommandEvent& e) { this->changescale(Y, false); }, wxID_ANY, "bullet_green");
+        append_menu_item(scaleMenu, _(L"Along Z axis\u2026"), _("Scale the selected object along the Z axis"), [this](wxCommandEvent& e) { this->changescale(Z, false); }, wxID_ANY, "bullet_blue");
+        append_submenu(menu, _("Scale"), _("Scale the selected object by a given factor"), scaleMenu, wxID_ANY, "arrow_out")->isEnabled = has_selection;
     }
 
     // Scale to Size Submenu
     {
         auto* scaleToSizeMenu {new ThemedMenu};
         append_menu_item(scaleToSizeMenu, _(L"Uniformly\u2026"), _("Scale the selected object along the XYZ axes"), [this](wxCommandEvent& e) { this->changescale(true); }, wxID_ANY);
-        append_menu_item(scaleToSizeMenu, _(L"Along X axis\u2026"), _("Scale the selected object along the X axis"), [this](wxCommandEvent& e) { this->changescale(X, true); }, wxID_ANY, "bullet_red.png");
-        append_menu_item(scaleToSizeMenu, _(L"Along Y axis\u2026"), _("Scale the selected object along the Y axis"), [this](wxCommandEvent& e) { this->changescale(Y, true); }, wxID_ANY, "bullet_green.png");
-        append_menu_item(scaleToSizeMenu, _(L"Along Z axis\u2026"), _("Scale the selected object along the Z axis"), [this](wxCommandEvent& e) { this->changescale(Z, true); }, wxID_ANY, "bullet_blue.png");
-        append_submenu(menu, _("Scale to size"), _("Scale the selected object to match a given size"), scaleToSizeMenu, wxID_ANY, "arrow_out.png");
+        append_menu_item(scaleToSizeMenu, _(L"Along X axis\u2026"), _("Scale the selected object along the X axis"), [this](wxCommandEvent& e) { this->changescale(X, true); }, wxID_ANY, "bullet_red");
+        append_menu_item(scaleToSizeMenu, _(L"Along Y axis\u2026"), _("Scale the selected object along the Y axis"), [this](wxCommandEvent& e) { this->changescale(Y, true); }, wxID_ANY, "bullet_green");
+        append_menu_item(scaleToSizeMenu, _(L"Along Z axis\u2026"), _("Scale the selected object along the Z axis"), [this](wxCommandEvent& e) { this->changescale(Z, true); }, wxID_ANY, "bullet_blue");
+        append_submenu(menu, _("Scale to size"), _("Scale the selected object to match a given size"), scaleToSizeMenu, wxID_ANY, "arrow_out")->isEnabled = has_selection;
     }
 
-    append_menu_item(menu, _("Split"), _("Split the selected object into individual parts"), [this](wxCommandEvent& e) { this->split_object(); }, wxID_ANY, "shape_ungroup.png");
-    append_menu_item(menu, _("Cut\u2026"), _("Open the 3D cutting tool"), [this](wxCommandEvent& e) { this->object_cut_dialog(); }, wxID_ANY, "package.png");
-    append_menu_item(menu, _("Layer heights\u2026"), _("Open the dynamic layer height control"), [this](wxCommandEvent& e) { this->object_layers_dialog(); }, wxID_ANY, "variable_layer_height.png");
+    append_menu_item(menu, _("Split"), _("Split the selected object into individual parts"), [this](wxCommandEvent& e) { this->split_object(); }, wxID_ANY, "shape_ungroup")->isEnabled = has_selection;
+    append_menu_item(menu, _("Cut\u2026"), _("Open the 3D cutting tool"), [this](wxCommandEvent& e) { this->object_cut_dialog(); }, wxID_ANY, "package")->isEnabled = has_selection;
+    append_menu_item(menu, _("Layer heights\u2026"), _("Open the dynamic layer height control"), [this](wxCommandEvent& e) { this->object_layers_dialog(); }, wxID_ANY, "variable_layer_height")->isEnabled = has_selection;
     
     menu->AppendSeparator();
     
-    append_menu_item(menu, _("Settings\u2026"), _("Open the object editor dialog"), [this](wxCommandEvent& e) { this->object_settings_dialog(); }, wxID_ANY, "cog.png");
+    append_menu_item(menu, _("Settings\u2026"), _("Open the object editor dialog"), [this](wxCommandEvent& e) { this->object_settings_dialog(); }, wxID_ANY, "cog")->isEnabled = has_selection;
     
     menu->AppendSeparator();
     
-    append_menu_item(menu, _("Reload from Disk"), _("Reload the selected file from Disk"), [this](wxCommandEvent& e) { this->reload_from_disk(); }, wxID_ANY, "arrow_refresh.png");
-    append_menu_item(menu, _("Export object as STL\u2026"), _("Export this single object as STL file"), [this](wxCommandEvent& e) { this->export_object_stl(); }, wxID_ANY, "brick_go.png");
-    append_menu_item(menu, _("Export object and modifiers as AMF\u2026"), _("Export this single object and all associated modifiers as AMF file"), [this](wxCommandEvent& e) { this->export_object_amf(); }, wxID_ANY, "brick_go.png");
-    append_menu_item(menu, _("Export object and modifiers as 3MF\u2026"), _("Export this single object and all associated modifiers as 3MF file"), [this](wxCommandEvent& e) { this->export_object_tmf(); }, wxID_ANY, "brick_go.png");
+    append_menu_item(menu, _("Reload from Disk"), _("Reload the selected file from Disk"), [this](wxCommandEvent& e) { this->reload_from_disk(); }, wxID_ANY, "arrow_refresh")->isEnabled = has_selection;
+    append_menu_item(menu, _("Export object as STL\u2026"), _("Export this single object as STL file"), [this](wxCommandEvent& e) { this->export_object_stl(); }, wxID_ANY, "brick_go")->isEnabled = has_selection;
+    append_menu_item(menu, _("Export object and modifiers as AMF\u2026"), _("Export this single object and all associated modifiers as AMF file"), [this](wxCommandEvent& e) { this->export_object_amf(); }, wxID_ANY, "brick_go")->isEnabled = has_selection;
+    append_menu_item(menu, _("Export object and modifiers as 3MF\u2026"), _("Export this single object and all associated modifiers as 3MF file"), [this](wxCommandEvent& e) { this->export_object_tmf(); }, wxID_ANY, "brick_go")->isEnabled = has_selection;
 
     return menu;
 }

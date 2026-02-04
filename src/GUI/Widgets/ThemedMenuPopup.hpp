@@ -49,12 +49,20 @@ private:
         bool hasSubMenu;
         std::shared_ptr<ThemedMenu> subMenu;
         wxRect rect;
+
+        // Cache for bitmaps to avoid reloading from SVG in OnPaint
+        wxBitmap bundleNormal;
+        wxBitmap bundleHover;
     };
 
     std::vector<ItemInfo> m_items;
+    wxFont m_font;
 
     // Helper to calculate layout and window size
     void CalculateLayout();
+
+    // Cache icons for all items
+    void PrecacheIcons();
     
     // Execute the action for the item
     void ExecuteItem(const ItemInfo& item);

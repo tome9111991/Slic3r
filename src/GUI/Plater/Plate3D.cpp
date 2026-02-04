@@ -25,6 +25,10 @@ void Plate3D::mouse_down(wxMouseEvent &e){
         }
     }else{
         on_select_object(-1);
+        if (e.RightDown()) {
+            if (on_right_click)
+                on_right_click(this, e.GetPosition());
+        }
     }
     hover = false;
 }

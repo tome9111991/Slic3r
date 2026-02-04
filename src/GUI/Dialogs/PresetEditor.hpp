@@ -14,6 +14,7 @@
 #include "misc_ui.hpp"
 #include "Preset.hpp"
 #include "OptionsGroup.hpp"
+#include "../Widgets/ThemedControls.hpp"
 
 // Wx
 #include <wx/treectrl.h>
@@ -73,13 +74,14 @@ public:
     virtual int typeId() = 0; 
 protected:
     // Main sizer
+
     wxSizer* _sizer {nullptr};
     wxString presets;
     wxImageList* _icons {nullptr};
     wxTreeCtrl* _treectrl {nullptr};
-    wxBitmapButton* _btn_save_preset {nullptr}; 
-    wxBitmapButton* _btn_delete_preset {nullptr};
-    wxChoice* _presets_choice {nullptr};
+    ThemedButton* _btn_save_preset {nullptr}; 
+    ThemedButton* _btn_delete_preset {nullptr};
+    ThemedSelect* _presets_choice {nullptr};
     int _iconcount {-1};
 
     /// Vector of PresetPage pointers; trust wxWidgets RTTI to avoid leaks

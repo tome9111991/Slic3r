@@ -31,6 +31,7 @@
 #include "Theme/ThemeManager.hpp"
 #include "MainFrame.hpp"
 #include "Widgets/ThemedMenu.hpp"
+#include "Widgets/ThemedControls.hpp"
 
 namespace Slic3r { namespace GUI {
 
@@ -55,7 +56,7 @@ class MainFrame;
 
 /// Struct to group object info text fields together
 struct info_fields {
-    wxChoice* choice {nullptr};
+    ThemedSelect* choice {nullptr};
     wxStaticText* copies {nullptr};
     wxStaticText* size {nullptr};
     wxStaticText* volume {nullptr};

@@ -13,12 +13,16 @@ public:
     ThemedButton(wxWindow* parent, wxWindowID id, const wxString& label, 
                  const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize(100, 35));
 
+    // Optional icon support
+    void SetBitmap(const wxBitmapBundle& bmp);
+
     wxSize DoGetBestSize() const override;
 
 private:
     void OnPaint(wxPaintEvent& evt);
     
     wxString m_label;
+    wxBitmapBundle m_icon;
     bool m_hover = false;
     bool m_pressed = false;
 };
@@ -44,11 +48,22 @@ private:
 // C. Dropdown / Select
 class ThemedSelect : public wxControl {
 public:
-    ThemedSelect(wxWindow* parent, wxWindowID id, const wxArrayString& options,
+    ThemedSelect(wxWindow* parent, wxWindowID id, const wxArrayString& options = wxArrayString(),
                  const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize(150, 30));
 
     wxString GetValue() const { return m_current; }
     void SetValue(const wxString& val);
+
+    int GetSelection() const;
+    void SetSelection(int n);
+    
+    // Compatibility helpers
+    void Clear();
+    void Append(const wxString& item, const wxBitmapBundle& icon = wxBitmapBundle());
+    size_t GetCount() const { return m_options.size(); }
+    int FindString(const wxString& s) const;
+    void SetString(int n, const wxString& s);
+    wxString GetString(int n) const;
 
     wxSize DoGetBestSize() const override;
 
@@ -57,6 +72,7 @@ private:
     void OnPaint(wxPaintEvent& evt);
 
     wxArrayString m_options;
+    std::vector<wxBitmapBundle> m_icons;
     wxString m_current;
 };
 
@@ -117,6 +133,8 @@ private:
     
     wxRect m_upRect;
     wxRect m_downRect;
+    
+    void FireChangeEvent();
 };
 
 }} // namespace Slic3r::GUI

@@ -94,9 +94,9 @@ wxMenuItem* append_submenu(wxMenu* menu, const wxString& name, const wxString& h
     return item;
 }
 
-void append_submenu(ThemedMenu* menu, const wxString& name, const wxString& help, ThemedMenu* submenu, int id, const wxString& icon) {
-    if (!menu || !submenu) return;
-    menu->AppendSubMenu(submenu, name, help);
+ThemedMenu::Item* append_submenu(ThemedMenu* menu, const wxString& name, const wxString& help, ThemedMenu* submenu, int id, const wxString& icon) {
+    if (!menu || !submenu) return nullptr;
+    return menu->AppendSubMenu(submenu, name, help);
 }
 
 void set_menu_item_icon(wxMenuItem* item, const wxString& icon) {

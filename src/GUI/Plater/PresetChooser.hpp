@@ -7,6 +7,7 @@
     #include <wx/sizer.h>
 #endif
 #include <wx/bmpcbox.h>
+#include "../Widgets/ThemedControls.hpp"
 
 #include <vector>
 #include <array>
@@ -20,7 +21,7 @@
 
 namespace Slic3r { namespace GUI {
 
-using Choosers = std::vector<wxBitmapComboBox*>;
+using Choosers = std::vector<ThemedSelect*>;
 using chooser_name_list = std::vector<wxString>;
 using chooser_name_map = std::array<chooser_name_list, preset_types>;
 
@@ -62,14 +63,14 @@ public:
     /// \return Whether or not the preset was actually updated.
     ///
     /// Note: If name is not found, nothing happens.
-    bool select_preset_by_name(wxString name, wxBitmapComboBox* chooser);
+    bool select_preset_by_name(wxString name, ThemedSelect* chooser);
 
     /// Cycle through active presets and prompt user to save dirty configs, if necessary.
     bool prompt_unsaved_changes();
 private:
     wxFlexGridSizer* _local_sizer {};
     wxWindow* _parent {};
-    void _on_change_combobox(preset_t preset, wxBitmapComboBox* choice);
+    void _on_change_combobox(preset_t preset, ThemedSelect* choice);
     chooser_name_map __chooser_names;
 
     /// Reference to a Slic3r::Settings object.
@@ -98,7 +99,7 @@ public:
 
 private:
     std::vector<wxStaticText*> m_labels;
-    std::vector<wxBitmapButton*> m_settings_buttons;
+    std::vector<ThemedButton*> m_settings_buttons;
 };
 
 }} // Slic3r::GUI

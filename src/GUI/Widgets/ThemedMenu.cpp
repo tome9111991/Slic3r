@@ -20,13 +20,14 @@ void ThemedMenu::AppendSeparator()
     m_items.push_back(item);
 }
 
-void ThemedMenu::AppendSubMenu(ThemedMenu* submenu, const wxString& label, const wxString& help)
+ThemedMenu::Item* ThemedMenu::AppendSubMenu(ThemedMenu* submenu, const wxString& label, const wxString& help)
 {
     Item item;
     item.label = label;
     item.help = help;
     item.subMenu = std::shared_ptr<ThemedMenu>(submenu); // Take ownership or share
     m_items.push_back(item);
+    return &m_items.back();
 }
 
 ThemedMenu::Item* ThemedMenu::AddItem(const wxString& label, const wxString& help, std::function<void(wxCommandEvent&)> action, 

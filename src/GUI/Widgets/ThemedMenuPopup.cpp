@@ -1,7 +1,7 @@
 #include "ThemedMenuPopup.hpp"
 #include "../Theme/ThemeManager.hpp"
 #include <wx/dcbuffer.h>
-#include <wx/graphics.h>
+#include <wx/app.h>
 
 namespace Slic3r {
 namespace GUI {
@@ -24,6 +24,7 @@ ThemedMenuPopup::ThemedMenuPopup(wxWindow* parent, ThemedMenu* menu)
     : wxPopupTransientWindow(parent, wxBORDER_NONE), m_menu(menu)
 {
     SetBackgroundStyle(wxBG_STYLE_PAINT);
+    m_font = ThemeManager::GetFont(ThemeManager::FontSize::Small);
     
     // Parse our custom menu items
 // Constructor loop change
@@ -45,6 +46,26 @@ ThemedMenuPopup::ThemedMenuPopup(wxWindow* parent, ThemedMenu* menu)
     }
 
     CalculateLayout();
+    PrecacheIcons();
+}
+
+void ThemedMenuPopup::PrecacheIcons()
+{
+    ThemeColors colors = ThemeManager::GetColors();
+    wxColour textCol = colors.text;
+    wxColour hoverCol = *wxWHITE; // Always white on highlight in our current theme
+
+    for (auto& item : m_items) {
+        if (!item.icon.IsEmpty() && !item.isSeparator) {
+            // Normal state
+            wxBitmapBundle bndlNormal = ThemeManager::GetSVG(item.icon, wxSize(16, 16), textCol);
+            item.bundleNormal = bndlNormal.GetBitmap(wxSize(16, 16));
+
+            // Hover state
+            wxBitmapBundle bndlHover = ThemeManager::GetSVG(item.icon, wxSize(16, 16), hoverCol);
+            item.bundleHover = bndlHover.GetBitmap(wxSize(16, 16));
+        }
+    }
 }
 
 ThemedMenuPopup::~ThemedMenuPopup()
@@ -57,7 +78,7 @@ ThemedMenuPopup::~ThemedMenuPopup()
 void ThemedMenuPopup::CalculateLayout()
 {
     wxClientDC dc(this);
-    dc.SetFont(ThemeManager::GetFont(ThemeManager::FontSize::Small));
+    dc.SetFont(m_font);
 
     int paddingX = 20; 
     int paddingY = 8;  
@@ -136,11 +157,18 @@ void ThemedMenuPopup::OnPaint(wxPaintEvent& event)
     dc.SetBrush(*wxTRANSPARENT_BRUSH);
     dc.DrawRectangle(GetClientRect());
 
-    dc.SetFont(ThemeManager::GetFont(ThemeManager::FontSize::Small));
+    dc.SetFont(m_font);
+
+    wxRegion updateRegion = GetUpdateRegion();
 
     for (int i = 0; i < (int)m_items.size(); ++i) {
         const auto& item = m_items[i];
         
+        // Skip items outside the update region for performance
+        if (updateRegion.IsOk() && !updateRegion.IsEmpty() && !updateRegion.Contains(item.rect)) {
+            continue;
+        }
+
         if (item.isSeparator) {
             wxColour sepCol = colors.text;
             sepCol = sepCol.ChangeLightness(50); 
@@ -182,13 +210,10 @@ void ThemedMenuPopup::OnPaint(wxPaintEvent& event)
             };
             dc.SetPen(wxPen(textCol, 2)); // Use text color (white if hovered, normal otherwise)
             dc.DrawLines(3, pts);
-        } else if (!item.icon.IsEmpty()) {
-            // Load SVG Icon
-            // We use 16x16 size for menu icons
-            wxBitmapBundle iconBndl = ThemeManager::GetSVG(item.icon, wxSize(16, 16), textCol);
-            wxBitmap iconBmp = iconBndl.GetBitmap(wxSize(16, 16));
+        } else if (item.bundleNormal.IsOk()) {
+            // Use cached bitmaps
+            wxBitmap iconBmp = (i == m_hoveredIndex && item.isEnabled) ? item.bundleHover : item.bundleNormal;
             
-            // Check if bitmap is valid before drawing to avoid assertion failure
             if (iconBmp.IsOk()) {
                 // Center the icon vertically in the row
                 int iconY = item.rect.GetTop() + (item.rect.GetHeight() - 16) / 2;
@@ -276,6 +301,10 @@ void ThemedMenuPopup::ExecuteItem(const ItemInfo& item)
     if (item.hasSubMenu) {
         // Recursively show submenu
         ThemedMenuPopup* sub = new ThemedMenuPopup(this, item.subMenu.get());
+        
+        // Pass callbacks down to submenus so actions inside them also trigger the reset
+        sub->SetOnDismissCallback(m_onDismiss);
+
         wxPoint screenPos = ClientToScreen(wxPoint(item.rect.GetRight(), item.rect.GetTop()));
         sub->Position(screenPos, wxSize(0,0));
         sub->Popup();
@@ -286,8 +315,13 @@ void ThemedMenuPopup::ExecuteItem(const ItemInfo& item)
     Dismiss(); 
     
     // Direct Execution! No event loop detour.
+    // Defer to next event loop iteration to allow the menu to close and repaint first
     if (m_menu) {
-        m_menu->Trigger(cmdId);
+        // Capture necessary data. m_menu is owned by ThemedMenuBar which should outlive this transient moment
+        ThemedMenu* menu = m_menu; 
+        wxTheApp->CallAfter([menu, cmdId]() {
+            menu->Trigger(cmdId);
+        });
     }
 }
 

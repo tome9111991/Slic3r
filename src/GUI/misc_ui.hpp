@@ -162,7 +162,7 @@ ThemedMenu::Item* append_menu_item(ThemedMenu* menu, const wxString& name, const
 /// Construct and return a submenu to the menu, optionally with an icon. 
 wxMenuItem* append_submenu(wxMenu* menu, const wxString& name, const wxString& help, wxMenu* submenu, int id = wxID_ANY, const wxString& icon = "");
 
-void append_submenu(ThemedMenu* menu, const wxString& name, const wxString& help, ThemedMenu* submenu, int id = wxID_ANY, const wxString& icon = "");
+ThemedMenu::Item* append_submenu(ThemedMenu* menu, const wxString& name, const wxString& help, ThemedMenu* submenu, int id = wxID_ANY, const wxString& icon = "");
 
 /*
 sub CallAfter {

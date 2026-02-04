@@ -40,7 +40,7 @@ public:
     // Compatibility API with wxMenu
     void Append(int id, const wxString& label, const wxString& help = "", wxItemKind kind = wxITEM_NORMAL);
     void AppendSeparator();
-    void AppendSubMenu(ThemedMenu* submenu, const wxString& label, const wxString& help = "");
+    Item* AppendSubMenu(ThemedMenu* submenu, const wxString& label, const wxString& help = "");
 
     // Slic3r specific helper (matching our append_menu_item logic)
     // Returns pointer to the created item (valid as long as menu exists and is not cleared)

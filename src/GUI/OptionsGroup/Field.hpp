@@ -138,20 +138,28 @@ class UI_SpinCtrl : public UI_Window {
 public:
     UI_SpinCtrl(wxWindow* parent, Slic3r::ConfigOptionDef _opt, wxWindowID spinid = wxID_ANY) : UI_Window(parent, _opt) {
 
-        int val = 0;
+        double val = 0;
         try {
-            if (opt.default_value != NULL) val = opt.default_value->getInt();
+            if (opt.default_value != NULL) val = (double)opt.default_value->getInt();
         } catch (...) {}
 
-        _spin = new wxSpinCtrl(parent, spinid, "", wxDefaultPosition, _default_size(), 0,
-            (opt.min > 0 ? (int)opt.min : 0), 
-            (opt.max > 0 ? (int)opt.max : std::numeric_limits<int>::max()), 
-            val);
+        // ThemedNumberInput uses double, but this Field is for Int.
+        // We configure it with increment 1.0 and range.
+        _spin = new ThemedNumberInput(parent, spinid, val, wxDefaultPosition, _default_size());
+        _spin->SetRange((opt.min > 0 ? (double)opt.min : 0.0), 
+                        (opt.max > 0 ? (double)opt.max : (double)std::numeric_limits<int>::max()));
+        _spin->SetIncrement(1.0);
 
         window = _spin;
 
-        _spin->Bind(wxEVT_SPINCTRL, [this](wxCommandEvent& e) { this->_on_change(""); e.Skip(); });
+        // ThemedNumberInput fires wxEVT_TEXT when changed via buttons or text
         _spin->Bind(wxEVT_TEXT, [this](wxCommandEvent& e) { this->_on_change(""); e.Skip(); });
+        
+        // Also support Enter if needed? ThemedNumberInput doesn't propagate TEXT_ENTER by default unless skipped.
+        // But ThemedNumberInput::OnTextEnter calls Skip(), so we can bind to it?
+        // Actually, let's bind to the control itself.
+        _spin->Bind(wxEVT_TEXT_ENTER, [this](wxCommandEvent& e) { this->_on_change(""); e.Skip(); });
+        
         _spin->Bind(wxEVT_KILL_FOCUS, [this](wxFocusEvent& e) { 
             if (this->on_kill_focus != nullptr) this->on_kill_focus("");
             this->_on_change(""); 
@@ -159,10 +167,10 @@ public:
         });
     }
     ~UI_SpinCtrl() { }
-    int get_int() { return this->_spin->GetValue(); }
-    void set_value(boost::any value) { this->_spin->SetValue(boost::any_cast<int>(value)); }
+    int get_int() { return (int)this->_spin->GetValue(); }
+    void set_value(boost::any value) { this->_spin->SetValue((double)boost::any_cast<int>(value)); }
 
-    wxSpinCtrl* spinctrl() { return _spin; }
+    ThemedNumberInput* spinctrl() { return _spin; }
     
     std::function<void (const std::string&, int value)> on_change {nullptr};
 
@@ -176,19 +184,12 @@ protected:
     }
 
 private:
-    wxSpinCtrl* _spin {nullptr};
+    ThemedNumberInput* _spin {nullptr};
 };
 
 class UI_TextCtrl : public UI_Window {
 public:
     UI_TextCtrl(wxWindow* parent, Slic3r::ConfigOptionDef _opt, wxWindowID id = wxID_ANY) : UI_Window(parent, _opt) {
-        int style {0};
-        if (opt.multiline) {
-            style |= wxHSCROLL;
-            style |= wxTE_MULTILINE;
-        } else {
-            style |= wxTE_PROCESS_ENTER;
-        }
         
         wxString default_val = "";
         if (opt.default_value != NULL) {
@@ -196,13 +197,17 @@ public:
                 default_val = wxString::FromUTF8(opt.default_value->serialize().c_str());
             } catch (...) { }
         }
-        _text = new wxTextCtrl(parent, id, 
-            default_val, 
-            wxDefaultPosition, 
-            _default_size(), 
-            style);
 
-        window = _text;
+        if (opt.multiline) {
+             long style = wxTE_MULTILINE | wxHSCROLL;
+             _text = new wxTextCtrl(parent, id, default_val, wxDefaultPosition, _default_size(), style);
+             window = _text;
+        } else {
+             // Use ThemedTextInput for single line
+             _themed_wrapper = new ThemedTextInput(parent, id, default_val, wxDefaultPosition, _default_size());
+             _text = _themed_wrapper->GetTextCtrl();
+             window = _themed_wrapper;
+        }
 
         if (!opt.multiline) {
             _text->Bind(wxEVT_TEXT_ENTER, [this](wxCommandEvent& e) { this->_on_change(""); e.Skip(); });
@@ -225,6 +230,15 @@ public:
              } catch (...) {}
         }
     }
+    
+    // Override to ensure we set color on the actual text control, not the wrapper
+    void set_dirty_status(bool dirty) override {
+        if (_text) {
+             if (dirty) _text->SetForegroundColour(wxColour(255, 128, 0));
+             else _text->SetForegroundColour(ThemeManager::GetColors().text);
+             _text->Refresh();
+        }
+    }
 
     wxTextCtrl* textctrl() { return _text; }
 
@@ -241,6 +255,7 @@ protected:
 
 private:
     wxTextCtrl* _text {nullptr};
+    ThemedTextInput* _themed_wrapper {nullptr};
 };
 
 class UI_Choice : public UI_Window {
