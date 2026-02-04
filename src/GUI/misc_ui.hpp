@@ -23,6 +23,7 @@
 
 #include "Log.hpp"
 #include "Point.hpp"
+#include "Widgets/ThemedMenu.hpp"
 
 
 /// Macro to build std::wstring that slic3r::log expects using << syntax of wxString
@@ -146,8 +147,22 @@ wxMenuItem* append_menu_item(wxMenu* menu, const wxString& name,const wxString& 
     return tmp;
 }
 
+template <typename T>
+ThemedMenu::Item* append_menu_item(ThemedMenu* menu, const wxString& name, const wxString& help, T lambda, int id = wxID_ANY, const wxString& icon = "", const wxString& accel = "", wxItemKind kind = wxITEM_NORMAL) {
+    if (!menu) return nullptr;
+    // Note: ThemedMenu handles its own ID and lambda storage
+    // We cast lambda to std::function if it's not null
+    std::function<void(wxCommandEvent&)> func;
+    if (typeid(lambda) != typeid(nullptr)) {
+        func = lambda;
+    }
+    return menu->AddItem(name, help, func, id, icon, accel, kind);
+}
+
 /// Construct and return a submenu to the menu, optionally with an icon. 
 wxMenuItem* append_submenu(wxMenu* menu, const wxString& name, const wxString& help, wxMenu* submenu, int id = wxID_ANY, const wxString& icon = "");
+
+void append_submenu(ThemedMenu* menu, const wxString& name, const wxString& help, ThemedMenu* submenu, int id = wxID_ANY, const wxString& icon = "");
 
 /*
 sub CallAfter {

@@ -172,12 +172,23 @@ wxBitmapBundle ThemeManager::GetSVG(const wxString& iconName, const wxSize& size
     wxString appDir = fname.GetPath();
 
     // Check standard locations (dev vs installed)
-    wxString resourceBase = appDir + "/../resources/images/";
+    // Check standard locations (dev vs installed)
+    // 1. Next to executable (VS Debug/Release folder)
+    wxString resourceBase = appDir + "/resources/images/";
+    
     if (!wxDirExists(resourceBase)) {
-        resourceBase = "resources/images/"; // Fallback to current working directory
+        // 2. Up one level (Standard specific Slic3r dev layout)
+        resourceBase = appDir + "/../resources/images/";
+    }
+    if (!wxDirExists(resourceBase)) {
+        // 3. Current Working Directory fallback
+        resourceBase = "resources/images/"; 
     }
     
-    wxString fullPath = resourceBase + iconName + ".svg";
+    wxString fullPath = resourceBase + iconName;
+    if (!fullPath.Lower().EndsWith(".svg")) {
+        fullPath += ".svg";
+    }
 
     if (!wxFileExists(fullPath)) {
         // Fallback: Try with 'icons' folder just in case

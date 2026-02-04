@@ -6,7 +6,7 @@ This document visualizes the layout of the MainFrame application window using th
 
 ```text
 +-------------------------------------------------------------------------------+
-| File | Plater | Object | Settings | View | Window | Help       (wxMenuBar)    |
+| File | Plater | Object | Settings | View | Window | Help    (ThemedMenuBar)   |
 +-------------------------------------------------------------------------------+
 | [btn_prepare] [btn_preview] [btn_device]              [btn_slice] [btn_export]| <- top_bar (wxPanel)
 +-------------------------------------------------------------------------------+
@@ -34,7 +34,7 @@ This document visualizes the layout of the MainFrame application window using th
 ## Component Mapping & Notes
 
 ### 1. Main Navigation (`MainFrame.cpp`)
-*   **`wxMenuBar`**: Standard system menu bar at the very top (File, Plater, Object...).
+*   **`ThemedMenuBar`**: Custom owner-drawn menu bar at the very top (File, Plater, Object...). Replaces the native `wxMenuBar` for full Dark Mode / ThemeManager compatibility.
 *   **`top_bar`**: The container for the main application header, below the menu bar.
 *   **`btn_prepare` / `btn_preview` / `btn_device`**: `FlatToggleButton` instances that control the main `tabpanel` selection.
 *   **`btn_slice` / `btn_export`**: `OvalButton` instances for primary actions.

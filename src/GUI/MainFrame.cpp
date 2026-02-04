@@ -8,7 +8,6 @@
 
 #include "MainFrame.hpp"
 #include "misc_ui.hpp"
-#include "misc_ui.hpp"
 #include "Theme/ThemeManager.hpp"
 #include "Dialogs/AboutDialog.hpp"
 #include "ConfigWizard.hpp"
@@ -173,9 +172,9 @@ public:
 wxBEGIN_EVENT_TABLE(MainFrame, wxFrame)
 wxEND_EVENT_TABLE()
 
-MainFrame::MainFrame(const wxString& title, const wxPoint& pos, const wxSize& size)
-        : wxFrame(NULL, wxID_ANY, title, pos, size), loaded(false),
-        tabpanel(nullptr), controller(nullptr), plater(nullptr), preset_editor_tabs(std::map<preset_t, PresetEditor*>())
+Slic3r::GUI::MainFrame::MainFrame(const wxString& title, const wxPoint& pos, const wxSize& size)
+        : wxFrame(nullptr, wxID_ANY, title, pos, size), loaded(false),
+        tabpanel(nullptr), controller(nullptr), plater(nullptr), preset_editor_tabs()
 {
         wxIconBundle icons;
         // User requested to keep using PNG for the main app icon for now
@@ -188,7 +187,7 @@ MainFrame::MainFrame(const wxString& title, const wxPoint& pos, const wxSize& si
         }
         this->SetIcons(icons);
         this->init_tabpanel();
-    this->init_menubar();
+
 
     wxToolTip::SetAutoPop(TOOLTIP_TIMER);
 
@@ -297,6 +296,7 @@ MainFrame::MainFrame(const wxString& title, const wxPoint& pos, const wxSize& si
 
         sizer->SetSizeHints(this);
         this->SetSizer(sizer);
+        this->init_menubar();
         this->Fit();
         // Increased minimum size for modern displays
         this->SetMinSize(wxSize(960, 640));
@@ -338,7 +338,7 @@ MainFrame::MainFrame(const wxString& title, const wxPoint& pos, const wxSize& si
 }
 
 /// Private initialization function for the main frame tab panel.
-void MainFrame::init_tabpanel()
+void Slic3r::GUI::MainFrame::init_tabpanel()
 {
     this->tabpanel = new wxSimplebook(this, wxID_ANY);
     auto panel = this->tabpanel; 
@@ -362,14 +362,22 @@ void MainFrame::init_tabpanel()
     */
 }
 
-void MainFrame::init_menubar()
+void Slic3r::GUI::MainFrame::init_menubar()
 {
+    if (!m_themed_menubar) {
+        m_themed_menubar = new ThemedMenuBar(this);
+        if (this->GetSizer()) {
+            this->GetSizer()->Insert(0, m_themed_menubar, 0, wxEXPAND);
+        }
+    } else {
+        m_themed_menubar->Clear();
+    }
 
-    wxMenu* menuFile = new wxMenu();
+    ThemedMenu* menuFile = new ThemedMenu();
     {
-        append_menu_item(menuFile, _(L"Open STL/OBJ/AMF/3MF\u2026"), _("Open a model"), [=](wxCommandEvent& e) { if (this->plater != nullptr) this->plater->add();}, wxID_ANY, "brick_add.svg", "Ctrl+O");
+        menuFile->AddItem(_(L"Open STL/OBJ/AMF/3MF\u2026"), _("Open a model"), [=](wxCommandEvent& e) { if (this->plater != nullptr) this->plater->add();}, wxID_ANY, "brick_add.svg", "Ctrl+O");
         menuFile->AppendSeparator();
-        append_menu_item(menuFile, _("&Load Config\u2026"), _("Load exported configuration file"), 
+        menuFile->AddItem(_("&Load Config\u2026"), _("Load exported configuration file"), 
             [=](wxCommandEvent& e) { 
                 wxFileDialog openFileDialog(this, _("Open Slic3r Config"), "", "", "Slic3r Config (*.ini)|*.ini|All files (*.*)|*.*", wxFD_OPEN | wxFD_FILE_MUST_EXIST);
                 if (openFileDialog.ShowModal() == wxID_CANCEL) return;
@@ -402,7 +410,7 @@ void MainFrame::init_menubar()
                 }
             }, wxID_ANY, "plugin_add.svg", "Ctrl+L");
 
-        append_menu_item(menuFile, _("&Export Config\u2026"), _("Export current configuration to file"), 
+        menuFile->AddItem(_("&Export Config\u2026"), _("Export current configuration to file"), 
             [=](wxCommandEvent& e) { 
                  wxFileDialog saveFileDialog(this, _("Export Slic3r Config"), "", "config.ini", "Slic3r Config (*.ini)|*.ini|All files (*.*)|*.*", wxFD_SAVE | wxFD_OVERWRITE_PROMPT);
                 if (saveFileDialog.ShowModal() == wxID_CANCEL) return;
@@ -420,98 +428,98 @@ void MainFrame::init_menubar()
                 }
             }, wxID_ANY, "plugin_go.svg", "Ctrl+E");
 
-        append_menu_item(menuFile, _("&Load Config Bundle\u2026"), _("Load presets from a bundle"), 
+        menuFile->AddItem(_("&Load Config Bundle\u2026"), _("Load presets from a bundle"), 
             [=](wxCommandEvent& e) { wxMessageBox("Not implemented yet", "Slic3r"); }, wxID_ANY, "lorry_add.svg");
-        append_menu_item(menuFile, _("&Export Config Bundle\u2026"), _("Export all presets to file"), 
+        menuFile->AddItem(_("&Export Config Bundle\u2026"), _("Export all presets to file"), 
             [=](wxCommandEvent& e) { wxMessageBox("Not implemented yet", "Slic3r"); }, wxID_ANY, "lorry_go.svg");
         menuFile->AppendSeparator();
-        append_menu_item(menuFile, _("Q&uick Slice\u2026"), _("Slice file"), 
+        menuFile->AddItem(_("Q&uick Slice\u2026"), _("Slice file"), 
             [=](wxCommandEvent& e) { wxMessageBox("Not implemented yet", "Slic3r"); }, wxID_ANY, "cog_go.svg", "Ctrl+U");
-        append_menu_item(menuFile, _("Quick Slice and Save &As\u2026"), _("Slice file and save as"), 
+        menuFile->AddItem(_("Quick Slice and Save &As\u2026"), _("Slice file and save as"), 
             [=](wxCommandEvent& e) { wxMessageBox("Not implemented yet", "Slic3r"); }, wxID_ANY, "cog_go.svg", "Ctrl+Alt+U");
         menuFile->AppendSeparator();
-        append_menu_item(menuFile, _("Repair STL file\u2026"), _("Automatically repair an STL file"), 
+        menuFile->AddItem(_("Repair STL file\u2026"), _("Automatically repair an STL file"), 
              [=](wxCommandEvent& e) { wxMessageBox("Not implemented yet", "Slic3r"); }, wxID_ANY, "wrench.svg");
         menuFile->AppendSeparator();
-        append_menu_item(menuFile, _("Preferences\u2026"), _("Application preferences"), 
+        menuFile->AddItem(_("Preferences\u2026"), _("Application preferences"), 
             [=](wxCommandEvent& e) { 
                 PreferencesDialog prefs(this);
                 prefs.ShowModal();
             }, wxID_PREFERENCES, "", "Ctrl+,");
         menuFile->AppendSeparator();
-        append_menu_item(menuFile, _("&Quit"), _("Quit Slic3r"), [=](wxCommandEvent& e) { this->Close(true); }, wxID_EXIT);
+        menuFile->AddItem(_("&Quit"), _("Quit Slic3r"), [=](wxCommandEvent& e) { this->Close(true); }, wxID_EXIT);
     }
     
-    wxMenu* menuPlater = this->plater_menu = new wxMenu();
+    ThemedMenu* menuPlater = this->plater_menu = new ThemedMenu();
     {
-        wxMenu* selectMenu = this->plater_select_menu = new wxMenu();
-        append_submenu(menuPlater, _("Select"), _("Select an object in the plater"), selectMenu, wxID_ANY, "brick.svg"); 
-        append_menu_item(menuPlater, _("Undo"), _("Undo"), [this](wxCommandEvent& e) { this->plater->undo(); }, wxID_ANY, "arrow_undo.svg", "Ctrl+Z");
-        append_menu_item(menuPlater, _("Redo"), _("Redo"), [this](wxCommandEvent& e) { this->plater->redo(); }, wxID_ANY, "arrow_redo.svg", "Ctrl+Shift+Z");
-        append_menu_item(menuPlater, _("Select Next Object"), _("Select Next Object in the plater"), 
+        ThemedMenu* selectMenu = this->plater_select_menu = new ThemedMenu();
+        menuPlater->AppendSubMenu(selectMenu, _("Select"), _("Select an object in the plater"));
+        menuPlater->AddItem(_("Undo"), _("Undo"), [this](wxCommandEvent& e) { this->plater->undo(); }, wxID_ANY, "arrow_undo.svg", "Ctrl+Z");
+        menuPlater->AddItem(_("Redo"), _("Redo"), [this](wxCommandEvent& e) { this->plater->redo(); }, wxID_ANY, "arrow_redo.svg", "Ctrl+Shift+Z");
+        menuPlater->AddItem(_("Select Next Object"), _("Select Next Object in the plater"), 
                 [this](wxCommandEvent& e) { this->plater->select_next(); }, wxID_ANY, "arrow_right.svg", "Ctrl+Right");
-        append_menu_item(menuPlater, _("Select Prev Object"), _("Select Previous Object in the plater"), 
+        menuPlater->AddItem(_("Select Prev Object"), _("Select Previous Object in the plater"), 
                 [this](wxCommandEvent& e) { this->plater->select_prev(); }, wxID_ANY, "arrow_left.svg", "Ctrl+Left");
-        append_menu_item(menuPlater, _("Zoom In"), _("Zoom In"), 
+        menuPlater->AddItem(_("Zoom In"), _("Zoom In"), 
                 [this](wxCommandEvent& e) { this->plater->zoom(Zoom::In); }, wxID_ANY, "zoom_in.svg", "Ctrl+Up");
-        append_menu_item(menuPlater, _("Zoom Out"), _("Zoom Out"), 
+        menuPlater->AddItem(_("Zoom Out"), _("Zoom Out"), 
                 [this](wxCommandEvent& e) { this->plater->zoom(Zoom::In); }, wxID_ANY, "zoom_out.svg", "Ctrl+Down");
         menuPlater->AppendSeparator();
-        append_menu_item(menuPlater, _("Export G-code..."), _("Export current plate as G-code"), 
+        menuPlater->AddItem(_("Export G-code..."), _("Export current plate as G-code"), 
                 [this](wxCommandEvent& e) { this->plater->export_gcode(); }, wxID_ANY, "cog_go.svg");
-        append_menu_item(menuPlater, _("Export plate as STL..."), _("Export current plate as STL"), 
+        menuPlater->AddItem(_("Export plate as STL..."), _("Export current plate as STL"), 
                 [this](wxCommandEvent& e) { this->plater->export_stl(); }, wxID_ANY, "brick_go.svg");
-        append_menu_item(menuPlater, _("Export plate with modifiers as AMF..."), _("Export current plate as AMF, including all modifier meshes"), 
+        menuPlater->AddItem(_("Export plate with modifiers as AMF..."), _("Export current plate as AMF, including all modifier meshes"), 
                 [this](wxCommandEvent& e) { this->plater->export_amf(); }, wxID_ANY, "brick_go.svg");
-        append_menu_item(menuPlater, _("Export plate with modifiers as 3MF..."), _("Export current plate as 3MF, including all modifier meshes"), 
+        menuPlater->AddItem(_("Export plate with modifiers as 3MF..."), _("Export current plate as 3MF, including all modifier meshes"), 
                 [this](wxCommandEvent& e) { this->plater->export_tmf(); }, wxID_ANY, "brick_go.svg");
     }
-    wxMenu* menuObject = this->plater->object_menu();
+    ThemedMenu* menuObject = this->plater->object_menu();
     this->on_plater_object_list_changed(false);
     this->on_plater_selection_changed(false);
 
-    wxMenu* menuSettings = new wxMenu();
+    ThemedMenu* menuSettings = new ThemedMenu();
     {
-        append_menu_item(menuSettings, _("P&rint Settings\u2026"), _("Show the print settings editor"), 
+        menuSettings->AddItem(_("P&rint Settings\u2026"), _("Show the print settings editor"), 
             [this](wxCommandEvent&) { if(this->plater) this->plater->show_preset_editor(preset_t::Print, 0); }, wxID_ANY, "cog.svg", "Ctrl+1");
-        append_menu_item(menuSettings, _("&Filament Settings\u2026"), _("Show the filament settings editor"), 
+        menuSettings->AddItem(_("&Filament Settings\u2026"), _("Show the filament settings editor"), 
             [this](wxCommandEvent&) { if(this->plater) this->plater->show_preset_editor(preset_t::Material, 0); }, wxID_ANY, "spool.svg", "Ctrl+2");
-        append_menu_item(menuSettings, _("Print&er Settings\u2026"), _("Show the printer settings editor"), 
+        menuSettings->AddItem(_("Print&er Settings\u2026"), _("Show the printer settings editor"), 
             [this](wxCommandEvent&) { if(this->plater) this->plater->show_preset_editor(preset_t::Printer, 0); }, wxID_ANY, "printer_empty.svg", "Ctrl+3");
     }
 
-    wxMenu* menuView = new wxMenu();
+    ThemedMenu* menuView = new ThemedMenu();
     {
-        append_menu_item(menuView, _("&Top"), _("Top View"), [this](wxCommandEvent&) { if(this->plater) this->plater->select_view(Direction::Top); }, wxID_ANY, "", "Ctrl+4");
-        append_menu_item(menuView, _("&Bottom"), _("Bottom View"), [this](wxCommandEvent&) { if(this->plater) this->plater->select_view(Direction::Bottom); }, wxID_ANY, "", "Ctrl+5");
-        append_menu_item(menuView, _("&Left"), _("Left View"), [this](wxCommandEvent&) { if(this->plater) this->plater->select_view(Direction::Left); }, wxID_ANY, "", "Ctrl+6");
-        append_menu_item(menuView, _("&Right"), _("Right View"), [this](wxCommandEvent&) { if(this->plater) this->plater->select_view(Direction::Right); }, wxID_ANY, "", "Ctrl+7");
-        append_menu_item(menuView, _("&Front"), _("Front View"), [this](wxCommandEvent&) { if(this->plater) this->plater->select_view(Direction::Front); }, wxID_ANY, "", "Ctrl+8");
-        append_menu_item(menuView, _("&Back"), _("Back View"), [this](wxCommandEvent&) { if(this->plater) this->plater->select_view(Direction::Back); }, wxID_ANY, "", "Ctrl+9");
-        append_menu_item(menuView, _("&Diagonal"), _("Diagonal View"), [this](wxCommandEvent&) { if(this->plater) this->plater->select_view(Direction::Diagonal); }, wxID_ANY, "", "Ctrl+0");
+        menuView->AddItem(_("&Top"), _("Top View"), [this](wxCommandEvent&) { if(this->plater) this->plater->select_view(Direction::Top); }, wxID_ANY, "", "Ctrl+4");
+        menuView->AddItem(_("&Bottom"), _("Bottom View"), [this](wxCommandEvent&) { if(this->plater) this->plater->select_view(Direction::Bottom); }, wxID_ANY, "", "Ctrl+5");
+        menuView->AddItem(_("&Left"), _("Left View"), [this](wxCommandEvent&) { if(this->plater) this->plater->select_view(Direction::Left); }, wxID_ANY, "", "Ctrl+6");
+        menuView->AddItem(_("&Right"), _("Right View"), [this](wxCommandEvent&) { if(this->plater) this->plater->select_view(Direction::Right); }, wxID_ANY, "", "Ctrl+7");
+        menuView->AddItem(_("&Front"), _("Front View"), [this](wxCommandEvent&) { if(this->plater) this->plater->select_view(Direction::Front); }, wxID_ANY, "", "Ctrl+8");
+        menuView->AddItem(_("&Back"), _("Back View"), [this](wxCommandEvent&) { if(this->plater) this->plater->select_view(Direction::Back); }, wxID_ANY, "", "Ctrl+9");
+        menuView->AddItem(_("&Diagonal"), _("Diagonal View"), [this](wxCommandEvent&) { if(this->plater) this->plater->select_view(Direction::Diagonal); }, wxID_ANY, "", "Ctrl+0");
         menuView->AppendSeparator();
 
-        append_menu_item(menuView, _("&3D View"), _("Switch to 3D View"), 
+        menuView->AddItem(_("&3D View"), _("Switch to 3D View"), 
             [this](wxCommandEvent&) { if (this->plater) this->plater->select_view_3d(); }, wxID_ANY, "brick.svg");
-        append_menu_item(menuView, _("&G-code Preview"), _("Switch to G-code Preview"), 
+        menuView->AddItem(_("&G-code Preview"), _("Switch to G-code Preview"), 
             [this](wxCommandEvent&) { if (this->plater) this->plater->select_view_preview(); }, wxID_ANY, "cog.svg");
         
         menuView->AppendSeparator();
-        append_menu_item(menuView, _("Theme Preview (Dev)"), _("Open the Widget Gallery to test themed controls"), 
+        menuView->AddItem(_("Theme Preview (Dev)"), _("Open the Widget Gallery to test themed controls"), 
             [this](wxCommandEvent&) { 
                 WidgetGallery gallery(this);
                 gallery.ShowModal();
             }, wxID_ANY, "wand.svg");
 
-        append_menu_item(menuView, _("Toggle &Full Screen"), _("Toggle full screen mode"), 
+        menuView->AddItem(_("Toggle &Full Screen"), _("Toggle full screen mode"), 
             [this](wxCommandEvent&) { this->ShowFullScreen(!this->IsFullScreen()); }, wxID_ANY, "monitor.svg", "F11");
     }
 
-    wxMenu* menuWindow = new wxMenu();
+    ThemedMenu* menuWindow = new ThemedMenu();
     {
-        append_menu_item(menuWindow, _("&Plater"), _("Show the plater"), 
+        menuWindow->AddItem(_("&Plater"), _("Show the plater"), 
             [this](wxCommandEvent&) { if(this->tabpanel) this->tabpanel->SetSelection(0); }, wxID_ANY, "application_view_tile.svg", "Ctrl+T");
-        append_menu_item(menuWindow, _("&Controller"), _("Show the printer controller"), 
+        menuWindow->AddItem(_("&Controller"), _("Show the printer controller"), 
             [this](wxCommandEvent&) { 
                 if(this->tabpanel) {
                     if (this->tabpanel->GetPageCount() > 1) {
@@ -526,33 +534,33 @@ void MainFrame::init_menubar()
                 }
             }, wxID_ANY, "printer_empty.svg", "Ctrl+Y");
         menuWindow->AppendSeparator();
-        append_menu_item(menuWindow, _("&Maximize"), _("Maximize the window"), 
+        menuWindow->AddItem(_("&Maximize"), _("Maximize the window"), 
             [this](wxCommandEvent&) { this->Maximize(true); }, wxID_ANY);
-        append_menu_item(menuWindow, _("&Restore"), _("Restore the window"), 
+        menuWindow->AddItem(_("&Restore"), _("Restore the window"), 
             [this](wxCommandEvent&) { this->Maximize(false); }, wxID_ANY);
     }
 
-    wxMenu* menuHelp = new wxMenu();
+    ThemedMenu* menuHelp = new ThemedMenu();
     {
-        append_menu_item(menuHelp, _("Configuration &Wizard\u2026"), _("Run the configuration wizard to set up your printer"), [=](wxCommandEvent& e) 
+        menuHelp->AddItem(_("Configuration &Wizard\u2026"), _("Run the configuration wizard to set up your printer"), [=](wxCommandEvent& e) 
         {
              ConfigWizard wizard(this);
              wizard.run();
         });
         menuHelp->AppendSeparator();
-        append_menu_item(menuHelp, _("Slic3r &Website"), _("Open the Slic3r website in your browser"), [=](wxCommandEvent& e) 
+        menuHelp->AddItem(_("Slic3r &Website"), _("Open the Slic3r website in your browser"), [=](wxCommandEvent& e) 
         {
             wxLaunchDefaultBrowser("http://www.slic3r.org");
         });
-        append_menu_item(menuHelp, _("Check for &Updates..."), _("Check for new Slic3r versions"), [=](wxCommandEvent& e)
+        menuHelp->AddItem(_("Check for &Updates..."), _("Check for new Slic3r versions"), [=](wxCommandEvent& e)
         {
             check_version(true);
         });
-        append_menu_item(menuHelp, _("Slic3r &Manual"), _("Open the Slic3r manual in your browser"), [=](wxCommandEvent& e) 
+        menuHelp->AddItem(_("Slic3r &Manual"), _("Open the Slic3r manual in your browser"), [=](wxCommandEvent& e) 
         {
             wxLaunchDefaultBrowser("http://manual.slic3r.org/");
         });
-        append_menu_item(menuHelp, _("&About Slic3r"), _("Show about dialog"), [=](wxCommandEvent& e) 
+        menuHelp->AddItem(_("&About Slic3r"), _("Show about dialog"), [=](wxCommandEvent& e) 
         {
             auto about = new AboutDialog(nullptr);
             about->ShowModal();
@@ -561,20 +569,23 @@ void MainFrame::init_menubar()
         
     }
 
-    wxMenuBar* menubar = new wxMenuBar();
-    menubar->Append(menuFile, _("&File"));
-    menubar->Append(menuPlater, _("&Plater"));
-    menubar->Append(menuObject, _("&Object"));
-    menubar->Append(menuSettings, _("&Settings"));
-    menubar->Append(menuView, _("&View"));
-    menubar->Append(menuWindow, _("&Window"));
-    menubar->Append(menuHelp, _("&Help"));
-
-    this->SetMenuBar(menubar);
+    m_themed_menubar->Append(menuFile, _("&File"));
+    m_themed_menubar->Append(menuPlater, _("&Plater"));
+    m_themed_menubar->Append(menuObject, _("&Object"));
+    m_themed_menubar->Append(menuSettings, _("&Settings"));
+    m_themed_menubar->Append(menuView, _("&View"));
+    m_themed_menubar->Append(menuWindow, _("&Window"));
+    m_themed_menubar->Append(menuHelp, _("&Help"));
+    
+    // We do NOT use SetMenuBar, as ThemedMenuBar is a wxPanel inserted into the sizer.
+    if (this->GetSizer()) {
+        this->GetSizer()->Layout();
+        m_themed_menubar->Refresh(); // Ensure paint event is triggered
+    }
 
 }
 
-void MainFrame::sync_colors() {
+void Slic3r::GUI::MainFrame::sync_colors() {
     if (!ui_settings) return;
 
     wxColour btn_bg = wxSystemSettings::GetColour(wxSYS_COLOUR_FRAMEBK);
@@ -631,10 +642,7 @@ void MainFrame::sync_colors() {
     if (this->controller) this->controller->Refresh();
 
     // Rebuild the menubar to update icons with the new theme colors
-    // We must delete the old one after replacing it, as SetMenuBar detaches it.
-    wxMenuBar* oldMenu = this->GetMenuBar();
     this->init_menubar();
-    if (oldMenu) delete oldMenu;
 }
 
 }} // Namespace Slic3r::GUI

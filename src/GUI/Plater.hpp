@@ -7,7 +7,7 @@
 
 #include <wx/notebook.h>
 #include <wx/toolbar.h>
-#include <wx/menu.h>
+
 #include <wx/simplebook.h>
 
 #include <stack>
@@ -30,6 +30,7 @@
 #include "Settings.hpp"
 #include "Theme/ThemeManager.hpp"
 #include "MainFrame.hpp"
+#include "Widgets/ThemedMenu.hpp"
 
 namespace Slic3r { namespace GUI {
 
@@ -99,7 +100,7 @@ public:
     void add_undo_operation(UndoCmd cmd, int obj_id, double angle, Axis axis);
 
     /// Create menu for object.
-    wxMenu* object_menu();
+    ThemedMenu* object_menu();
 
 
     /// Retrieve the identifier for the currently selected preset.

@@ -18,6 +18,7 @@
 
 
 #include "Plater.hpp"
+#include "Widgets/ThemedMenuPopup.hpp"
 #include "GUI.hpp"
 #include "Theme/ThemeManager.hpp"
 #include "Log.hpp"
@@ -208,8 +209,11 @@ Plater::Plater(wxWindow* parent, const wxString& title) :
             if (obj == this->objects.end()) return;
 
             auto menu = this->object_menu();
-            canvas->PopupMenu(menu, pos);
-            delete menu;
+            // Use custom popup with ownership transfer
+            ThemedMenuPopup* popup = new ThemedMenuPopup(canvas, menu);
+            popup->SetOwnsMenu(true);
+            popup->Position(canvas->ClientToScreen(pos), wxSize(0,0));
+            popup->Popup();
         }};
     auto on_instances_moved {[this]() { this->on_model_change(); }};
 
@@ -739,8 +743,7 @@ void Plater::on_model_change(bool force_autocenter) {
         auto* menu = this->GetFrame()->plater_select_menu;
 
         if (menu != nullptr) {
-            auto list = menu->GetMenuItems();
-            for (auto it = list.begin();it!=list.end(); it++) { menu->Delete(*it); }
+            menu->Clear();
             for (const auto& obj : this->objects) {
                 const auto idx {obj.identifier};
                 auto name {wxString(obj.name)};
@@ -748,7 +751,7 @@ void Plater::on_model_change(bool force_autocenter) {
                 if (inst_count > 1) {
                     name << " (" << inst_count << "x)";
                 }
-                wxMenuItem* item {append_menu_item(menu, name, _("Select object."), 
+                auto* item {append_menu_item(menu, name, _("Select object."), 
                         [this,idx](wxCommandEvent& e) { this->select_object(idx); this->refresh_canvases(); }, 
                         wxID_ANY, "", "", wxITEM_CHECK)};
                 if (obj.selected) item->Check(true);
@@ -805,6 +808,10 @@ void Plater::select_object(ObjRef obj) {
 }
 
 void Plater::select_object(ObjIdx obj_idx) {
+    if (obj_idx >= this->objects.size()) {
+        this->select_object();
+        return;
+    }
     this->select_object(this->objects.begin() + obj_idx);
 }
 
@@ -820,8 +827,8 @@ void Plater::selection_changed() {
     bool have_sel {obj != this->objects.end()};
     auto* menu {this->GetFrame()->plater_select_menu};
     if (menu != nullptr) {
-        for (auto item : menu->GetMenuItems()) {
-            item->Check(false);
+        for (size_t i = 0; i < menu->GetMenuItemCount(); ++i) {
+            menu->FindItemByPosition(i)->Check(false);
         }
         if (have_sel) {
             int idx = std::distance(this->objects.begin(), obj);
@@ -1406,9 +1413,9 @@ void Plater::resume_background_process() {
     //TODO
 }
 
-wxMenu* Plater::object_menu() {
+ThemedMenu* Plater::object_menu() {
     auto* frame {this->GetFrame()};
-    auto* menu {new wxMenu()};
+    auto* menu {new ThemedMenu()};
 
     append_menu_item(menu, _("Delete"), _("Remove the selected object."), [=](wxCommandEvent& e) { this->remove();}, wxID_ANY, "brick_delete.png", "Ctrl+Del");
     append_menu_item(menu, _("Increase copies"), _("Place one more copy of the selected object."), [=](wxCommandEvent& e) { this->increase();}, wxID_ANY, "add.png", "Ctrl++");
@@ -1421,7 +1428,7 @@ wxMenu* Plater::object_menu() {
     
     // Rotate Submenu
     {
-        auto* rotateMenu {new wxMenu};
+        auto* rotateMenu {new ThemedMenu};
         append_menu_item(rotateMenu, _(L"Around X axis\u2026"), _("Rotate the selected object by an arbitrary angle around X axis."), [this](wxCommandEvent& e) { this->rotate(X); }, wxID_ANY, "bullet_red.png");
         append_menu_item(rotateMenu, _(L"Around Y axis\u2026"), _("Rotate the selected object by an arbitrary angle around Y axis."), [this](wxCommandEvent& e) { this->rotate(Y); }, wxID_ANY, "bullet_green.png");
         append_menu_item(rotateMenu, _(L"Around Z axis\u2026"), _("Rotate the selected object by an arbitrary angle around Z axis."), [this](wxCommandEvent& e) { this->rotate(Z); }, wxID_ANY, "bullet_blue.png");
@@ -1430,7 +1437,7 @@ wxMenu* Plater::object_menu() {
 
     // Mirror Submenu
     {
-        auto* mirrorMenu {new wxMenu};
+        auto* mirrorMenu {new ThemedMenu};
         append_menu_item(mirrorMenu, _(L"Along X axis"), _("Mirror the selected object along the X axis"), [this](wxCommandEvent& e) { this->mirror(X); }, wxID_ANY, "shape_flip_horizontal_x.png");
         append_menu_item(mirrorMenu, _(L"Along Y axis"), _("Mirror the selected object along the Y axis"), [this](wxCommandEvent& e) { this->mirror(Y); }, wxID_ANY, "shape_flip_horizontal_y.png");
         append_menu_item(mirrorMenu, _(L"Along Z axis"), _("Mirror the selected object along the Z axis"), [this](wxCommandEvent& e) { this->mirror(Z); }, wxID_ANY, "shape_flip_horizontal_z.png");
@@ -1439,7 +1446,7 @@ wxMenu* Plater::object_menu() {
 
     // Scale Submenu
     {
-        auto* scaleMenu {new wxMenu};
+        auto* scaleMenu {new ThemedMenu};
         append_menu_item(scaleMenu, _(L"Uniformly\u2026"), _("Scale the selected object along the XYZ axes"), [this](wxCommandEvent& e) { this->changescale(false); }, wxID_ANY);
         append_menu_item(scaleMenu, _(L"Along X axis\u2026"), _("Scale the selected object along the X axis"), [this](wxCommandEvent& e) { this->changescale(X, false); }, wxID_ANY, "bullet_red.png");
         append_menu_item(scaleMenu, _(L"Along Y axis\u2026"), _("Scale the selected object along the Y axis"), [this](wxCommandEvent& e) { this->changescale(Y, false); }, wxID_ANY, "bullet_green.png");
@@ -1449,7 +1456,7 @@ wxMenu* Plater::object_menu() {
 
     // Scale to Size Submenu
     {
-        auto* scaleToSizeMenu {new wxMenu};
+        auto* scaleToSizeMenu {new ThemedMenu};
         append_menu_item(scaleToSizeMenu, _(L"Uniformly\u2026"), _("Scale the selected object along the XYZ axes"), [this](wxCommandEvent& e) { this->changescale(true); }, wxID_ANY);
         append_menu_item(scaleToSizeMenu, _(L"Along X axis\u2026"), _("Scale the selected object along the X axis"), [this](wxCommandEvent& e) { this->changescale(X, true); }, wxID_ANY, "bullet_red.png");
         append_menu_item(scaleToSizeMenu, _(L"Along Y axis\u2026"), _("Scale the selected object along the Y axis"), [this](wxCommandEvent& e) { this->changescale(Y, true); }, wxID_ANY, "bullet_green.png");

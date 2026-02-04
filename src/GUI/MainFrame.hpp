@@ -18,6 +18,7 @@
 #include "Dialogs/PresetEditor.hpp"
 #include "Settings.hpp"
 #include "GUI.hpp"
+#include "Widgets/ThemedMenuBar.hpp"
 
 namespace Slic3r { namespace GUI {
 
@@ -31,7 +32,7 @@ public:
     MainFrame(const wxString& title, const wxPoint& pos, const wxSize& size);
 
     bool has_plater_menu() { return this->plater_menu != nullptr; }
-    wxMenu* plater_select_menu {nullptr};
+    ThemedMenu* plater_select_menu {nullptr};
     wxSimplebook* tabs() { return tabpanel; }
 
     std::map<preset_t, PresetEditor*> preset_editor_tabs;
@@ -53,6 +54,7 @@ private:
     Controller* controller;
     Plater* plater;
 
+    ThemedMenuBar* m_themed_menubar {nullptr};
     wxPanel* top_bar {nullptr};
     wxPanel* btn_prepare {nullptr};
     wxPanel* btn_preview {nullptr};
@@ -60,7 +62,7 @@ private:
     wxPanel* btn_slice {nullptr};
     wxPanel* btn_export {nullptr};
 
-    wxMenu* plater_menu {nullptr};
+    ThemedMenu* plater_menu {nullptr};
 
 
 

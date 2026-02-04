@@ -30,6 +30,7 @@ if (MSVC)
     # Define Windows version for Boost ASIO (0x0601 = Windows 7)
     add_compile_options(-D_WIN32_WINNT=0x0601)
     add_compile_options(-D_CRT_SECURE_NO_WARNINGS)
+    add_compile_definitions(UNICODE _UNICODE)
 else()
     add_compile_options(-Wall)
 endif()
@@ -65,7 +66,8 @@ endif()
 execute_process(COMMAND git rev-parse --short HEAD OUTPUT_VARIABLE GIT_VERSION ERROR_QUIET)
 if (MSVC)
     if (CMAKE_BUILD_TYPE MATCHES Debug)
-        add_compile_options(-DEBUG -Od)
+        add_compile_options(-DEBUG)
+        add_compile_options(-Od)
         if (SLIC3R_STATIC)
             add_compile_options(-MTd)
         else(SLIC3R_STATIC)
@@ -78,7 +80,8 @@ if (MSVC)
             add_compile_options(-MD)
         endif(SLIC3R_STATIC)
     elseif (CMAKE_BUILD_TYPE MATCHES RelWithDebInfo)
-        add_compile_options(-DEBUG -O2)
+        add_compile_options(-DEBUG)
+        add_compile_options(-O2)
     endif()
 else()    
     if (CMAKE_BUILD_TYPE MATCHES Debug)
@@ -119,11 +122,11 @@ endif(SLIC3R_STATIC)
 
 if (NOT GIT_VERSION STREQUAL "")
     if (MSVC)
-        add_compile_options(/DSLIC3R_BUILD_COMMIT=\"${GIT_VERSION}\")
+        add_compile_definitions(SLIC3R_BUILD_COMMIT=${GIT_VERSION})
     else(MSVC)
         execute_process(COMMAND git rev-parse --short HEAD OUTPUT_VARIABLE GIT_VERSION_1)
         string(REGEX REPLACE "\n$" "" GIT_VERSION "${GIT_VERSION_1}")
-        add_compile_options(-DSLIC3R_BUILD_COMMIT=\"${GIT_VERSION}\")
+        add_compile_definitions(SLIC3R_BUILD_COMMIT=${GIT_VERSION})
     endif(MSVC)
 endif(NOT GIT_VERSION STREQUAL "")
 
@@ -444,6 +447,9 @@ IF(wxWidgets_FOUND AND OPENGL_FOUND AND Enable_GUI)
     ${GUI_LIBDIR}/Theme/ThemeManager.cpp
     ${GUI_LIBDIR}/Theme/CanvasTheme.cpp
     ${GUI_LIBDIR}/Widgets/ThemedControls.cpp
+    ${GUI_LIBDIR}/Widgets/ThemedMenuBar.cpp
+    ${GUI_LIBDIR}/Widgets/ThemedMenuPopup.cpp
+    ${GUI_LIBDIR}/Widgets/ThemedMenu.cpp
     ${GUI_LIBDIR}/Dialogs/WidgetGallery.cpp
     )
     target_compile_features(slic3r_gui PUBLIC cxx_std_17)
@@ -507,3 +513,16 @@ IF (WIN32)
        set(CMAKE_EXE_LINKER_FLAGS "-Wl,--allow-multiple-definition")
     endif()
 ENDIF(WIN32)
+
+# Auto-set the startup project in Visual Studio
+if(CMAKE_GENERATOR MATCHES "Visual Studio")
+    set_property(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}" PROPERTY VS_STARTUP_PROJECT slic3r)
+    
+    # Copy resources to the Debug/Release folder so running from VS works
+    add_custom_command(TARGET slic3r POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+        "${CMAKE_CURRENT_SOURCE_DIR}/resources"
+        "$<TARGET_FILE_DIR:slic3r>/resources"
+        COMMENT "Copying resources to output directory..."
+    )
+endif()
