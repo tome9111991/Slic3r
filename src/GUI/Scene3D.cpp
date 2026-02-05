@@ -14,6 +14,8 @@ static const int gl_attrs[] = {
     WX_GL_RGBA, 
     WX_GL_DOUBLEBUFFER, 
     WX_GL_DEPTH_SIZE, 24,
+    WX_GL_SAMPLE_BUFFERS, 1,
+    WX_GL_SAMPLES, 4,
     0
 };
 
@@ -30,8 +32,12 @@ Scene3D::Scene3D(wxWindow* parent, const wxSize& size) :
     this->Bind(wxEVT_PAINT, [this](wxPaintEvent &e) { this->repaint(e); });
     this->Bind(wxEVT_SIZE, [this](wxSizeEvent &e ){ resize(); });
     this->Bind(wxEVT_MOTION, [this](wxMouseEvent &e) { this->mouse_move(e); });
+    this->Bind(wxEVT_LEFT_DOWN, [this](wxMouseEvent &e) { this->mouse_down(e); });
+    this->Bind(wxEVT_RIGHT_DOWN, [this](wxMouseEvent &e) { this->mouse_down(e); });
+    this->Bind(wxEVT_MIDDLE_DOWN, [this](wxMouseEvent &e) { this->mouse_down(e); });
     this->Bind(wxEVT_LEFT_UP, [this](wxMouseEvent &e) { this->mouse_up(e); });
     this->Bind(wxEVT_RIGHT_UP, [this](wxMouseEvent &e) { this->mouse_up(e); });
+    this->Bind(wxEVT_MIDDLE_UP, [this](wxMouseEvent &e) { this->mouse_up(e); });
     this->Bind(wxEVT_MIDDLE_DCLICK, [this](wxMouseEvent &e) { this->mouse_dclick(e); });
     this->Bind(wxEVT_MOUSEWHEEL, [this](wxMouseEvent &e) { this->mouse_wheel(e); });
     
@@ -47,7 +53,7 @@ Scene3D::Scene3D(wxWindow* parent, const wxSize& size) :
 
 Scene3D::~Scene3D() {
     if (m_context) {
-        SetCurrent(*m_context);
+        m_context->SetCurrent(*this);
         m_vbo_bed.reset();
         m_vao_bed.reset();
         m_vbo_grid.reset();
@@ -56,6 +62,8 @@ Scene3D::~Scene3D() {
         m_vao_axes.reset();
         m_vbo_bg.reset();
         m_vao_bg.reset();
+        m_vbo_selection.reset();
+        m_vao_selection.reset();
         m_shader.reset();
         m_shader_bg.reset();
         volumes.clear();
@@ -79,6 +87,7 @@ void Scene3D::init_gl(){
     glEnable(GL_CULL_FACE);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glEnable(GL_MULTISAMPLE);
     
     
     if (!m_vbo_bed) m_vbo_bed = std::make_unique<GL::VertexBuffer>();
@@ -89,6 +98,8 @@ void Scene3D::init_gl(){
     if (!m_vao_axes) m_vao_axes = std::make_unique<GL::VertexArray>();
     if (!m_vbo_bg) m_vbo_bg = std::make_unique<GL::VertexBuffer>();
     if (!m_vao_bg) m_vao_bg = std::make_unique<GL::VertexArray>();
+    if (!m_vbo_selection) m_vbo_selection = std::make_unique<GL::VertexBuffer>();
+    if (!m_vao_selection) m_vao_selection = std::make_unique<GL::VertexArray>();
 
     init_shaders();
 }
@@ -134,43 +145,48 @@ void Scene3D::init_shaders() {
         uniform vec3 lightPos;
         uniform vec3 viewPos;
         uniform float u_clipping_z;
+        uniform float u_alpha;
         uniform int u_lit; // 1 = lit, 0 = flat
         
         void main() {
             if (v_z_height > u_clipping_z) discard;
             
             if (u_lit == 0) {
-                FragColor = vec4(objectColor, 1.0);
+                FragColor = vec4(objectColor, u_alpha);
                 return;
             }
         
             vec3 N = normalize(v_normal);
-            // ... (rest same, omitting for brevity in actual tool call but I should include enough)
-            if (abs(v_tube) > 0.0) {
-                float flat_region = 0.6;
-                float side_coord = (abs(v_tube) - flat_region) / (1.0 - flat_region);
-                if (side_coord > 0.0) {
-                    float angle = side_coord * 1.5708;
-                    float tilt_z = sin(angle) * sign(v_tube);
-                    N = normalize(vec3(tilt_z, 0.0, 1.0 - abs(tilt_z)*0.5));
-                }
+            // Ambient Occlusion based on tube coordinate (crevice between beads)
+            float ao = 1.0 - 0.4 * pow(abs(v_tube), 4.0);
+            
+            // Subtle normal enhancement to make it look even rounder than the 8-segments
+            if (abs(v_tube) > 0.1) {
+                float tilt = v_tube * 0.4;
+                N = normalize(N + vec3(tilt, 0.0, 0.0)); // Fake extra curvature
             }
 
-            vec3 lightDir = normalize(vec3(0.2, 0.2, 1.0)); 
+            vec3 lightDir = normalize(vec3(0.5, 0.5, 1.0)); 
             vec3 viewDir = normalize(viewPos - v_frag_pos);
+            
             float diff = max(dot(N, lightDir), 0.0);
+            
+            // Specular highlighting (Shinier for 3D prints)
             vec3 halfwayDir = normalize(lightDir + viewDir);
             float spec = pow(max(dot(N, halfwayDir), 0.0), 32.0);
-            float ao = 1.0 - smoothstep(0.7, 1.0, abs(v_tube)) * 0.4;
             
-            vec3 ambient = 0.3 * objectColor; // Lowered ambient
-            vec3 diffuse = diff * objectColor;
-            vec3 specular = vec3(0.2) * spec; // Lowered specular for less "washed out" look
+            vec3 ambient = 0.4 * objectColor; 
+            vec3 diffuse = 0.6 * diff * objectColor;
+            vec3 specular = vec3(0.4) * spec; 
             
             vec3 result = (ambient + diffuse + specular) * ao;
-            result *= (0.85 + 0.15 * smoothstep(-0.1, 0.1, v_z_height));
+            
+            // Subtle "layer" edge darkening to emphasize the 3D printed nature
+            result *= (0.9 + 0.1 * smoothstep(0.95, 1.0, 1.0 - abs(v_tube)));
+            
+            // Gamma correction
             result = pow(result, vec3(1.0/2.2));
-            FragColor = vec4(result, 1.0);
+            FragColor = vec4(result, u_alpha);
         }
     )";
     
@@ -217,7 +233,8 @@ void Scene3D::resize(){
         SetCurrent(*m_context);
         init_gl();
         if (GL::GLManager::is_initialized()) {
-            glViewport(0, 0, s.GetWidth(), s.GetHeight());
+            double scale = GetContentScaleFactor();
+            glViewport(0, 0, (int)(s.GetWidth() * scale), (int)(s.GetHeight() * scale));
         }
     }
 
@@ -272,12 +289,15 @@ void Scene3D::repaint(wxPaintEvent& e) {
         m_vao_bed->add_attribute(1, 3, GL_FLOAT, GL_FALSE, 7 * sizeof(float), (void*)(3 * sizeof(float)));
         m_vao_bed->add_attribute(2, 1, GL_FLOAT, GL_FALSE, 7 * sizeof(float), (void*)(6 * sizeof(float)));
         
+        m_vao_grid->bind();
+        m_vbo_grid->bind();
+        m_vao_grid->add_attribute(0, 3, GL_FLOAT, GL_FALSE, 7 * sizeof(float), (void*)0);
         m_vao_grid->add_attribute(1, 3, GL_FLOAT, GL_FALSE, 7 * sizeof(float), (void*)(3 * sizeof(float)));
         m_vao_grid->add_attribute(2, 1, GL_FLOAT, GL_FALSE, 7 * sizeof(float), (void*)(6 * sizeof(float)));
         
         // Axes (Lines)
         std::vector<float> axes_data;
-        float ax_l = 50.0f; // Longer axes
+        float ax_l = 20.0f; 
         // X (Red)
         axes_data.insert(axes_data.end(), { 0,0,0, 1,0,0, 0,  ax_l,0,0, 1,0,0, 0 });
         // Y (Green)
@@ -315,12 +335,26 @@ void Scene3D::repaint(wxPaintEvent& e) {
     m_shader->set_uniform("viewPos", camPos);
     m_shader->set_uniform("lightPos", glm::vec3(0.0f, 0.0f, 100.0f)); 
     m_shader->set_uniform("u_clipping_z", m_clipping_z);
+    m_shader->set_uniform("u_alpha", 1.0f);
     m_shader->set_uniform("u_lit", 1);
     
     draw_background();
     this->before_render();
 
     draw_ground();
+
+    // Selection boxes pass: Always above bed, but occludable by parts
+    glDisable(GL_DEPTH_TEST);
+    for(auto &volume : volumes) {
+        if (volume.selected) {
+            glm::mat4 model = glm::mat4(1.0f);
+            model = glm::translate(model, glm::vec3(volume.origin.x, volume.origin.y, volume.origin.z));
+            m_shader->set_uniform("model", model);
+            draw_selection_box(volume.bb);
+        }
+    }
+    glEnable(GL_DEPTH_TEST);
+
     draw_volumes();
     
     // Draw Axes (Unlit)
@@ -341,18 +375,26 @@ void Scene3D::draw_ground() {
     glm::mat4 model = glm::mat4(1.0f);
     m_shader->set_uniform("model", model);
     
-    // Bed
+    // Bed (Transparent Triangles)
+    m_shader->set_uniform("u_lit", 0); 
     m_shader->set_uniform("objectColor", glm::vec3(ground.Red()/255.0f, ground.Green()/255.0f, ground.Blue()/255.0f));
+    m_shader->set_uniform("u_alpha", ground.Alpha()/255.0f);
+    
     m_vao_bed->bind();
     glDrawArrays(GL_TRIANGLES, 0, (GLsizei)m_vbo_bed->get_count());
     
-    // Grid
-    m_shader->set_uniform("u_lit", 0); // Grid should be flat
+    // Grid (Flat Lines)
+    glLineWidth(2.0f);
     m_shader->set_uniform("objectColor", glm::vec3(grid.Red()/255.0f, grid.Green()/255.0f, grid.Blue()/255.0f));
+    m_shader->set_uniform("u_alpha", grid.Alpha()/255.0f);
+    
     m_vao_grid->bind();
     glDrawArrays(GL_LINES, 0, (GLsizei)m_vbo_grid->get_count());
     m_vao_grid->unbind();
+    
+    // Reset uniforms
     m_shader->set_uniform("u_lit", 1);
+    m_shader->set_uniform("u_alpha", 1.0f);
 }
 
 void Scene3D::draw_volumes() {
@@ -361,7 +403,7 @@ void Scene3D::draw_volumes() {
             // Create VBO/VAO
             volume.vbo = std::make_shared<GL::VertexBuffer>();
             volume.vao = std::make_shared<GL::VertexArray>();
-            
+
             // Interleave: Pos(3), Normal(3), Tube(1) = 7 floats per vertex
             std::vector<float> data;
             size_t count = volume.model.verts.size() / 3; 
@@ -409,6 +451,44 @@ void Scene3D::draw_volumes() {
     }
 }
 
+void Scene3D::draw_selection_box(const BoundingBoxf3& bb) {
+    float size_x = bb.max.x - bb.min.x;
+    float size_y = bb.max.y - bb.min.y;
+    float size_z = bb.max.z - bb.min.z;
+    float L = std::min({size_x, size_y, size_z}) * 0.25f;
+    if (L > 5.0f) L = 5.0f; 
+    
+    std::vector<float> v;
+    auto add_corner = [&](float x, float y, float z, float dx, float dy, float dz) {
+        v.insert(v.end(), {x, y, z, x + dx, y, z});
+        v.insert(v.end(), {x, y, z, x, y + dy, z});
+        v.insert(v.end(), {x, y, z, x, y, z + dz});
+    };
+
+    add_corner(bb.min.x, bb.min.y, bb.min.z,  L,  L,  L);
+    add_corner(bb.max.x, bb.min.y, bb.min.z, -L,  L,  L);
+    add_corner(bb.max.x, bb.max.y, bb.min.z, -L, -L,  L);
+    add_corner(bb.min.x, bb.max.y, bb.min.z,  L, -L,  L);
+
+    add_corner(bb.min.x, bb.min.y, bb.max.z,  L,  L, -L);
+    add_corner(bb.max.x, bb.min.y, bb.max.z, -L,  L, -L);
+    add_corner(bb.max.x, bb.max.y, bb.max.z, -L, -L, -L);
+    add_corner(bb.min.x, bb.max.y, bb.max.z,  L, -L, -L);
+    
+    m_shader->set_uniform("u_lit", 0);
+    m_shader->set_uniform("objectColor", glm::vec3(1.0f, 1.0f, 1.0f)); // White
+    m_shader->set_uniform("u_alpha", 1.0f);
+    
+    m_vao_selection->bind();
+    m_vbo_selection->upload_data(v.data(), v.size() * sizeof(float));
+    m_vao_selection->add_attribute(0, 3, GL_FLOAT, GL_FALSE, 3*sizeof(float), 0);
+    
+    glLineWidth(2.0f);
+    glDrawArrays(GL_LINES, 0, (GLsizei)(v.size() / 3));
+    
+    m_shader->set_uniform("u_lit", 1);
+}
+
 void Scene3D::set_bed_shape(Points _bed_shape){
     bed_shape = _bed_shape;
     const float GROUND_Z = -0.02f;
@@ -454,17 +534,17 @@ void Scene3D::set_bed_shape(Points _bed_shape){
             for(const Point &point : line.points){
                 grid_verts.push_back(unscale(point.x));
                 grid_verts.push_back(unscale(point.y));
-                grid_verts.push_back(GROUND_Z);
+                grid_verts.push_back(0.0f);
             }
         }
         // Bed contours
         for(const Line &line : expoly.lines()){
             grid_verts.push_back(unscale(line.a.x));
             grid_verts.push_back(unscale(line.a.y));
-            grid_verts.push_back(GROUND_Z);
+            grid_verts.push_back(0.0f);
             grid_verts.push_back(unscale(line.b.x));
             grid_verts.push_back(unscale(line.b.y));
-            grid_verts.push_back(GROUND_Z);
+            grid_verts.push_back(0.0f);
         }
     }
     m_bed_dirty = true;
@@ -476,15 +556,15 @@ void Scene3D::mouse_move(wxMouseEvent &e){
         const auto pos = Point(e.GetX(),e.GetY());
         if(dragging){
              if (e.LeftIsDown()) {
-                // Rotate
+                // Rotate (Inverted to match expected direction)
                 float dx = (pos.x - drag_start.x);
                 float dy = (pos.y - drag_start.y);
-                m_camera.rotate(dy * 0.25f, dx * 0.25f);
+                m_camera.rotate(-dy * 0.8f, -dx * 0.8f);
             } else if (e.MiddleIsDown() || e.RightIsDown()) {
                 // Pan
                 float dx = (pos.x - drag_start.x);
                 float dy = (pos.y - drag_start.y);
-                m_camera.pan(dx * 0.5f, dy * 0.5f);
+                m_camera.pan(dx, dy);
             }
             Refresh();
         }
@@ -500,11 +580,16 @@ void Scene3D::mouse_up(wxMouseEvent &e){
     Refresh();
 }
 
+void Scene3D::mouse_down(wxMouseEvent &e){
+    dragging = false;
+    drag_start = Point(e.GetX(), e.GetY());
+    e.Skip();
+}
+
 void Scene3D::mouse_wheel(wxMouseEvent &e){
     float delta = ((float)e.GetWheelRotation()) / e.GetWheelDelta();
-    // delta is typically 1 or -1
-    // We want a multiplier - reduced speed (5% instead of 10%)
-    float zoom_factor = (delta > 0) ? 1.05f : 0.95f;
+    // Reduced zoom speed from 5% to 2% per notch
+    float zoom_factor = (delta > 0) ? 1.02f : 0.98f;
     m_camera.zoom(zoom_factor);
     Refresh();
 }
@@ -523,8 +608,8 @@ Linef3 Scene3D::mouse_ray(Point win){
 
 void Scene3D::draw_axes(Pointf3 center, float length, int width, bool always_visible) {
     if (always_visible) glDisable(GL_DEPTH_TEST);
-    
     glLineWidth(width);
+    m_shader->set_uniform("model", glm::mat4(1.0f)); 
     m_vao_axes->bind();
     
     // We use vertex attribute 1 (normal slot) as Color in unlit mode
@@ -543,6 +628,8 @@ void Scene3D::draw_axes(Pointf3 center, float length, int width, bool always_vis
 
 void Scene3D::draw_background() {
     auto colors = CanvasTheme::GetColors();
+    if (colors.solid_background) return;
+    
     glDisable(GL_DEPTH_TEST);
     m_shader_bg->bind();
     m_shader_bg->set_uniform("colorTop", glm::vec3(colors.canvas_bg_top.Red()/255.0f, colors.canvas_bg_top.Green()/255.0f, colors.canvas_bg_top.Blue()/255.0f));

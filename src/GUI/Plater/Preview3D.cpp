@@ -14,6 +14,10 @@ void PreviewScene3D::load_print_toolpaths(std::shared_ptr<Slic3r::Print> print) 
     this->layers.clear();
     
     if(!print || print->objects.empty()) return;
+    
+    double nozzle_dm = 0.4;
+    if (!print->config.nozzle_diameter.values.empty())
+        nozzle_dm = print->config.nozzle_diameter.values[0];
 
     // Helper to get color for role
     auto get_color = [&](int role) -> wxColor {
@@ -35,6 +39,7 @@ void PreviewScene3D::load_print_toolpaths(std::shared_ptr<Slic3r::Print> print) 
             std::vector<double> widths;
             std::vector<double> heights;
             bool closed = false;
+            float flatness = 0.0f;
 
             if (const auto* path = dynamic_cast<const ExtrusionPath*>(entity)) {
                 Polyline polyline = path->polyline;
@@ -44,6 +49,7 @@ void PreviewScene3D::load_print_toolpaths(std::shared_ptr<Slic3r::Print> print) 
                 widths.assign(lines.size(), path->width);
                 heights.assign(lines.size(), path->height);
                 closed = false;
+                if (path->is_solid_infill()) flatness = 0.85f;
             } else if (const auto* loop = dynamic_cast<const ExtrusionLoop*>(entity)) {
                 for(const auto& path : loop->paths) {
                     Polyline polyline = path.polyline;
@@ -55,13 +61,14 @@ void PreviewScene3D::load_print_toolpaths(std::shared_ptr<Slic3r::Print> print) 
                     heights.insert(heights.end(), path_lines.size(), path.height);
                 }
                 closed = true;
+                if (loop->is_solid_infill()) flatness = 0.85f;
             } else if (const auto* sub = dynamic_cast<const ExtrusionEntityCollection*>(entity)) {
                 process_collection(*sub, copy, top_z, qverts_out, tverts_out);
                 continue;
             }
 
             if(!lines.empty()) {
-                ::Slic3r::ExtrusionGeometry::_extrusionentity_to_verts_do(lines, widths, heights, closed, top_z, Point(0,0), &qverts_out, &tverts_out);
+                ::Slic3r::ExtrusionGeometry::_extrusionentity_to_verts_do(lines, widths, heights, closed, top_z, Point(0,0), &qverts_out, &tverts_out, nozzle_dm, flatness);
             }
         }
     };
@@ -109,68 +116,40 @@ void PreviewScene3D::load_print_toolpaths(std::shared_ptr<Slic3r::Print> print) 
         
         vol.model.verts = t.verts;
         vol.model.norms = t.norms;
-        // Init tube coords for tverts (triangles - usually caps) with 0
-        vol.tube_coords.assign(t.verts.size()/3, 0.0f);
+        vol.tube_coords = t.tube_coords;
         
         // Append quads as triangles
         for(size_t i=0; i < q.verts.size(); i += 12) {
              // Quad Verts indices: i, i+1, i+2, i+3 (relative to quad start, each is 3 floats)
-             
              if(i+11 >= q.verts.size()) break; // Safety check
 
-             // Analyze Quad to determine tube coords
-             float tube_x[4] = {0,0,0,0};
-             float nz = q.norms[i+2]; // Normal Z of first vertex
-             
-             if (abs(nz) > 0.9f) {
-                 // Top or Bottom face (-1, 1, 1, -1) pattern usually works for TL, TR, BR, BL winding
-                 tube_x[0] = -1.0f;
-                 tube_x[1] = 1.0f;
-                 tube_x[2] = 1.0f;
-                 tube_x[3] = -1.0f;
-             } else {
-                 // Side face - Use Z height to determine -1 (bottom) vs 1 (top)
-                 float zs[4] = {q.verts[i+2], q.verts[i+5], q.verts[i+8], q.verts[i+11]};
-                 float min_z = zs[0], max_z = zs[0];
-                 for(int k=1; k<4; ++k) {
-                     if(zs[k] < min_z) min_z = zs[k];
-                     if(zs[k] > max_z) max_z = zs[k];
-                 }
-                 float range = max_z - min_z;
-                 if (range < 0.001f) range = 0.001f; // Avoid divide by zero
-                 
-                 for(int k=0; k<4; ++k) {
-                     // Normalize to 0..1 then map to -1..1
-                     float h = (zs[k] - min_z) / range;
-                     tube_x[k] = h * 2.0f - 1.0f;
-                 }
-             }
+             size_t v_idx = i / 3; // Index in tube_coords
 
              // Triangle 1: V0, V1, V2
              for(int k=0; k<3; ++k) vol.model.verts.push_back(q.verts[i+k]);
              for(int k=0; k<3; ++k) vol.model.norms.push_back(q.norms[i+k]);
-             vol.tube_coords.push_back(tube_x[0]);
+             vol.tube_coords.push_back(q.tube_coords[v_idx]);
              
              for(int k=0; k<3; ++k) vol.model.verts.push_back(q.verts[i+3+k]);
              for(int k=0; k<3; ++k) vol.model.norms.push_back(q.norms[i+3+k]);
-             vol.tube_coords.push_back(tube_x[1]);
+             vol.tube_coords.push_back(q.tube_coords[v_idx+1]);
 
              for(int k=0; k<3; ++k) vol.model.verts.push_back(q.verts[i+6+k]);
              for(int k=0; k<3; ++k) vol.model.norms.push_back(q.norms[i+6+k]);
-             vol.tube_coords.push_back(tube_x[2]);
+             vol.tube_coords.push_back(q.tube_coords[v_idx+2]);
              
              // Triangle 2: V0, V2, V3
              for(int k=0; k<3; ++k) vol.model.verts.push_back(q.verts[i+k]);
              for(int k=0; k<3; ++k) vol.model.norms.push_back(q.norms[i+k]);
-             vol.tube_coords.push_back(tube_x[0]); // V0
+             vol.tube_coords.push_back(q.tube_coords[v_idx]); // V0
 
              for(int k=0; k<3; ++k) vol.model.verts.push_back(q.verts[i+6+k]);
              for(int k=0; k<3; ++k) vol.model.norms.push_back(q.norms[i+6+k]);
-             vol.tube_coords.push_back(tube_x[2]); // V2
+             vol.tube_coords.push_back(q.tube_coords[v_idx+2]); // V2
 
              for(int k=0; k<3; ++k) vol.model.verts.push_back(q.verts[i+9+k]);
              for(int k=0; k<3; ++k) vol.model.norms.push_back(q.norms[i+9+k]);
-             vol.tube_coords.push_back(tube_x[3]); // V3
+             vol.tube_coords.push_back(q.tube_coords[v_idx+3]); // V3
         }
         
         // Compute BB

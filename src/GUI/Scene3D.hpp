@@ -54,14 +54,11 @@ private:
     void init_gl();
     void init_shaders();
     
-    // Camera
+protected:
     GL::Camera m_camera;
     bool dragging = false;
     Point drag_start = Point(0,0);
-    
-    // Rendering Resources
-    std::unique_ptr<GL::Shader> m_shader;
-    std::unique_ptr<GL::Shader> m_shader_bg;
+
     
     // Bed Geometry
     Points bed_shape;
@@ -74,6 +71,8 @@ private:
     std::unique_ptr<GL::VertexArray> m_vao_axes;
     std::unique_ptr<GL::VertexBuffer> m_vbo_bg;
     std::unique_ptr<GL::VertexArray> m_vao_bg;
+    std::unique_ptr<GL::VertexBuffer> m_vbo_selection;
+    std::unique_ptr<GL::VertexArray> m_vao_selection;
 
     bool m_bed_dirty = true;
     bool m_axes_dirty = true;
@@ -90,6 +89,12 @@ private:
     void draw_axes(Pointf3 center, float length, int width, bool alwaysvisible);
     
 protected:
+    // Shaders
+    std::unique_ptr<GL::Shader> m_shader;
+    std::unique_ptr<GL::Shader> m_shader_bg;
+
+    void draw_selection_box(const BoundingBoxf3& bb);
+
     Linef3 mouse_ray(Point win);
     void draw_volumes();
     void set_bed_shape(Points _bed_shape);
@@ -100,6 +105,7 @@ protected:
     // Event Handlers
     virtual void mouse_up(wxMouseEvent &e);
     virtual void mouse_move(wxMouseEvent &e);
+    virtual void mouse_down(wxMouseEvent &e);
     virtual void mouse_dclick(wxMouseEvent &e);
     virtual void mouse_wheel(wxMouseEvent &e);
     

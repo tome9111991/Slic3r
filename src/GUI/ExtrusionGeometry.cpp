@@ -6,168 +6,127 @@ namespace Slic3r {
 void
 ExtrusionGeometry::_extrusionentity_to_verts_do(const Lines &lines, const std::vector<double> &widths,
         const std::vector<double> &heights, bool closed, double top_z, const Point &copy,
-        GLVertexArray* qverts, GLVertexArray* tverts)
+        GLVertexArray* qverts, GLVertexArray* tverts, double nozzle_dm, float flatness)
 {
     if (lines.empty()) return;
     
-    Line prev_line;
-    Pointf prev_TR, prev_TL, prev_BR, prev_BL;
-    Pointf prev_center_top, prev_center_bot;
-    
-    // loop once more in case of closed loops
-    bool first_done = false;
-    for (size_t i = 0; i <= lines.size(); ++i) {
-        if (i == lines.size()) i = 0;
+    const int N = 8;
+    const double angles[N] = { 0, M_PI/4.0, M_PI/2.0, 3.0*M_PI/4.0, M_PI, 5.0*M_PI/4.0, 3.0*M_PI/2.0, 7.0*M_PI/4.0 };
+    const float tube_values[N] = { 1.0f, 0.5f, 0.0f, -0.5f, -1.0f, -0.5f, 0.0f, 0.5f };
+
+    struct Ring {
+        Pointf3 p[N];
+        Pointf3 n[N];
+    };
+
+    auto get_ring = [&](const Pointf &center, const Vectorf &dir, double w, double h) {
+        Ring r;
+        Vectorf right_vec = Vectorf(dir.y, -dir.x);
+        double rw = w / 2.0;
+        double rh = h / 2.0;
+        double z_mid = top_z - rh;
         
-        const Line &line = lines.at(i);
-        if (i == 0 && first_done && !closed) break;
+        for (int i = 0; i < N; ++i) {
+            double c = cos(angles[i]);
+            double s = sin(angles[i]);
+            
+            // Apply flatness: if flatness > 0, we pull the top/bottom vertices closer to the z bounds
+            // and keep the side vertices where they are.
+            double s_flat = s;
+            if (flatness > 0.001f) {
+                // Towards the top/bottom (s=1 or s=-1), we make the curve "boxier"
+                s_flat = std::pow(std::abs(s), 1.0 - 0.7 * flatness) * (s > 0 ? 1.0 : -1.0);
+            }
+
+            r.p[i] = Pointf3((float)(center.x + c * rw * right_vec.x), 
+                             (float)(center.y + c * rw * right_vec.y), 
+                             (float)(z_mid + s_flat * rh));
+            
+            // Recalculate normal for flattened shape
+            Vectorf3 n_vec((float)(c * right_vec.x), (float)(c * right_vec.y), (float)(s * (1.0 - flatness * 0.5)));
+            r.n[i] = n_vec.normalize();
+        }
+        return r;
+    };
+
+    Ring prev_ring;
+    const Line* prev_line = nullptr;
+    bool first_done = false;
+
+    size_t n_segments = lines.size();
+    for (size_t i = 0; i <= n_segments; ++i) {
+        if (i == n_segments && !closed) break;
+        size_t idx = i % n_segments;
+        const Line &line = lines[idx];
         
         double len = line.length();
-        double unscaled_len = unscale(len);
+        if (len < EPSILON) continue;
         
-        double bottom_z = top_z - heights.at(i);
-        double dist = widths.at(i)/2;  // scaled
+        double w = widths[idx];
+        double h = heights[idx];
         
+        // Removed the nozzle_dm cap to prevent "holey" infill.
+        // The slicer's width w is the correct spacing between centerlines.
+
         Vectorf v = Vectorf::new_unscale(line.vector());
-        v.scale(1/unscaled_len);
+        v.scale(1.0 / unscale(len));
         
-        // Calculate points for the start (a) and end (b) of the segment
         Pointf a = Pointf::new_unscale(line.a);
         Pointf b = Pointf::new_unscale(line.b);
-        
-        // Displacements
-        Vectorf right_vec = Vectorf(v.y, -v.x);
-        Vectorf left_vec = Vectorf(-v.y, v.x);
-        
-        Pointf a_TR = a; a_TR.translate(right_vec.x * dist, right_vec.y * dist);
-        Pointf a_TL = a; a_TL.translate(left_vec.x * dist, left_vec.y * dist);
-        Pointf a_BR = a_TR;
-        Pointf a_BL = a_TL;
-        
-        Pointf b_TR = b; b_TR.translate(right_vec.x * dist, right_vec.y * dist);
-        Pointf b_TL = b; b_TL.translate(left_vec.x * dist, left_vec.y * dist);
-        Pointf b_BR = b_TR;
-        Pointf b_BL = b_TL;
+        Pointf center_a = a;
+        Pointf center_b = b;
 
-        // Normals
-        Vector n = line.normal();
-        Vectorf3 xy_right_normal = Vectorf3::new_unscale(n.x, n.y, 0);
-        xy_right_normal.scale(1/unscaled_len);
-        Vectorf3 xy_left_normal = xy_right_normal;
-        xy_left_normal.scale(-1);
-        
+        Ring ring_a = get_ring(center_a, v, w, h);
+        Ring ring_b = get_ring(center_b, v, w, h);
+
         if (first_done) {
-            // Corner handling
-            double ccw = line.b.ccw(prev_line);
-            if (ccw > EPSILON) {
-                // Left Turn - Outer is Right side
-                // Fill Top Gap
-                tverts->push_norm(0,0,1); tverts->push_vert((float)prev_center_top.x, (float)prev_center_top.y, (float)top_z);
-                tverts->push_norm(0,0,1); tverts->push_vert((float)prev_TR.x, (float)prev_TR.y, (float)top_z);
-                tverts->push_norm(0,0,1); tverts->push_vert((float)a_TR.x, (float)a_TR.y, (float)top_z);
-
-                // Fill Bottom Gap
-                tverts->push_norm(0,0,-1); tverts->push_vert((float)prev_center_bot.x, (float)prev_center_bot.y, (float)bottom_z);
-                tverts->push_norm(0,0,-1); tverts->push_vert((float)a_BR.x, (float)a_BR.y, (float)bottom_z);
-                tverts->push_norm(0,0,-1); tverts->push_vert((float)prev_BR.x, (float)prev_BR.y, (float)bottom_z);
-                
-                // Fill Side Wall Gap (Right) - Quad as 2 triangles
-                // Triangle 1
-                Vectorf3 n1((float)(prev_TR.x - prev_center_top.x), (float)(prev_TR.y - prev_center_top.y), 0); // Approx normal
-                tverts->push_norm(n1); tverts->push_vert((float)prev_TR.x, (float)prev_TR.y, (float)top_z);
-                tverts->push_norm(n1); tverts->push_vert((float)prev_BR.x, (float)prev_BR.y, (float)bottom_z);
-                tverts->push_norm(n1); tverts->push_vert((float)a_BR.x, (float)a_BR.y, (float)bottom_z);
-                // Triangle 2
-                Vectorf3 n2((float)(a_TR.x - a.x), (float)(a_TR.y - a.y), 0); // Approx normal
-                tverts->push_norm(n2); tverts->push_vert((float)a_BR.x, (float)a_BR.y, (float)bottom_z);
-                tverts->push_norm(n2); tverts->push_vert((float)a_TR.x, (float)a_TR.y, (float)top_z);
-                tverts->push_norm(n2); tverts->push_vert((float)prev_TR.x, (float)prev_TR.y, (float)top_z);
-
-            } else if (ccw < -EPSILON) {
-                // Right Turn - Outer is Left side
-                // Fill Top Gap
-                tverts->push_norm(0,0,1); tverts->push_vert((float)prev_center_top.x, (float)prev_center_top.y, (float)top_z);
-                tverts->push_norm(0,0,1); tverts->push_vert((float)a_TL.x, (float)a_TL.y, (float)top_z);
-                tverts->push_norm(0,0,1); tverts->push_vert((float)prev_TL.x, (float)prev_TL.y, (float)top_z);
-
-                // Fill Bottom Gap
-                tverts->push_norm(0,0,-1); tverts->push_vert((float)prev_center_bot.x, (float)prev_center_bot.y, (float)bottom_z);
-                tverts->push_norm(0,0,-1); tverts->push_vert((float)prev_BL.x, (float)prev_BL.y, (float)bottom_z);
-                tverts->push_norm(0,0,-1); tverts->push_vert((float)a_BL.x, (float)a_BL.y, (float)bottom_z);
-                
-                // Fill Side Wall Gap (Left)
-                // Triangle 1
-                Vectorf3 n1((float)(prev_TL.x - prev_center_top.x), (float)(prev_TL.y - prev_center_top.y), 0);
-                tverts->push_norm(n1); tverts->push_vert((float)prev_TL.x, (float)prev_TL.y, (float)top_z);
-                tverts->push_norm(n1); tverts->push_vert((float)a_BL.x, (float)a_BL.y, (float)bottom_z);
-                tverts->push_norm(n1); tverts->push_vert((float)prev_BL.x, (float)prev_BL.y, (float)bottom_z);
-                // Triangle 2
-                Vectorf3 n2((float)(a_TL.x - a.x), (float)(a_TL.y - a.y), 0);
-                tverts->push_norm(n2); tverts->push_vert((float)a_BL.x, (float)a_BL.y, (float)bottom_z);
-                tverts->push_norm(n2); tverts->push_vert((float)prev_TL.x, (float)prev_TL.y, (float)top_z);
-                tverts->push_norm(n2); tverts->push_vert((float)a_TL.x, (float)a_TL.y, (float)top_z);
+            // Corner Gap Filling
+            Pointf3 jc((float)center_a.x, (float)center_a.y, (float)(top_z - h/2.0));
+            
+            for (int j = 0; j < N; ++j) {
+                tverts->push_norm(prev_ring.n[j]); tverts->push_vert(jc);              tverts->push_tube(0.0f);
+                tverts->push_norm(prev_ring.n[j]); tverts->push_vert(prev_ring.p[j]); tverts->push_tube(tube_values[j]);
+                tverts->push_norm(ring_a.n[j]);    tverts->push_vert(ring_a.p[j]);    tverts->push_tube(tube_values[j]);
             }
         }
-        
-        if (first_done && i == 0) break;
-        
-        prev_line = line;
-        prev_TR = b_TR;
-        prev_TL = b_TL;
-        prev_BR = b_BR;
-        prev_BL = b_BL;
-        prev_center_top = b;
-        prev_center_bot = b;
-        
+
+        if (i == n_segments && closed) break; 
+
+        // Segment Faces (Quads)
+        for (int j = 0; j < N; ++j) {
+            int next_j = (j + 1) % N;
+            qverts->push_norm(ring_a.n[j]);      qverts->push_vert(ring_a.p[j]);      qverts->push_tube(tube_values[j]);
+            qverts->push_norm(ring_b.n[j]);      qverts->push_vert(ring_b.p[j]);      qverts->push_tube(tube_values[j]);
+            qverts->push_norm(ring_b.n[next_j]); qverts->push_vert(ring_b.p[next_j]); qverts->push_tube(tube_values[next_j]);
+            qverts->push_norm(ring_a.n[next_j]); qverts->push_vert(ring_a.p[next_j]); qverts->push_tube(tube_values[next_j]);
+        }
+
+        // Caps
         if (!closed) {
-             if (i == 0) {
-                // Start Cap (Back) - CCW
-                qverts->push_norm(0,0,-1); qverts->push_vert((float)a_BL.x, (float)a_BL.y, (float)bottom_z);
-                qverts->push_norm(0,0,-1); qverts->push_vert((float)a_BR.x, (float)a_BR.y, (float)bottom_z);
-                qverts->push_norm(0,0,-1); qverts->push_vert((float)a_TR.x, (float)a_TR.y, (float)top_z);
-                qverts->push_norm(0,0,-1); qverts->push_vert((float)a_TL.x, (float)a_TL.y, (float)top_z);
+            if (i == 0) {
+                Pointf3 jc((float)center_a.x, (float)center_a.y, (float)(top_z - h/2.0));
+                Vectorf3 back_norm((float)-v.x, (float)-v.y, 0);
+                for (int j = 0; j < N; ++j) {
+                    int next_j = (j + 1) % N;
+                    tverts->push_norm(back_norm); tverts->push_vert(jc);              tverts->push_tube(0.0f);
+                    tverts->push_norm(back_norm); tverts->push_vert(ring_a.p[next_j]); tverts->push_tube(tube_values[next_j]);
+                    tverts->push_norm(back_norm); tverts->push_vert(ring_a.p[j]);      tverts->push_tube(tube_values[j]);
+                }
             }
-            if (i == lines.size()-1) {
-                // End Cap (Front) - CCW
-                qverts->push_norm(0,0,-1); qverts->push_vert((float)b_TR.x, (float)b_TR.y, (float)top_z);
-                qverts->push_norm(0,0,-1); qverts->push_vert((float)b_BR.x, (float)b_BR.y, (float)bottom_z);
-                qverts->push_norm(0,0,-1); qverts->push_vert((float)b_BL.x, (float)b_BL.y, (float)bottom_z);
-                qverts->push_norm(0,0,-1); qverts->push_vert((float)b_TL.x, (float)b_TL.y, (float)top_z);
+            if (i == n_segments - 1) {
+                Pointf3 jc((float)center_b.x, (float)center_b.y, (float)(top_z - h/2.0));
+                Vectorf3 front_norm((float)v.x, (float)v.y, 0);
+                for (int j = 0; j < N; ++j) {
+                    int next_j = (j + 1) % N;
+                    tverts->push_norm(front_norm); tverts->push_vert(jc);              tverts->push_tube(0.0f);
+                    tverts->push_norm(front_norm); tverts->push_vert(ring_b.p[j]);      tverts->push_tube(tube_values[j]);
+                    tverts->push_norm(front_norm); tverts->push_vert(ring_b.p[next_j]); tverts->push_tube(tube_values[next_j]);
+                }
             }
-        }
-        
-        // Top Face (Up) - CCW: a_TL -> a_TR -> b_TR -> b_TL
-        {
-            qverts->push_norm(0,0,1); qverts->push_vert((float)a_TL.x, (float)a_TL.y, (float)top_z);
-            qverts->push_norm(0,0,1); qverts->push_vert((float)a_TR.x, (float)a_TR.y, (float)top_z);
-            qverts->push_norm(0,0,1); qverts->push_vert((float)b_TR.x, (float)b_TR.y, (float)top_z);
-            qverts->push_norm(0,0,1); qverts->push_vert((float)b_TL.x, (float)b_TL.y, (float)top_z);
         }
 
-        // Bottom Face (Down) - CCW: a_BR -> a_BL -> b_BL -> b_BR
-        {
-            qverts->push_norm(0,0,-1); qverts->push_vert((float)a_BR.x, (float)a_BR.y, (float)bottom_z);
-            qverts->push_norm(0,0,-1); qverts->push_vert((float)a_BL.x, (float)a_BL.y, (float)bottom_z);
-            qverts->push_norm(0,0,-1); qverts->push_vert((float)b_BL.x, (float)b_BL.y, (float)bottom_z);
-            qverts->push_norm(0,0,-1); qverts->push_vert((float)b_BR.x, (float)b_BR.y, (float)bottom_z);
-        }
-        
-        // Right Face (Right) - CCW: a_TR -> a_BR -> b_BR -> b_TR
-        {
-            qverts->push_norm(xy_right_normal); qverts->push_vert((float)a_TR.x, (float)a_TR.y, (float)top_z);
-            qverts->push_norm(xy_right_normal); qverts->push_vert((float)a_BR.x, (float)a_BR.y, (float)bottom_z);
-            qverts->push_norm(xy_right_normal); qverts->push_vert((float)b_BR.x, (float)b_BR.y, (float)bottom_z);
-            qverts->push_norm(xy_right_normal); qverts->push_vert((float)b_TR.x, (float)b_TR.y, (float)top_z);
-        }
-
-        // Left Face (Left) - CCW: a_TL -> b_TL -> b_BL -> a_BL
-        {
-            qverts->push_norm(xy_left_normal); qverts->push_vert((float)a_TL.x, (float)a_TL.y, (float)top_z);
-            qverts->push_norm(xy_left_normal); qverts->push_vert((float)b_TL.x, (float)b_TL.y, (float)top_z);
-            qverts->push_norm(xy_left_normal); qverts->push_vert((float)b_BL.x, (float)b_BL.y, (float)bottom_z);
-            qverts->push_norm(xy_left_normal); qverts->push_vert((float)a_BL.x, (float)a_BL.y, (float)bottom_z);
-        }
-        
+        prev_ring = ring_b;
+        prev_line = &line;
         first_done = true;
     }
 }

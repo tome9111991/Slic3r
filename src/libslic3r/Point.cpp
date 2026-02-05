@@ -509,4 +509,24 @@ Pointf3::vector_to(const Pointf3 &point) const
     return Vectorf3(point.x - this->x, point.y - this->y, point.z - this->z);
 }
 
+Pointf3
+Pointf3::normalized() const
+{
+    double mag = sqrt(this->x*this->x + this->y*this->y + this->z*this->z);
+    if (mag < EPSILON) return *this;
+    return Pointf3(this->x / mag, this->y / mag, this->z / mag);
+}
+
+Pointf3&
+Pointf3::normalize()
+{
+    double mag = sqrt(this->x*this->x + this->y*this->y + this->z*this->z);
+    if (mag > EPSILON) {
+        this->x /= mag;
+        this->y /= mag;
+        this->z /= mag;
+    }
+    return *this;
+}
+
 }
