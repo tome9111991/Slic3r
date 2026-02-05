@@ -11,6 +11,7 @@
 
 #include <vector>
 #include <array>
+#include <functional>
 
 #include "Print.hpp"
 
@@ -27,6 +28,7 @@ using chooser_name_map = std::array<chooser_name_list, preset_types>;
 
 class PresetChooser : public wxPanel {
 public:
+    std::function<void(preset_t)> on_change {nullptr};
 
     /// Build a panel to contain a sizer for dropdowns for preset selection.
     PresetChooser(wxWindow* parent, std::weak_ptr<Print> print);

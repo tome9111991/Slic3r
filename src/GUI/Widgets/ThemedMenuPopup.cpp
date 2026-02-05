@@ -20,8 +20,8 @@ void ThemedMenuPopup::OnEraseBackground(wxEraseEvent& event)
     // Do nothing to prevent flicker
 }
 
-ThemedMenuPopup::ThemedMenuPopup(wxWindow* parent, ThemedMenu* menu)
-    : wxPopupTransientWindow(parent, wxBORDER_NONE), m_menu(menu)
+ThemedMenuPopup::ThemedMenuPopup(wxWindow* parent, ThemedMenu* menu, ThemedMenuPopup* parentPopup)
+    : wxPopupTransientWindow(parent, wxBORDER_NONE), m_menu(menu), m_parentPopup(parentPopup)
 {
     SetBackgroundStyle(wxBG_STYLE_PAINT);
     m_font = ThemeManager::GetFont(ThemeManager::FontSize::Small);
@@ -300,7 +300,7 @@ void ThemedMenuPopup::ExecuteItem(const ItemInfo& item)
 {
     if (item.hasSubMenu) {
         // Recursively show submenu
-        ThemedMenuPopup* sub = new ThemedMenuPopup(this, item.subMenu.get());
+        ThemedMenuPopup* sub = new ThemedMenuPopup(this, item.subMenu.get(), this);
         
         // Pass callbacks down to submenus so actions inside them also trigger the reset
         sub->SetOnDismissCallback(m_onDismiss);
@@ -312,7 +312,22 @@ void ThemedMenuPopup::ExecuteItem(const ItemInfo& item)
     }
 
     int cmdId = item.id;
-    Dismiss(); 
+    
+    // Explicitly call the dismiss callback early to clear Bar highlight
+    // before any modal dialog might block the UI.
+    if (m_onDismiss) {
+        m_onDismiss();
+    }
+
+    // Dismiss the entire chain of popups
+    ThemedMenuPopup* current = this;
+    while (current) {
+        ThemedMenuPopup* parent = current->m_parentPopup;
+        // Prevent redundant callback triggers during this explicit teardown
+        current->m_onDismiss = nullptr; 
+        current->Dismiss(); 
+        current = parent;
+    }
     
     // Direct Execution! No event loop detour.
     // Defer to next event loop iteration to allow the menu to close and repaint first

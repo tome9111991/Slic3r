@@ -1,6 +1,7 @@
 #include "OptionsGroup.hpp"
 #include "OptionsGroup/Field.hpp"
 #include "Theme/ThemeManager.hpp"
+#include "misc_ui.hpp" /* For get_bmp_bundle */
 #include <wx/sizer.h>
 #include <wx/stattext.h>
 #include <wx/statbox.h>
@@ -29,24 +30,77 @@ void OptionsGroup::append_single_option_line(const t_config_option_key& opt_key)
 
     auto* line_sizer = new wxBoxSizer(wxHORIZONTAL);
     
+    // Quick Toggle Button
+    if (!this->star_filled.IsOk()) {
+        this->star_filled = get_bmp_bundle("star_filled.svg", 14);
+        this->star_empty = get_bmp_bundle("star_empty.svg", 14);
+    }
+
+    auto* btn_quick = new ThemedButton(parent, wxID_ANY, "", wxDefaultPosition, wxSize(20, 20));
+    btn_quick->SetBitmap(ui_settings->is_quick_setting(opt_key) ? this->star_filled : this->star_empty);
+    btn_quick->Bind(wxEVT_BUTTON, [this, opt_key, btn_quick](wxCommandEvent&) {
+        if (this->on_quick_setting_change) {
+             this->on_quick_setting_change(opt_key, true); 
+        }
+    });
+    line_sizer->Add(btn_quick, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 2);
+    _quick_toggles[opt_key] = btn_quick;
+
+
     std::string label_text = opt_key;
-    if (print_config_def.has(opt_key)) {
-        label_text = print_config_def.get(opt_key).label;
+    std::string unit_text = "";
+
+    ConfigOptionDef def;
+    if (_options.count(opt_key)) def = _options[opt_key]->desc;
+    else if (print_config_def.has(opt_key)) def = print_config_def.get(opt_key);
+
+    if (!def.label.empty()) label_text = def.label;
+    if (def.full_label.empty()) def.full_label = label_text;
+
+    // Unit extraction
+    if (!def.sidetext.empty()) {
+        unit_text = def.sidetext;
+    } else {
+        // Parse from label if (unit) exists
+        size_t open_paren = label_text.find_last_of('(');
+        size_t close_paren = label_text.find_last_of(')');
+        if (open_paren != std::string::npos && close_paren != std::string::npos && close_paren > open_paren) {
+             unit_text = label_text.substr(open_paren + 1, close_paren - open_paren - 1);
+             // remove it from label
+             label_text = label_text.substr(0, open_paren);
+             // trim
+             while (!label_text.empty() && isspace(label_text.back())) label_text.pop_back();
+        }
     }
     
     auto* label = new wxStaticText(parent, wxID_ANY, wxString::FromUTF8(label_text + ":"));
     if (ThemeManager::IsDark()) label->SetForegroundColour(*wxWHITE);
     else label->SetForegroundColour(*wxBLACK);
     line_sizer->Add(label, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 5);
+    _labels[opt_key] = label;
+
     if (this->get_option(opt_key).desc.type == coBool) {
         // Don't expand checkboxes, keeps the background highlight tight to the box
         line_sizer->Add(field->get_window(), 0, wxALIGN_LEFT | wxALIGN_CENTER_VERTICAL);
     } else {
-        line_sizer->Add(field->get_window(), 1, wxEXPAND);
+        // Standardize width for text/inputs if single line
+        field->get_window()->SetMinSize(wxSize(120, -1)); // Enforce sensible width
+        line_sizer->Add(field->get_window(), 0, wxEXPAND);
+    }
+
+    if (!unit_text.empty()) {
+        auto* unit_lbl = new wxStaticText(parent, wxID_ANY, wxString::FromUTF8(unit_text));
+        if (ThemeManager::IsDark()) unit_lbl->SetForegroundColour(wxColour(150, 150, 150));
+        else unit_lbl->SetForegroundColour(wxColour(100, 100, 100));
+        line_sizer->Add(unit_lbl, 0, wxALIGN_CENTER_VERTICAL | wxLEFT, 5);
+        _units[opt_key] = unit_lbl;
     }
     
+    // Add spacer to push everything to left? Or use EXPAND?
+    line_sizer->AddStretchSpacer(1);
+
     if (this->sizer)
-        this->sizer->Add(line_sizer, 0, wxEXPAND | wxALL, 5);
+        this->sizer->Add(line_sizer, 0, wxEXPAND | wxALL, 2);
 }
 
 void OptionsGroup::append_line(const Line& line) {
@@ -119,7 +173,36 @@ void OptionsGroup::update_options(const ConfigBase* config, const std::vector<st
 
             // Update Dirty Status
             bool is_dirty = std::find(dirty_keys.begin(), dirty_keys.end(), key) != dirty_keys.end();
-            field->set_dirty_status(is_dirty);
+            // field->set_dirty_status(is_dirty); // OLD BEHAVIOR DISABLED
+            
+            // New Label Behavior
+            if (_labels.count(key)) {
+                wxStaticText* lbl = _labels[key];
+                if (is_dirty) {
+                   lbl->SetForegroundColour(wxColour(255, 128, 0)); // Orange
+                } else {
+                   if (ThemeManager::IsDark()) lbl->SetForegroundColour(*wxWHITE);
+                   else lbl->SetForegroundColour(*wxBLACK);
+                }
+                lbl->Refresh();
+            }
+
+            // Sync Quick Toggle State
+            if (_quick_toggles.count(key)) {
+                this->set_quick_setting_status(key, ui_settings->is_quick_setting(key));
+            }
+        }
+    }
+}
+
+void OptionsGroup::set_quick_setting_status(const std::string& opt_key, bool active) {
+    if (_quick_toggles.count(opt_key)) {
+        if (auto* btn = dynamic_cast<ThemedButton*>(_quick_toggles[opt_key])) {
+            if (!this->star_filled.IsOk()) {
+                 this->star_filled = get_bmp_bundle("star_filled.svg", 14);
+                 this->star_empty = get_bmp_bundle("star_empty.svg", 14);
+            }
+            btn->SetBitmap(active ? this->star_filled : this->star_empty);
         }
     }
 }
@@ -171,7 +254,7 @@ UI_Field* OptionsGroup::build_field(const t_config_option_key& opt_key) {
             break;
         }
         case coEnum: {
-            auto* f = new UI_TextCtrl(parent, def);
+            auto* f = new UI_Choice(parent, def);
              f->on_change = [this, opt_key](const std::string&, std::string val) { 
                if (this->on_change) this->on_change(opt_key, val);
             };

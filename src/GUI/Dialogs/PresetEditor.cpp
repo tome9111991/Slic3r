@@ -179,6 +179,24 @@ PresetPage* PresetEditor::add_options_page(const wxString& _title, const wxStrin
         }
     };
     
+    page->on_quick_setting_change = [this](const std::string& key, bool active) {
+        Slic3r::Log::info(this->LogChannel(), "Quick Setting Toggle: " + key);
+        
+        // Use global settings to persist
+        ui_settings->toggle_quick_setting(key);
+        bool now_active = ui_settings->is_quick_setting(key);
+
+        // Propagate up (e.g. to Plater to refresh the quick settings panel)
+        if (this->on_quick_setting_change) {
+            this->on_quick_setting_change(key, now_active);
+        }
+        
+        // Visual Feedback: Toggle the icon immediately for all pages
+        for (auto* p : _pages) {
+            p->set_quick_setting_status(key, now_active);
+        }
+    };
+
     return page;
 }
 

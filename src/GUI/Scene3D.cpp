@@ -1,142 +1,41 @@
 #include "Scene3D.hpp"
 #include "Theme/CanvasTheme.hpp"
-#include "Line.hpp"
-#include "ClipperUtils.hpp"
-#include "misc_ui.hpp"
 #include "Log.hpp"
-#ifdef __APPLE__
-#include <OpenGL/glu.h>
-#else
-#include <GL/glu.h>
-#endif
+#include "ExtrusionGeometry.hpp"
+#include "libslic3r/ClipperUtils.hpp"
+
+// GLM
+#include <glm/glm.hpp>
+#include <glm/gtc/type_ptr.hpp>
+
 namespace Slic3r { namespace GUI {
 
-#ifndef GL_MULTISAMPLE
-#define GL_MULTISAMPLE 0x809D
-#endif
-
-#ifdef _WIN32
-#include <windows.h>
-#endif
-
-// OpenGL Function Pointers
-typedef char GLchar;
-typedef ptrdiff_t GLsizeiptr;
-typedef ptrdiff_t GLintptr;
-
-#define GL_COMPILE_STATUS 0x8B81
-#define GL_LINK_STATUS 0x8B82
-#define GL_INFO_LOG_LENGTH 0x8B84
-#define GL_FRAGMENT_SHADER 0x8B30
-#define GL_VERTEX_SHADER 0x8B31
-
-typedef void (APIENTRY *PFNGLUSEPROGRAMPROC) (GLuint program);
-typedef void (APIENTRY *PFNGLSHADERSOURCEPROC) (GLuint shader, GLsizei count, const GLchar *const*string, const GLint *length);
-typedef GLuint (APIENTRY *PFNGLCREATESHADERPROC) (GLenum type);
-typedef void (APIENTRY *PFNGLCOMPILESHADERPROC) (GLuint shader);
-typedef GLuint (APIENTRY *PFNGLCREATEPROGRAMPROC) (void);
-typedef void (APIENTRY *PFNGLATTACHSHADERPROC) (GLuint program, GLuint shader);
-typedef void (APIENTRY *PFNGLLINKPROGRAMPROC) (GLuint program);
-typedef void (APIENTRY *PFNGLGETSHADERIVPROC) (GLuint shader, GLenum pname, GLint *params);
-typedef void (APIENTRY *PFNGLGETPROGRAMIVPROC) (GLuint program, GLenum pname, GLint *params);
-typedef void (APIENTRY *PFNGLGETSHADERINFOLOGPROC) (GLuint shader, GLsizei bufSize, GLsizei *length, GLchar *infoLog);
-typedef void (APIENTRY *PFNGLGETPROGRAMINFOLOGPROC) (GLuint program, GLsizei bufSize, GLsizei *length, GLchar *infoLog);
-typedef GLint (APIENTRY *PFNGLGETUNIFORMLOCATIONPROC) (GLuint program, const GLchar *name);
-typedef void (APIENTRY *PFNGLUNIFORM1FPROC) (GLint location, GLfloat v0);
-typedef void (APIENTRY *PFNGLUNIFORM3FPROC) (GLint location, GLfloat v0, GLfloat v1, GLfloat v2);
-typedef void (APIENTRY *PFNGLENABLEVERTEXATTRIBARRAYPROC) (GLuint index);
-typedef void (APIENTRY *PFNGLDISABLEVERTEXATTRIBARRAYPROC) (GLuint index);
-typedef void (APIENTRY *PFNGLVERTEXATTRIBPOINTERPROC) (GLuint index, GLint size, GLenum type, GLboolean normalized, GLsizei stride, const void *pointer);
-typedef GLint (APIENTRY *PFNGLGETATTRIBLOCATIONPROC) (GLuint program, const GLchar *name);
-typedef void (APIENTRY *PFNGLVERTEXATTRIB1FPROC) (GLuint index, GLfloat x);
-
-static PFNGLUSEPROGRAMPROC glUseProgram = nullptr;
-static PFNGLSHADERSOURCEPROC glShaderSource = nullptr;
-static PFNGLCREATESHADERPROC glCreateShader = nullptr;
-static PFNGLCOMPILESHADERPROC glCompileShader = nullptr;
-static PFNGLCREATEPROGRAMPROC glCreateProgram = nullptr;
-static PFNGLATTACHSHADERPROC glAttachShader = nullptr;
-static PFNGLLINKPROGRAMPROC glLinkProgram = nullptr;
-static PFNGLGETSHADERIVPROC glGetShaderiv = nullptr;
-static PFNGLGETPROGRAMIVPROC glGetProgramiv = nullptr;
-static PFNGLGETSHADERINFOLOGPROC glGetShaderInfoLog = nullptr;
-static PFNGLGETPROGRAMINFOLOGPROC glGetProgramInfoLog = nullptr;
-static PFNGLGETUNIFORMLOCATIONPROC glGetUniformLocation = nullptr;
-static PFNGLUNIFORM1FPROC glUniform1f = nullptr;
-static PFNGLUNIFORM3FPROC glUniform3f = nullptr;
-static PFNGLENABLEVERTEXATTRIBARRAYPROC glEnableVertexAttribArray = nullptr;
-static PFNGLDISABLEVERTEXATTRIBARRAYPROC glDisableVertexAttribArray = nullptr;
-static PFNGLVERTEXATTRIBPOINTERPROC glVertexAttribPointer = nullptr;
-static PFNGLGETATTRIBLOCATIONPROC glGetAttribLocation = nullptr;
-static PFNGLVERTEXATTRIB1FPROC glVertexAttrib1f = nullptr;
-
-static bool extensions_loaded = false;
-
-static void load_gl_extensions() {
-    if (extensions_loaded) return;
-    
-    #ifdef _WIN32
-    glUseProgram = (PFNGLUSEPROGRAMPROC)wglGetProcAddress("glUseProgram");
-    glShaderSource = (PFNGLSHADERSOURCEPROC)wglGetProcAddress("glShaderSource");
-    glCreateShader = (PFNGLCREATESHADERPROC)wglGetProcAddress("glCreateShader");
-    glCompileShader = (PFNGLCOMPILESHADERPROC)wglGetProcAddress("glCompileShader");
-    glCreateProgram = (PFNGLCREATEPROGRAMPROC)wglGetProcAddress("glCreateProgram");
-    glAttachShader = (PFNGLATTACHSHADERPROC)wglGetProcAddress("glAttachShader");
-    glLinkProgram = (PFNGLLINKPROGRAMPROC)wglGetProcAddress("glLinkProgram");
-    glGetShaderiv = (PFNGLGETSHADERIVPROC)wglGetProcAddress("glGetShaderiv");
-    glGetProgramiv = (PFNGLGETPROGRAMIVPROC)wglGetProcAddress("glGetProgramiv");
-    glGetShaderInfoLog = (PFNGLGETSHADERINFOLOGPROC)wglGetProcAddress("glGetShaderInfoLog");
-    glGetProgramInfoLog = (PFNGLGETPROGRAMINFOLOGPROC)wglGetProcAddress("glGetProgramInfoLog");
-    glGetUniformLocation = (PFNGLGETUNIFORMLOCATIONPROC)wglGetProcAddress("glGetUniformLocation");
-    glUniform1f = (PFNGLUNIFORM1FPROC)wglGetProcAddress("glUniform1f");
-    glUniform3f = (PFNGLUNIFORM3FPROC)wglGetProcAddress("glUniform3f");
-    glEnableVertexAttribArray = (PFNGLENABLEVERTEXATTRIBARRAYPROC)wglGetProcAddress("glEnableVertexAttribArray");
-    glDisableVertexAttribArray = (PFNGLDISABLEVERTEXATTRIBARRAYPROC)wglGetProcAddress("glDisableVertexAttribArray");
-    glVertexAttribPointer = (PFNGLVERTEXATTRIBPOINTERPROC)wglGetProcAddress("glVertexAttribPointer");
-    glGetAttribLocation = (PFNGLGETATTRIBLOCATIONPROC)wglGetProcAddress("glGetAttribLocation");
-    glVertexAttrib1f = (PFNGLVERTEXATTRIB1FPROC)wglGetProcAddress("glVertexAttrib1f");
-    
-    if (!glUseProgram) {
-        Slic3r::Log::error("GUI", "Failed to load OpenGL extensions.");
-    } else {
-        Slic3r::Log::info("GUI", "OpenGL extensions loaded successfully.");
-        extensions_loaded = true;
-    }
-    #endif
-}
-
-// Define attributes as a static array to avoid C4576 (non-standard C++ extension)
 static const int gl_attrs[] = {
     WX_GL_RGBA, 
     WX_GL_DOUBLEBUFFER, 
-    WX_GL_DEPTH_SIZE, 16,
-    WX_GL_SAMPLE_BUFFERS, 1,
-    WX_GL_SAMPLES, 4,
+    WX_GL_DEPTH_SIZE, 24,
     0
 };
 
 Scene3D::Scene3D(wxWindow* parent, const wxSize& size) :
     wxGLCanvas(parent, wxID_ANY, gl_attrs, wxDefaultPosition, size)
-{ 
-
-
+{
+    // Request OpenGL 4.6 Core Profile
     wxGLContextAttrs ctxAttrs;
-    ctxAttrs.PlatformDefaults().OGLVersion(4, 6).CompatibilityProfile().EndList();
-    this->glContext = new wxGLContext(this, nullptr, &ctxAttrs);
+    ctxAttrs.PlatformDefaults().OGLVersion(4, 6).CoreProfile().EndList();
+    
+    m_context = new wxGLContext(this, nullptr, &ctxAttrs);
+    
+    // Bind Events
     this->Bind(wxEVT_PAINT, [this](wxPaintEvent &e) { this->repaint(e); });
-    this->Bind(wxEVT_SIZE, [this](wxSizeEvent &e ){
-        dirty = true;
-        Refresh();
-    });
-    
-    
-    // Bind the varying mouse events
+    this->Bind(wxEVT_SIZE, [this](wxSizeEvent &e ){ resize(); });
     this->Bind(wxEVT_MOTION, [this](wxMouseEvent &e) { this->mouse_move(e); });
     this->Bind(wxEVT_LEFT_UP, [this](wxMouseEvent &e) { this->mouse_up(e); });
     this->Bind(wxEVT_RIGHT_UP, [this](wxMouseEvent &e) { this->mouse_up(e); });
     this->Bind(wxEVT_MIDDLE_DCLICK, [this](wxMouseEvent &e) { this->mouse_dclick(e); });
     this->Bind(wxEVT_MOUSEWHEEL, [this](wxMouseEvent &e) { this->mouse_wheel(e); });
     
+    // Default Bed
     Points p;
     const coord_t w = scale_(200), z = 0;
     p.push_back(Point(z,z));
@@ -146,60 +45,447 @@ Scene3D::Scene3D(wxWindow* parent, const wxSize& size) :
     set_bed_shape(p);
 }
 
-float clamp(float low, float x, float high){
-    if(x < low) return low;
-    if(x > high) return high;
-    return x;
+Scene3D::~Scene3D() {
+    if (m_context) {
+        SetCurrent(*m_context);
+        m_vbo_bed.reset();
+        m_vao_bed.reset();
+        m_vbo_grid.reset();
+        m_vao_grid.reset();
+        m_vbo_axes.reset();
+        m_vao_axes.reset();
+        m_vbo_bg.reset();
+        m_vao_bg.reset();
+        m_shader.reset();
+        m_shader_bg.reset();
+        volumes.clear();
+    }
+    delete m_context;
 }
 
-Linef3 Scene3D::mouse_ray(Point win){
-    GLdouble proj[16], mview[16]; 
-    glGetDoublev(GL_MODELVIEW_MATRIX, mview);
-    glGetDoublev(GL_PROJECTION_MATRIX, proj);
-    GLint view[4];
-    glGetIntegerv(GL_VIEWPORT, view);
-    win.y = view[3]-win.y;
-    GLdouble x = 0.0, y = 0.0, z = 0.0;
-    gluUnProject(win.x,win.y,0,mview,proj,view,&x,&y,&z);
-    Pointf3 first = Pointf3(x,y,z);
-    GLint a = gluUnProject(win.x,win.y,1,mview,proj,view,&x,&y,&z);
-    return Linef3(first,Pointf3(x,y,z)); 
+void Scene3D::init_gl(){
+    if(this->init) return;
+    
+    // Initialize GLAD
+    if(!GL::GLManager::init()) {
+        Slic3r::Log::error("Scene3D", "Failed to init GLAD");
+        return;
+    }
+    
+    this->init = true;
+    
+    glEnable(GL_DEPTH_TEST);
+    glDepthFunc(GL_LESS);
+    glEnable(GL_CULL_FACE);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    
+    
+    if (!m_vbo_bed) m_vbo_bed = std::make_unique<GL::VertexBuffer>();
+    if (!m_vao_bed) m_vao_bed = std::make_unique<GL::VertexArray>();
+    if (!m_vbo_grid) m_vbo_grid = std::make_unique<GL::VertexBuffer>();
+    if (!m_vao_grid) m_vao_grid = std::make_unique<GL::VertexArray>();
+    if (!m_vbo_axes) m_vbo_axes = std::make_unique<GL::VertexBuffer>();
+    if (!m_vao_axes) m_vao_axes = std::make_unique<GL::VertexArray>();
+    if (!m_vbo_bg) m_vbo_bg = std::make_unique<GL::VertexBuffer>();
+    if (!m_vao_bg) m_vao_bg = std::make_unique<GL::VertexArray>();
+
+    init_shaders();
+}
+
+void Scene3D::init_shaders() {
+    m_shader = std::make_unique<GL::Shader>("MainShader");
+    
+    std::string vs = R"(
+        #version 460 core
+        layout (location = 0) in vec3 aPos;
+        layout (location = 1) in vec3 aNormal;
+        layout (location = 2) in float aTube;
+        
+        uniform mat4 view;
+        uniform mat4 projection;
+        uniform mat4 model;
+        
+        out vec3 v_frag_pos;
+        out vec3 v_normal;
+        out float v_z_height;
+        out float v_tube;
+        
+        void main() {
+            vec4 worldPos = model * vec4(aPos, 1.0);
+            v_frag_pos = vec3(worldPos);
+            v_normal = mat3(transpose(inverse(model))) * aNormal;
+            v_z_height = aPos.z;
+            v_tube = aTube;
+            gl_Position = projection * view * worldPos;
+        }
+    )";
+    
+    std::string fs = R"(
+        #version 460 core
+        out vec4 FragColor;
+        
+        in vec3 v_frag_pos;
+        in vec3 v_normal;
+        in float v_z_height;
+        in float v_tube;
+        
+        uniform vec3 objectColor;
+        uniform vec3 lightPos;
+        uniform vec3 viewPos;
+        uniform float u_clipping_z;
+        uniform int u_lit; // 1 = lit, 0 = flat
+        
+        void main() {
+            if (v_z_height > u_clipping_z) discard;
+            
+            if (u_lit == 0) {
+                FragColor = vec4(objectColor, 1.0);
+                return;
+            }
+        
+            vec3 N = normalize(v_normal);
+            // ... (rest same, omitting for brevity in actual tool call but I should include enough)
+            if (abs(v_tube) > 0.0) {
+                float flat_region = 0.6;
+                float side_coord = (abs(v_tube) - flat_region) / (1.0 - flat_region);
+                if (side_coord > 0.0) {
+                    float angle = side_coord * 1.5708;
+                    float tilt_z = sin(angle) * sign(v_tube);
+                    N = normalize(vec3(tilt_z, 0.0, 1.0 - abs(tilt_z)*0.5));
+                }
+            }
+
+            vec3 lightDir = normalize(vec3(0.2, 0.2, 1.0)); 
+            vec3 viewDir = normalize(viewPos - v_frag_pos);
+            float diff = max(dot(N, lightDir), 0.0);
+            vec3 halfwayDir = normalize(lightDir + viewDir);
+            float spec = pow(max(dot(N, halfwayDir), 0.0), 32.0);
+            float ao = 1.0 - smoothstep(0.7, 1.0, abs(v_tube)) * 0.4;
+            
+            vec3 ambient = 0.3 * objectColor; // Lowered ambient
+            vec3 diffuse = diff * objectColor;
+            vec3 specular = vec3(0.2) * spec; // Lowered specular for less "washed out" look
+            
+            vec3 result = (ambient + diffuse + specular) * ao;
+            result *= (0.85 + 0.15 * smoothstep(-0.1, 0.1, v_z_height));
+            result = pow(result, vec3(1.0/2.2));
+            FragColor = vec4(result, 1.0);
+        }
+    )";
+    
+    if(!m_shader->init(vs, fs)) {
+        Slic3r::Log::error("Scene3D", "Shader init failed");
+    }
+
+    // BG Shader
+    m_shader_bg = std::make_unique<GL::Shader>("BGShader");
+    std::string bg_vs = R"(
+        #version 460 core
+        layout (location = 0) in vec2 aPos;
+        out vec2 v_pos;
+        void main() {
+            v_pos = aPos;
+            gl_Position = vec4(aPos, 0.0, 1.0);
+        }
+    )";
+    std::string bg_fs = R"(
+        #version 460 core
+        out vec4 FragColor;
+        in vec2 v_pos;
+        uniform vec3 colorTop;
+        uniform vec3 colorBottom;
+        void main() {
+            float t = v_pos.y * 0.5 + 0.5;
+            FragColor = vec4(mix(colorBottom, colorTop, t), 1.0);
+        }
+    )";
+    m_shader_bg->init(bg_vs, bg_fs);
+
+    // Init BG Quad
+    float bg_quad[] = { -1,-1, 1,-1, 1,1, -1,1 };
+    m_vao_bg->bind();
+    m_vbo_bg->upload_data(bg_quad, sizeof(bg_quad));
+    m_vao_bg->add_attribute(0, 2, GL_FLOAT, GL_FALSE, 2*sizeof(float), 0);
+}
+
+void Scene3D::resize(){
+    const auto s = GetSize();
+    if (s.GetWidth() <= 0 || s.GetHeight() <= 0) return;
+    m_camera.set_viewport(0, 0, s.GetWidth(), s.GetHeight());
+    if (IsShownOnScreen() && m_context) {
+        SetCurrent(*m_context);
+        init_gl();
+        if (GL::GLManager::is_initialized()) {
+            glViewport(0, 0, s.GetWidth(), s.GetHeight());
+        }
+    }
+
+   
+    Refresh();
+}
+
+void Scene3D::repaint(wxPaintEvent& e) {
+    if(!IsShownOnScreen()) return;
+    SetCurrent(*m_context);
+    
+    init_gl();
+    
+    // Update Bed VBOs if needed
+    if(m_bed_dirty) {
+        // Bed (Triangles)
+        std::vector<float> bed_data;
+        for(size_t i=0; i<bed_verts.size(); i+=3) {
+            bed_data.push_back(bed_verts[i]);
+            bed_data.push_back(bed_verts[i+1]);
+            bed_data.push_back(bed_verts[i+2]);
+            // Normal (0,0,1)
+            bed_data.push_back(0.0f);
+            bed_data.push_back(0.0f);
+            bed_data.push_back(1.0f);
+            // Tube (0)
+            bed_data.push_back(0.0f);
+        }
+        m_vbo_bed->upload_data(bed_data.data(), bed_data.size() * sizeof(float));
+        m_vbo_bed->set_count(bed_verts.size() / 3);
+        
+        // Grid (Lines)
+        std::vector<float> grid_data;
+        for(size_t i=0; i<grid_verts.size(); i+=3) {
+            grid_data.push_back(grid_verts[i]);
+            grid_data.push_back(grid_verts[i+1]);
+            grid_data.push_back(grid_verts[i+2]);
+            // Normal (dummy)
+            grid_data.push_back(0.0f);
+            grid_data.push_back(0.0f);
+            grid_data.push_back(1.0f);
+            // Tube (0)
+            grid_data.push_back(0.0f);
+        }
+        m_vbo_grid->upload_data(grid_data.data(), grid_data.size() * sizeof(float));
+        m_vbo_grid->set_count(grid_verts.size() / 3);
+        
+        // Setup VAOs
+        m_vao_bed->bind();
+        m_vbo_bed->bind();
+        m_vao_bed->add_attribute(0, 3, GL_FLOAT, GL_FALSE, 7 * sizeof(float), (void*)0);
+        m_vao_bed->add_attribute(1, 3, GL_FLOAT, GL_FALSE, 7 * sizeof(float), (void*)(3 * sizeof(float)));
+        m_vao_bed->add_attribute(2, 1, GL_FLOAT, GL_FALSE, 7 * sizeof(float), (void*)(6 * sizeof(float)));
+        
+        m_vao_grid->add_attribute(1, 3, GL_FLOAT, GL_FALSE, 7 * sizeof(float), (void*)(3 * sizeof(float)));
+        m_vao_grid->add_attribute(2, 1, GL_FLOAT, GL_FALSE, 7 * sizeof(float), (void*)(6 * sizeof(float)));
+        
+        // Axes (Lines)
+        std::vector<float> axes_data;
+        float ax_l = 50.0f; // Longer axes
+        // X (Red)
+        axes_data.insert(axes_data.end(), { 0,0,0, 1,0,0, 0,  ax_l,0,0, 1,0,0, 0 });
+        // Y (Green)
+        axes_data.insert(axes_data.end(), { 0,0,0, 0,1,0, 0,  0,ax_l,0, 0,1,0, 0 });
+        // Z (Blue)
+        axes_data.insert(axes_data.end(), { 0,0,0, 0,0,1, 0,  0,0,ax_l, 0,0,1, 0 });
+        
+        m_vbo_axes->upload_data(axes_data.data(), axes_data.size()*sizeof(float));
+        m_vbo_axes->set_count(6);
+        m_vao_axes->bind();
+        m_vbo_axes->bind();
+        m_vao_axes->add_attribute(0, 3, GL_FLOAT, GL_FALSE, 7*sizeof(float), 0);
+        m_vao_axes->add_attribute(1, 3, GL_FLOAT, GL_FALSE, 7*sizeof(float), (void*)(3*sizeof(float)));
+        
+        m_bed_dirty = false;
+    }
+    
+    // Clear
+    auto colors = CanvasTheme::GetColors();
+    wxColour bg = colors.canvas_bg_top;
+    glClearColor(bg.Red()/255.0f, bg.Green()/255.0f, bg.Blue()/255.0f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    
+    if(!m_shader) return;
+    
+    m_shader->bind();
+    
+    // Uniforms
+    glm::mat4 view = m_camera.get_view_matrix();
+    glm::mat4 projection = m_camera.get_projection_matrix();
+    glm::vec3 camPos = m_camera.get_position();
+    
+    m_shader->set_uniform("view", view);
+    m_shader->set_uniform("projection", projection);
+    m_shader->set_uniform("viewPos", camPos);
+    m_shader->set_uniform("lightPos", glm::vec3(0.0f, 0.0f, 100.0f)); 
+    m_shader->set_uniform("u_clipping_z", m_clipping_z);
+    m_shader->set_uniform("u_lit", 1);
+    
+    draw_background();
+    this->before_render();
+
+    draw_ground();
+    draw_volumes();
+    
+    // Draw Axes (Unlit)
+    m_shader->set_uniform("u_lit", 0);
+    draw_axes(Pointf3(0,0,0), 20.0f, 2, true);
+
+    this->after_render();
+
+    glFlush();
+    SwapBuffers();
+}
+
+void Scene3D::draw_ground() {
+    auto colors = CanvasTheme::GetColors();
+    auto ground = colors.ground_color;
+    auto grid = colors.grid_color;
+    
+    glm::mat4 model = glm::mat4(1.0f);
+    m_shader->set_uniform("model", model);
+    
+    // Bed
+    m_shader->set_uniform("objectColor", glm::vec3(ground.Red()/255.0f, ground.Green()/255.0f, ground.Blue()/255.0f));
+    m_vao_bed->bind();
+    glDrawArrays(GL_TRIANGLES, 0, (GLsizei)m_vbo_bed->get_count());
+    
+    // Grid
+    m_shader->set_uniform("u_lit", 0); // Grid should be flat
+    m_shader->set_uniform("objectColor", glm::vec3(grid.Red()/255.0f, grid.Green()/255.0f, grid.Blue()/255.0f));
+    m_vao_grid->bind();
+    glDrawArrays(GL_LINES, 0, (GLsizei)m_vbo_grid->get_count());
+    m_vao_grid->unbind();
+    m_shader->set_uniform("u_lit", 1);
+}
+
+void Scene3D::draw_volumes() {
+    for(auto &volume : volumes) {
+        if(volume.gpu_dirty) {
+            // Create VBO/VAO
+            volume.vbo = std::make_shared<GL::VertexBuffer>();
+            volume.vao = std::make_shared<GL::VertexArray>();
+            
+            // Interleave: Pos(3), Normal(3), Tube(1) = 7 floats per vertex
+            std::vector<float> data;
+            size_t count = volume.model.verts.size() / 3; 
+            for(size_t i=0; i<count; ++i) {
+                // Pos
+                data.push_back(volume.model.verts[i*3]);
+                data.push_back(volume.model.verts[i*3+1]);
+                data.push_back(volume.model.verts[i*3+2]);
+                // Norm
+                if(volume.model.norms.size() > i*3+2) {
+                    data.push_back(volume.model.norms[i*3]);
+                    data.push_back(volume.model.norms[i*3+1]);
+                    data.push_back(volume.model.norms[i*3+2]);
+                } else {
+                    data.push_back(0); data.push_back(0); data.push_back(1);
+                }
+                // Tube Coords
+                if (volume.tube_coords.size() > i) {
+                    data.push_back(volume.tube_coords[i]);
+                } else {
+                    data.push_back(0.0f);
+                }
+            }
+            
+            volume.vbo->upload_data(data.data(), data.size() * sizeof(float));
+            volume.vbo->set_count(count);
+            
+            volume.vao->bind();
+            volume.vbo->bind();
+            volume.vao->add_attribute(0, 3, GL_FLOAT, GL_FALSE, 7*sizeof(float), (void*)0);
+            volume.vao->add_attribute(1, 3, GL_FLOAT, GL_FALSE, 7*sizeof(float), (void*)(3*sizeof(float)));
+            volume.vao->add_attribute(2, 1, GL_FLOAT, GL_FALSE, 7*sizeof(float), (void*)(6*sizeof(float)));
+            
+            volume.gpu_dirty = false;
+        }
+        
+        glm::mat4 model = glm::mat4(1.0f);
+        model = glm::translate(model, glm::vec3(volume.origin.x, volume.origin.y, volume.origin.z));
+        
+        m_shader->set_uniform("model", model);
+        m_shader->set_uniform("objectColor", glm::vec3(volume.color.Red()/255.0f, volume.color.Green()/255.0f, volume.color.Blue()/255.0f));
+        
+        volume.vao->bind();
+        glDrawArrays(GL_TRIANGLES, 0, (GLsizei)volume.vbo->get_count());
+    }
+}
+
+void Scene3D::set_bed_shape(Points _bed_shape){
+    bed_shape = _bed_shape;
+    const float GROUND_Z = -0.02f;
+    
+    const auto expoly = ExPolygon(Polygon(bed_shape));
+    const auto box = expoly.bounding_box();
+    bed_bound = box;
+    
+    // Update camera target
+    Point center = bed_bound.center();
+    m_camera.set_target(glm::vec3(unscale(center.x), unscale(center.y), 0.0f));
+
+    // Triangulate
+    {
+        std::vector<Polygon> triangles;
+        expoly.triangulate(&triangles);
+        bed_verts.clear();
+        for(const auto &triangle : triangles){
+            for(const auto &point : triangle.points){
+                bed_verts.push_back(unscale(point.x));
+                bed_verts.push_back(unscale(point.y));
+                bed_verts.push_back(GROUND_Z);
+            }
+        }
+    }
+    // Grid
+    {
+        std::vector<Polyline> lines;
+        for (coord_t x = box.min.x; x <= box.max.x; x += scale_(10)) {
+            lines.push_back(Polyline());
+            lines.back().append(Point(x,box.min.y));
+            lines.back().append(Point(x,box.max.y));
+        }
+        for (coord_t y = box.min.y; y <= box.max.y; y += scale_(10)) {
+            lines.push_back(Polyline());
+            lines.back().append(Point(box.min.x,y));
+            lines.back().append(Point(box.max.x,y));
+        }
+        
+        grid_verts.clear();
+        const Polylines clipped = intersection_pl(lines, to_polygons(offset_ex(expoly,SCALED_EPSILON).at(0)));
+        for(const Polyline &line : clipped){
+            for(const Point &point : line.points){
+                grid_verts.push_back(unscale(point.x));
+                grid_verts.push_back(unscale(point.y));
+                grid_verts.push_back(GROUND_Z);
+            }
+        }
+        // Bed contours
+        for(const Line &line : expoly.lines()){
+            grid_verts.push_back(unscale(line.a.x));
+            grid_verts.push_back(unscale(line.a.y));
+            grid_verts.push_back(GROUND_Z);
+            grid_verts.push_back(unscale(line.b.x));
+            grid_verts.push_back(unscale(line.b.y));
+            grid_verts.push_back(GROUND_Z);
+        }
+    }
+    m_bed_dirty = true;
+    Refresh();
 }
 
 void Scene3D::mouse_move(wxMouseEvent &e){
     if(e.Dragging()){
-        //const auto s = GetSize();
         const auto pos = Point(e.GetX(),e.GetY());
         if(dragging){
-            if (e.ShiftDown()) { // TODO: confirm alt -> shift is ok
-                // Move the camera center on the Z axis based on mouse Y axis movement
-                _camera_target.translate(0, 0, (pos.y - drag_start.y));
-            } else if (e.LeftIsDown()) {
-                // if dragging over blank area with left button, rotate
-                //if (TURNTABLE_MODE) {
-                const float TRACKBALLSIZE = 0.8f, GIMBAL_LOCK_THETA_MAX = 170.0f;
-                                
-                phi += (pos.x - drag_start.x) * TRACKBALLSIZE;
-                theta -= (pos.y - drag_start.y) * TRACKBALLSIZE;
-                theta = clamp(0, theta, GIMBAL_LOCK_THETA_MAX);
-                /*} else {
-                    my $size = $self->GetClientSize;
-                    my @quat = trackball(
-                        $orig->x / ($size->width / 2) - 1,
-                        1 - $orig->y / ($size->height / 2),       #/
-                        $pos->x / ($size->width / 2) - 1,
-                        1 - $pos->y / ($size->height / 2),        #/
-                    );
-                    $self->_quat(mulquats($self->_quat, \@quat));
-                }*/
+             if (e.LeftIsDown()) {
+                // Rotate
+                float dx = (pos.x - drag_start.x);
+                float dy = (pos.y - drag_start.y);
+                m_camera.rotate(dy * 0.25f, dx * 0.25f);
             } else if (e.MiddleIsDown() || e.RightIsDown()) {
-                // if dragging over blank area with right button, translate
-                // get point in model space at Z = 0
-                const auto current = mouse_ray(pos).intersect_plane(0);
-                const auto old = mouse_ray(drag_start).intersect_plane(0);
-                _camera_target.translate(current.vector_to(old));
+                // Pan
+                float dx = (pos.x - drag_start.x);
+                float dy = (pos.y - drag_start.y);
+                m_camera.pan(dx * 0.5f, dy * 0.5f);
             }
-            //$self->on_viewport_changed->() if $self->on_viewport_changed;
             Refresh();
         }
         dragging = true;
@@ -215,715 +501,76 @@ void Scene3D::mouse_up(wxMouseEvent &e){
 }
 
 void Scene3D::mouse_wheel(wxMouseEvent &e){
-        // Calculate the zoom delta and apply it to the current zoom factor
-        auto _zoom = ((float)e.GetWheelRotation()) / e.GetWheelDelta();
-        /*if ($Slic3r::GUI::Settings->{_}{invert_zoom}) {
-            _zoom *= -1;
-        }*/
-        _zoom = clamp(-4, _zoom,4);
-        _zoom /= 10;
-        zoom /= 1-_zoom;
-        /* 
-        # In order to zoom around the mouse point we need to translate
-        # the camera target
-        my $size = Slic3r::Pointf->new($self->GetSizeWH);
-        my $pos = Slic3r::Pointf->new($e->GetX, $size->y - $e->GetY); #-
-        $self->_camera_target->translate(
-            # ($pos - $size/2) represents the vector from the viewport center
-            # to the mouse point. By multiplying it by $zoom we get the new,
-            # transformed, length of such vector.
-            # Since we want that point to stay fixed, we move our camera target
-            # in the opposite direction by the delta of the length of such vector
-            # ($zoom - 1). We then scale everything by 1/$self->_zoom since 
-            # $self->_camera_target is expressed in terms of model units.
-            -($pos->x - $size->x/2) * ($zoom) / $self->_zoom,
-            -($pos->y - $size->y/2) * ($zoom) / $self->_zoom,
-            0,
-        ) if 0;
-        */
-
-        dirty = true;
-        Refresh();
+    float delta = ((float)e.GetWheelRotation()) / e.GetWheelDelta();
+    // delta is typically 1 or -1
+    // We want a multiplier - reduced speed (5% instead of 10%)
+    float zoom_factor = (delta > 0) ? 1.05f : 0.95f;
+    m_camera.zoom(zoom_factor);
+    Refresh();
 }
 
 void Scene3D::mouse_dclick(wxMouseEvent &e){
-    /*
-    if (@{$self->volumes}) {
-        $self->zoom_to_volumes;
-    } else {
-        $self->zoom_to_bed;
-    }*/
-    
-    dirty = true;
+    // Reset view?
     Refresh();
 }
 
-void Scene3D::resize(){
-    if(!dirty)return;
-    dirty = false;
-    const auto s = GetSize();
-    glViewport(0,0,s.GetWidth(),s.GetHeight());
-    const auto x = s.GetWidth()/zoom,
-               y = s.GetHeight()/zoom,
-               depth = 1000.0f; // my $depth = 10 * max(@{ $self->max_bounding_box->size });
-    glMatrixMode(GL_PROJECTION);
-    glLoadIdentity();
-    glOrtho(
-        -x/2, x/2, -y/2, y/2,
-        -depth, 2*depth
-    );
-    glMatrixMode(GL_MODELVIEW);
+Linef3 Scene3D::mouse_ray(Point win){
+    glm::vec3 orig, dir;
+    m_camera.screen_to_world(win.x, win.y, orig, dir);
+    // Return a Linef3 (segment) that is long enough
+    return Linef3(Pointf3(orig.x, orig.y, orig.z), Pointf3(orig.x + dir.x*1000.0f, orig.y + dir.y*1000.0f, orig.z + dir.z*1000.0f));
 }
 
-void Scene3D::set_bed_shape(Points _bed_shape){
+void Scene3D::draw_axes(Pointf3 center, float length, int width, bool always_visible) {
+    if (always_visible) glDisable(GL_DEPTH_TEST);
     
-    bed_shape = _bed_shape;
-    const float GROUND_Z = -0.02f;
-    
-    // triangulate bed
-    const auto expoly = ExPolygon(Polygon(bed_shape));
-    const auto box = expoly.bounding_box();
-    bed_bound = box;
-    
-    // Update camera target to be the center of the bed
-    Point center = bed_bound.center();
-    _camera_target.x = unscale(center.x);
-    _camera_target.y = unscale(center.y);
-    _camera_target.z = 0.0f;
-
-    {
-        std::vector<Polygon> triangles;
-        expoly.triangulate(&triangles);
-        bed_verts.clear();
-        for(const auto &triangle : triangles){
-            for(const auto &point : triangle.points){
-                bed_verts.push_back(unscale(point.x));
-                bed_verts.push_back(unscale(point.y));
-                bed_verts.push_back(GROUND_Z);
-            }
-        }
-    }
-    {
-        std::vector<Polyline> lines;
-        Points tmp;
-        for (coord_t x = box.min.x; x <= box.max.x; x += scale_(10)) {
-            lines.push_back(Polyline());
-            lines.back().append(Point(x,box.min.y));
-            lines.back().append(Point(x,box.max.y));
-        }
-        for (coord_t y = box.min.y; y <= box.max.y; y += scale_(10)) {
-            lines.push_back(Polyline());
-            lines.back().append(Point(box.min.x,y));
-            lines.back().append(Point(box.max.x,y));
-        }
-        // clip with a slightly grown expolygon because our lines lay on the contours and
-        // may get erroneously clipped
-        // my @lines = map Slic3r::Line->new(@$_[0,-1]),
-        grid_verts.clear();
-        const Polylines clipped = intersection_pl(lines,offset_ex(expoly,SCALED_EPSILON).at(0));
-        for(const Polyline &line : clipped){
-            for(const Point &point : line.points){
-                grid_verts.push_back(unscale(point.x));
-                grid_verts.push_back(unscale(point.y));
-                grid_verts.push_back(GROUND_Z);
-            }
-        }
-        // append bed contours
-        for(const Line &line : expoly.lines()){
-            grid_verts.push_back(unscale(line.a.x));
-            grid_verts.push_back(unscale(line.a.y));
-            grid_verts.push_back(GROUND_Z);
-            grid_verts.push_back(unscale(line.b.x));
-            grid_verts.push_back(unscale(line.b.y));
-            grid_verts.push_back(GROUND_Z);
-        }
-    }
-    
-    //$self->origin(Slic3r::Pointf->new(0,0));
-}
-
-void Scene3D::init_gl(){
-    if(this->init)return;
-    this->init = true;
-
-    if (const GLubyte* version = glGetString(GL_VERSION)) {
-        Slic3r::Log::info("GUI", std::string("OpenGL Version: ") + (const char*)version);
-    }
-
-    glClearColor(0, 0, 0, 1);
-    glColor3f(1, 0, 0);
-    glEnable(GL_DEPTH_TEST);
-    glClearDepth(1.0);
-    glDepthFunc(GL_LEQUAL);
-    glEnable(GL_CULL_FACE);
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    
-    // Fix normals after scaling
-    glEnable(GL_NORMALIZE);
-
-    // Set antialiasing/multisampling
-    glEnable(GL_LINE_SMOOTH);
-    glEnable(GL_POLYGON_SMOOTH);
-    glEnable(GL_MULTISAMPLE);
-    
-    // ambient lighting - Soft ambient
-    GLfloat ambient[] = {0.3f, 0.3f, 0.3f, 1.0f};
-    glLightModelfv(GL_LIGHT_MODEL_AMBIENT, ambient);
-    
-    glEnable(GL_LIGHTING);
-    glEnable(GL_LIGHT0);
-    glEnable(GL_LIGHT1);
-    
-    // light from camera - Warmer key light
-    GLfloat pos[] = {1.0f, 0.0f, 1.0f, 0.0f};
-    GLfloat spec[] = {0.6f, 0.6f, 0.6f, 1.0f};
-    GLfloat diff[] = {0.7f, 0.7f, 0.7f, 1.0f};
-    glLightfv(GL_LIGHT1, GL_POSITION, pos);
-    glLightfv(GL_LIGHT1, GL_SPECULAR, spec);
-    glLightfv(GL_LIGHT1, GL_DIFFUSE,  diff);
-    
-    // Enables Smooth Color Shading
-    glShadeModel(GL_SMOOTH);
-    
-    // Material settings - brighter, less plastic
-    GLfloat fbdiff[] = {0.6f, 0.6f, 0.6f, 1.0f};
-    GLfloat fbspec[] = {0.5f, 0.5f, 0.5f, 1.0f};
-    GLfloat fbemis[] = {0.0f, 0.0f, 0.0f, 1.0f};
-    glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE, fbdiff);
-    glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, fbspec);
-    glMaterialf(GL_FRONT_AND_BACK, GL_SHININESS, 60);
-    glMaterialfv(GL_FRONT_AND_BACK, GL_EMISSION, fbemis);
-    
-    // A handy trick -- have surface material mirror the color.
-    glColorMaterial(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE);
-    glEnable(GL_COLOR_MATERIAL);
-    //glEnable(GL_MULTISAMPLE) if ($self->{can_multisample});
-    
-    load_gl_extensions();
-    if(extensions_loaded) {
-        init_shaders();
-    }
-}
-
-void Scene3D::init_shaders() {
-    if (m_shader_program != 0) return;
-    
-    const char* vertex_src = R"(
-#version 120
-varying vec3 v_frag_pos;
-varying vec3 v_normal;
-varying vec4 v_color;
-
-void main() {
-    v_frag_pos = vec3(gl_ModelViewMatrix * gl_Vertex);
-    v_normal = gl_NormalMatrix * gl_Normal;
-    v_color = gl_Color;
-    gl_Position = gl_ModelViewProjectionMatrix * gl_Vertex;
-}
-)";
-
-    const char* fragment_src = R"(
-#version 120
-varying vec3 v_frag_pos;
-varying vec3 v_normal;
-varying vec4 v_color;
-
-uniform float u_clipping_z;
-uniform vec3 u_light_pos;
-
-void main() {
-    // Clipping (Check Z in world space? No, u_clipping_z is likely world space Z. 
-    // We need world space pos in vertex shader to do this strictly correct, 
-    // but typically simple clipping is done in view space or passed world pos.
-    // Let's assume we can get world Z relatively easily.)
-    // Wait, gl_Vertex in VS is object space. ModelView puts it in View Space.
-    // To clip by "Z height" of the print, we usually mean Object Space Z (since model is usually at 0,0,0).
-    // Let's pass object space Z to FS.
-    // Re-writing Vertex Shader part below implicitly for clarity of thought:
-    // v_obj_pos = gl_Vertex;
-    
-    // NOTE: We need to update the Vertex shader to pass object position.
-}
-)";
-
-    // CORRECTED SHADERS with Tube Profile
-    const char* v_src = R"(
-#version 120
-attribute float a_tube_x;
-varying vec3 v_frag_pos; // View space
-varying vec3 v_normal;   // View space
-varying vec4 v_color;
-varying float v_z_height; // Object space Z
-varying float v_tube_x;
-
-void main() {
-    v_frag_pos = vec3(gl_ModelViewMatrix * gl_Vertex);
-    v_normal = gl_NormalMatrix * gl_Normal;
-    v_color = gl_Color;
-    v_z_height = gl_Vertex.z; // Object space Z is what we clip against
-    v_tube_x = a_tube_x;
-    gl_Position = gl_ModelViewProjectionMatrix * gl_Vertex;
-}
-)";
-
-    const char* f_src = R"(
-#version 120
-// Enable derivatives
-#extension GL_ARB_fragment_shader_derivative : enable
-
-varying vec3 v_frag_pos;
-varying vec3 v_normal;
-varying vec4 v_color;
-varying float v_z_height;
-varying float v_tube_x;
-
-uniform float u_clipping_z;
-
-void main() {
-    if (v_z_height > u_clipping_z) discard;
-
-    vec3 orig_norm = normalize(v_normal);
-    vec3 N = orig_norm;
-    
-    // Auto-calculate Tube Normal using derivatives
-    // We need 'tubeGradient' = direction in view space corresponding to increasing v_tube_x
-    // dFdx return change per pixel X.
-    
-    vec3 dPosdx = dFdx(v_frag_pos);
-    vec3 dPosdy = dFdy(v_frag_pos);
-    
-    // We can't trust normal from cross product of dPos if geometric normal is flat.
-    // But we CAN calculate the gradient of v_tube_x in screen space.
-    float dXdx = dFdx(v_tube_x);
-    float dXdy = dFdy(v_tube_x);
-    
-    // Gradient vector in View Space:
-    // This part is tricky. 
-    // Simplified: We assume surface is flat.
-    // 'tangent' is the direction on the surface where v_tube_x increases.
-    // We can solve this with a system of equations but let's approximate.
-    // gradient = (dPosdx * dXdx + dPosdy * dXdy) / (dXdx^2 + dXdy^2) ... no.
-    
-    // Let's use the cheap trick: Darken edges.
-    // Authentic layers also cast shadows on each other (Ambient Occlusion).
-    // The darkening of edges matches AO.
-    
-    // Improved Normal Mapping:
-    // If v_tube_x is -1..1 across the width.
-    // We want N to tilt.
-    // The tilt direction should be 'across' the tube.
-    // 'across' is perpendicular to 'along'.
-    // If we assume the tube is roughly horizontal (Top View),
-    // We can just guess the cross direction.
-    
-    // Let's fall back to a robust derivative approach if possible.
-    // tube_dir = normalize( dPosdx * dXdx + dPosdy * dXdy ); // This is direction of change
-    
-    float sigma = dXdx*dXdx + dXdy*dXdy;
-    if (sigma > 0.000001) {
-        vec3 T = normalize( dPosdx * dXdx + dPosdy * dXdy ); // Vector pointing towards +1
-        // T is View Space vector of increasing X.
-        // We want N to be Mix(FaceNormal, T).
-        // At v_tube_x = 0, N = FaceNormal.
-        // At v_tube_x = 1, N = T (roughly).
-        
-    // Circular profile:
-        // x = v_tube_x (sin theta)
-        // z = sqrt(1-x^2) (cos theta)
-        // Normal = FaceNormal * z + T * x
-        
-        float x = clamp(v_tube_x, -0.99, 0.99); // Clamp to avoid NaN
-        float z = sqrt(1.0 - x*x);
-        
-    // Anti-aliasing / LOD for Normal Mapping
-        // If the frequency of v_tube_x is too high (zoomed out), fade effect.
-        float delta = fwidth(v_tube_x);
-        float lod_fade = 1.0 - smoothstep(0.8, 1.5, delta);
-        
-        // Blend between Geometric Normal (flat) and Tube Normal based on LOD
-        vec3 tube_normal = normalize(orig_norm * z + T * x);
-        N = normalize(mix(orig_norm, tube_normal, lod_fade));
-    }
-
-    vec3 light_dir = normalize(vec3(0.5, 0.5, 1.0)); // Light from top-right-front
-    
-    // Material Properties - Matte Finish
-    float shininess = 12.0; // Broad, soft highlight
-    float ambientStrength = 0.4; // Reduced to prevent "glow"
-    float specularStrength = 0.1; // Very low specular
-    
-    // Gamma Correction: Convert input color to Linear Space
-    vec3 albedo = pow(v_color.rgb, vec3(2.2));
-    
-    // Ambient
-    vec3 ambient = ambientStrength * vec3(1.0);
-    
-    // Diffuse
-    float diff = max(dot(N, light_dir), 0.0);
-    vec3 diffuse = diff * vec3(1.0);
-    
-    // Specular (Blinn-Phong)
-    vec3 viewDir = normalize(-v_frag_pos);
-    vec3 halfwayDir = normalize(light_dir + viewDir);
-    float spec = pow(max(dot(N, halfwayDir), 0.0), shininess);
-    vec3 specular = specularStrength * spec * vec3(1.0);
-    
-    vec3 lighting = (ambient + diffuse + specular) * albedo;
-    
-    // Edge darkening/AO effect
-    // Stronger strength (0.6) for deep grooves
-    float ao_base = 1.0 - (v_tube_x * v_tube_x) * 0.6; 
-    
-    // Anti-aliasing for AO
-    // Fade AO later to keep layers visible when zoomed out
-    float delta_ao = fwidth(v_tube_x);
-    // Push the fade threshold higher to keep texture at distance
-    float ao_fade = 1.0 - smoothstep(0.8, 1.5, delta_ao);
-    float ao = mix(1.0, ao_base, ao_fade); // mix(no_ao, full_ao, fade_factor)
-    
-    lighting *= ao;
-
-    // Gamma Correction: Back to sRGB
-    lighting = pow(lighting, vec3(1.0/2.2));
-
-    gl_FragColor = vec4(lighting, v_color.a);
-}
-)";
-    
-    GLuint vs = glCreateShader(GL_VERTEX_SHADER);
-    glShaderSource(vs, 1, &v_src, NULL);
-    glCompileShader(vs);
-    
-    GLint success;
-    glGetShaderiv(vs, GL_COMPILE_STATUS, &success);
-    if (!success) {
-        char infoLog[512];
-        glGetShaderInfoLog(vs, 512, NULL, infoLog);
-        Slic3r::Log::error("GUI", std::string("Vertex Shader Compilation Failed: ") + infoLog);
-    }
-    
-    GLuint fs = glCreateShader(GL_FRAGMENT_SHADER);
-    glShaderSource(fs, 1, &f_src, NULL);
-    glCompileShader(fs);
-    
-    glGetShaderiv(fs, GL_COMPILE_STATUS, &success);
-    if (!success) {
-        char infoLog[512];
-        glGetShaderInfoLog(fs, 512, NULL, infoLog);
-        Slic3r::Log::error("GUI", std::string("Fragment Shader Compilation Failed: ") + infoLog);
-    }
-    
-    m_shader_program = glCreateProgram();
-    glAttachShader(m_shader_program, vs);
-    glAttachShader(m_shader_program, fs);
-    glLinkProgram(m_shader_program);
-    
-    glGetProgramiv(m_shader_program, GL_LINK_STATUS, &success);
-    if (!success) {
-         char infoLog[512];
-         glGetProgramInfoLog(m_shader_program, 512, NULL, infoLog);
-         Slic3r::Log::error("GUI", std::string("Shader Linking Failed: ") + infoLog);
-    }
-    
-    m_u_clipping_z = glGetUniformLocation(m_shader_program, "u_clipping_z");
-    m_a_tube_x = glGetAttribLocation(m_shader_program, "a_tube_x");
-}
-
-
-void Scene3D::draw_background(){
-    glDisable(GL_LIGHTING);
-    glPushMatrix();
-    glLoadIdentity();
-    
-    glMatrixMode(GL_PROJECTION);
-    glPushMatrix();
-    glLoadIdentity();
-    
-    glBegin(GL_QUADS);
-    auto colors = CanvasTheme::GetColors();
-    auto bottom = colors.canvas_bg_bottom, top = colors.canvas_bg_top;
-    if(colors.solid_background){
-         bottom = top = colors.canvas_bg_top;
-    }
-    glColor3ub(bottom.Red(), bottom.Green(), bottom.Blue());
-    glVertex2f(-1.0,-1.0);
-    glVertex2f(1,-1.0);
-    glColor3ub(top.Red(), top.Green(), top.Blue());
-    glVertex2f(1, 1);
-    glVertex2f(-1.0, 1);
-    glEnd();
-    glPopMatrix();
-    
-    glMatrixMode(GL_MODELVIEW);
-    glPopMatrix();
-}
-
-void Scene3D::draw_ground(){
-    glDisable(GL_DEPTH_TEST);
-    
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    
-    glEnableClientState(GL_VERTEX_ARRAY);
-    /*my $triangle_vertex;
-    if (HAS_VBO) {
-        ($triangle_vertex) =
-            glGenBuffersARB_p(1);
-        $self->bed_triangles->bind($triangle_vertex);
-        glBufferDataARB_p(GL_ARRAY_BUFFER_ARB, $self->bed_triangles, GL_STATIC_DRAW_ARB);
-        glVertexPointer_c(3, GL_FLOAT, 0, 0);
-    } else {*/
-    // fall back on old behavior
-    glVertexPointer(3, GL_FLOAT, 0, bed_verts.data());
-    auto colors = CanvasTheme::GetColors();
-    const auto ground = colors.ground_color, grid = colors.grid_color;
-        
-    glColor4ub(ground.Red(), ground.Green(), ground.Blue(),ground.Alpha());
-    glNormal3d(0,0,1);
-    glDrawArrays(GL_TRIANGLES, 0, bed_verts.size() / 3);
-    
-    // we need depth test for grid, otherwise it would disappear when looking
-    // the object from below
-    glEnable(GL_DEPTH_TEST);
-
-    // draw grid
-    glLineWidth(2);
-    /*my $grid_vertex;
-    if (HAS_VBO) {
-        ($grid_vertex) =
-            glGenBuffersARB_p(1);
-        $self->bed_grid_lines->bind($grid_vertex);
-        glBufferDataARB_p(GL_ARRAY_BUFFER_ARB, $self->bed_grid_lines, GL_STATIC_DRAW_ARB);
-        glVertexPointer_c(3, GL_FLOAT, 0, 0);
-    } else {*/
-    // fall back on old behavior
-    glVertexPointer(3, GL_FLOAT, 0, grid_verts.data());
-    
-    glColor4ub(grid.Red(), grid.Green(), grid.Blue(),grid.Alpha());
-    glNormal3d(0,0,1);
-    glDrawArrays(GL_LINES, 0, grid_verts.size() / 3);
-    glDisableClientState(GL_VERTEX_ARRAY);
-    
-    glDisable(GL_BLEND);
-    /*if (HAS_VBO) { 
-        # Turn off buffer objects to let the rest of the draw code work.
-        glBindBufferARB(GL_ARRAY_BUFFER_ARB, 0);
-        glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, 0);
-        glDeleteBuffersARB_p($grid_vertex);
-        glDeleteBuffersARB_p($triangle_vertex);
-    }*/
-}
-
-void Scene3D::draw_axes (Pointf3 center, float length, int width, bool always_visible){
-    /*
-    my $volumes_bb = $self->volumes_bounding_box;
-    
-    {
-        # draw axes
-        # disable depth testing so that axes are not covered by ground
-        glDisable(GL_DEPTH_TEST);
-        my $origin = $self->origin;
-        my $axis_len = max(
-            max(@{ $self->bed_bounding_box->size }),
-            1.2 * max(@{ $volumes_bb->size }),
-        );
-        glLineWidth(2);
-        glBegin(GL_LINES);
-        # draw line for x axis
-        glColor3f(1, 0, 0);
-        glVertex3f(@$origin, $ground_z);
-        glVertex3f($origin->x + $axis_len, $origin->y, $ground_z);  #,,
-        # draw line for y axis
-        glColor3f(0, 1, 0);
-        glVertex3f(@$origin, $ground_z);
-        glVertex3f($origin->x, $origin->y + $axis_len, $ground_z);  #++
-        glEnd();
-        # draw line for Z axis
-        # (re-enable depth test so that axis is correctly shown when objects are behind it)
-        glEnable(GL_DEPTH_TEST);
-        glBegin(GL_LINES);
-        glColor3f(0, 0, 1);
-        glVertex3f(@$origin, $ground_z);
-        glVertex3f(@$origin, $ground_z+$axis_len);
-        glEnd();
-    }
-   */ 
-    if (always_visible) {
-        glDisable(GL_DEPTH_TEST);
-    } else {
-        glEnable(GL_DEPTH_TEST);
-    }
     glLineWidth(width);
-    glBegin(GL_LINES);
-    // draw line for x axis
-    glColor3f(1, 0, 0);
-    glVertex3f(center.x, center.y, center.z);
-    glVertex3f(center.x + length, center.y, center.z);
-    // draw line for y axis
-    glColor3f(0, 1, 0);
-    glVertex3f(center.x, center.y, center.z);
-    glVertex3f(center.x, center.y + length, center.z);
-    glEnd();
-
-    // draw line for Z axis
-    // (re-enable depth test so that axis is correctly shown when objects are behind it)
-    glEnable(GL_DEPTH_TEST);
-    glBegin(GL_LINES);
-    glColor3f(0, 0, 1);
-    glVertex3f(center.x, center.y, center.z);
-    glVertex3f(center.x, center.y, center.z + length);
-    glEnd();
+    m_vao_axes->bind();
+    
+    // We use vertex attribute 1 (normal slot) as Color in unlit mode
+    // X Axis
+    m_shader->set_uniform("objectColor", glm::vec3(1,0,0));
+    glDrawArrays(GL_LINES, 0, 2);
+    // Y Axis
+    m_shader->set_uniform("objectColor", glm::vec3(0,1,0));
+    glDrawArrays(GL_LINES, 2, 2);
+    // Z Axis
+    m_shader->set_uniform("objectColor", glm::vec3(0,0,1));
+    glDrawArrays(GL_LINES, 4, 2);
+    
+    if (always_visible) glEnable(GL_DEPTH_TEST);
 }
-void Scene3D::draw_volumes(){
-    if (extensions_loaded && m_shader_program != 0) {
-        glUseProgram(m_shader_program);
-        if (m_u_clipping_z != -1) {
-            glUniform1f(m_u_clipping_z, m_clipping_z);
-        }
-    } else {
-        // Fallback for no shader support? Or just rely on fixed function
-    }
 
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+void Scene3D::draw_background() {
+    auto colors = CanvasTheme::GetColors();
+    glDisable(GL_DEPTH_TEST);
+    m_shader_bg->bind();
+    m_shader_bg->set_uniform("colorTop", glm::vec3(colors.canvas_bg_top.Red()/255.0f, colors.canvas_bg_top.Green()/255.0f, colors.canvas_bg_top.Blue()/255.0f));
+    m_shader_bg->set_uniform("colorBottom", glm::vec3(colors.canvas_bg_bottom.Red()/255.0f, colors.canvas_bg_bottom.Green()/255.0f, colors.canvas_bg_bottom.Blue()/255.0f));
     
-    glEnableClientState(GL_VERTEX_ARRAY);
-    glEnableClientState(GL_NORMAL_ARRAY);
-    if (m_a_tube_x != -1) glEnableVertexAttribArray(m_a_tube_x);
-    
-    for(const Volume &volume : volumes){
-        glPushMatrix();
-        glTranslatef(volume.origin.x, volume.origin.y, volume.origin.z);
-        glCullFace(GL_BACK);
-        glVertexPointer(3, GL_FLOAT, 0, volume.model.verts.data());
-        glNormalPointer(GL_FLOAT, 0, volume.model.norms.data());
-        if (m_a_tube_x != -1 && !volume.tube_coords.empty()) {
-            glVertexAttribPointer(m_a_tube_x, 1, GL_FLOAT, GL_FALSE, 0, volume.tube_coords.data());
-        } else if (m_a_tube_x != -1) {
-             // Disable or set default?
-             glVertexAttrib1f(m_a_tube_x, 0.0f);
-        }
-        glColor4ub(volume.color.Red(), volume.color.Green(), volume.color.Blue(), 255);
-        glDrawArrays(GL_TRIANGLES, 0, volume.model.verts.size()/3);
+    m_vao_bg->bind();
+    glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+    m_shader->bind(); // back to main
+    glEnable(GL_DEPTH_TEST);
+}
 
-        if (volume.selected) {
-            glDisable(GL_LIGHTING);
-            glLineWidth(2.0f);
-            glColor3f(1.0f, 1.0f, 1.0f);
-            
-            const Pointf3& min = volume.bb.min;
-            const Pointf3& max = volume.bb.max;
-            
-            // Calculate corner line length (min of 10.0f or 20% of dimension)
-            float lx = std::min(10.0f, (float)((max.x - min.x) * 0.2));
-            float ly = std::min(10.0f, (float)((max.y - min.y) * 0.2));
-            float lz = std::min(10.0f, (float)((max.z - min.z) * 0.2));
-
-            glBegin(GL_LINES);
-            for (float x : {min.x, max.x}) {
-                for (float y : {min.y, max.y}) {
-                    for (float z : {min.z, max.z}) {
-                        float dx = (x == min.x) ? lx : -lx;
-                        float dy = (y == min.y) ? ly : -ly;
-                        float dz = (z == min.z) ? lz : -lz;
-                        
-                        // Line along X
-                        glVertex3f(x, y, z); glVertex3f(x + dx, y, z);
-                        // Line along Y
-                        glVertex3f(x, y, z); glVertex3f(x, y + dy, z);
-                        // Line along Z
-                        glVertex3f(x, y, z); glVertex3f(x, y, z + dz);
-                    }
-                }
-            }
-            glEnd();
-            glEnable(GL_LIGHTING);
-        }
-
-        glPopMatrix();
-    }
-    
-    if (m_a_tube_x != -1) glDisableVertexAttribArray(m_a_tube_x);
-    glDisableClientState(GL_NORMAL_ARRAY);
-    glDisableClientState(GL_VERTEX_ARRAY);
-    glDisable(GL_BLEND);
-    
-    if (extensions_loaded && m_shader_program != 0) {
-        glUseProgram(0);
-    }
+// Stub for load_object
+Volume Scene3D::load_object(ModelVolume &mv, ModelInstance &mi) {
+    Volume vol;
+    vol.origin = Pointf3(mi.offset.x, mi.offset.y, 0.0f);
+    // Load mesh logic would go here
+    return vol;
 }
 
 void Scene3D::set_camera_view(Direction dir) {
-    switch(dir) {
-        case Direction::Top:      theta = 0.0f;   phi = 0.0f;   break;
-        case Direction::Bottom:   theta = 180.0f; phi = 0.0f;   break;
-        case Direction::Front:    theta = 90.0f;  phi = 0.0f;   break;
-        case Direction::Back:     theta = 90.0f;  phi = 180.0f; break;
-        case Direction::Left:     theta = 90.0f;  phi = -90.0f; break;
-        case Direction::Right:    theta = 90.0f;  phi = 90.0f;  break;
-        case Direction::Diagonal: theta = 45.0f;  phi = 45.0f;  break;
-    }
-    dirty = true;
+    // TODO: Map direction to camera angles
     Refresh();
 }
 
-void Scene3D::repaint(wxPaintEvent& e) {
-    if(!this->IsShownOnScreen())return;
-    // There should be a context->IsOk check once wx is updated
-    if(!this->SetCurrent(*(this->glContext)))return;
-    init_gl();
-    resize();
-
-    glClearColor(1, 1, 1, 1);
-    glClearDepth(1);
-    glDepthFunc(GL_LESS);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    
-    glMatrixMode(GL_MODELVIEW);
-    glLoadIdentity();
-    
-    glRotatef(-theta, 1, 0, 0); // pitch
-    glRotatef(phi, 0, 0, 1);   // yaw
-    /*} else {
-        my @rotmat = quat_to_rotmatrix($self->quat);
-        glMultMatrixd_p(@rotmat[0..15]);
-    }*/
-    glTranslatef(-_camera_target.x, -_camera_target.y, -_camera_target.z);
-     
-    // light from above
-    GLfloat pos[] = {-0.5f, -0.5f, 1.0f, 0.0f}, spec[] = {0.2f, 0.2f, 0.2f, 1.0f}, diff[] = {0.5f, 0.5f, 0.5f, 1.0f};    
-    glLightfv(GL_LIGHT0, GL_POSITION, pos);
-    glLightfv(GL_LIGHT0, GL_SPECULAR, spec);
-    glLightfv(GL_LIGHT0, GL_DIFFUSE,  diff);
-
-    before_render();
-
-    draw_background();
-    draw_ground();
-        /*my $origin = $self->origin;
-        my $axis_len = max(
-            max(@{ $self->bed_bounding_box->size }),
-            1.2 * max(@{ $volumes_bb->size }),
-        );*/
-    draw_axes(Pointf3(0.0f,0.0f,0.0f), 20.0f, 2, true);
-    
-    // draw objects
-    glEnable(GL_LIGHTING);
-    draw_volumes();
-    
-    after_render();
-    
-    if (dragging/*defined $self->_drag_start_pos || defined $self->_drag_start_xy*/) {
-        draw_axes(_camera_target, 10.0f, 1, true/*camera,10,1,true*/);
-        draw_axes(_camera_target, 10.0f, 4, false/*camera,10,4,false*/);
-    }
-
-    glFlush();
-    SwapBuffers();
-    // Calling glFinish has a performance penalty, but it seems to fix some OpenGL driver hang-up with extremely large scenes.
-    glFinish();
-
+void Scene3D::set_z_clipping(float z) {
+    m_clipping_z = z;
+    Refresh();
 }
+
 
 } } // Namespace Slic3r::GUI

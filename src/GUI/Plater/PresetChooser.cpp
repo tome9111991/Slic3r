@@ -57,8 +57,8 @@ PresetChooser::PresetChooser(wxWindow* parent, std::weak_ptr<Print> print, Setti
         });
 
         this->_local_sizer->Add(text, 0, wxALIGN_RIGHT | wxALIGN_CENTER_VERTICAL | wxRIGHT, 4);
-        this->_local_sizer->Add(choice, 1, wxALIGN_CENTER_VERTICAL | wxEXPAND | wxBOTTOM, 0);
-        this->_local_sizer->Add(settings_btn, 0, wxALIGN_CENTER_VERTICAL | wxEXPAND | wxLEFT, 3);
+        this->_local_sizer->Add(choice, 1, wxEXPAND | wxBOTTOM, 0);
+        this->_local_sizer->Add(settings_btn, 0, wxEXPAND | wxLEFT, 3);
         
         // setup listener. 
         // On a combobox event, puts a call to _on_change_combobox() on the evt_idle stack.
@@ -186,6 +186,9 @@ void PresetChooser::_on_select_preset(preset_t preset) {
     if (preset == preset_t::Printer) {
         this->load(); // reload print/filament settings to honor compatible printers
     }
+    if (this->on_change) {
+        this->on_change(preset);
+    }
 }
 
 bool PresetChooser::prompt_unsaved_changes() {
@@ -271,9 +274,24 @@ void PresetChooser::UpdateTheme()
         text->SetForegroundColour(dark ? *wxWHITE : *wxBLACK);
     }
 
-    for (auto& group : preset_choosers) {
-        for (auto* choice : group) {
-            // choice->UpdateTheme(); // If ThemedSelect exposes it? It repaints nicely on usage.
+    for (auto group : { preset_t::Printer, preset_t::Material, preset_t::Print }) {
+        for (auto* choice : this->preset_choosers[get_preset(group)]) {
+            for (size_t i = 0; i < choice->GetCount(); ++i) {
+                wxBitmapBundle bitmap;
+                switch (group) {
+                    case preset_t::Print:
+                        bitmap = get_bmp_bundle("cog.svg");
+                        break;
+                    case preset_t::Material: 
+                        bitmap = get_bmp_bundle("spool.svg");
+                        break;
+                    case preset_t::Printer: 
+                        bitmap = get_bmp_bundle("printer_empty.svg");
+                        break;
+                    default: break;
+                }
+                choice->SetItemIcon((int)i, bitmap);
+            }
             choice->Refresh();
         }
     }

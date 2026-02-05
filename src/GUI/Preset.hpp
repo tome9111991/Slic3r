@@ -1,6 +1,5 @@
 #ifndef PRESET_HPP
 #define PRESET_HPP
-
 // Libslic3r 
 #include "PrintConfig.hpp"
 #include "Config.hpp"

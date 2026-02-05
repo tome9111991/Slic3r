@@ -29,6 +29,7 @@
 #include "Dialogs/ObjectCutDialog.hpp"
 #include "Dialogs/ObjectSettingsDialog.hpp"
 #include "Dialogs/PresetEditor.hpp"
+#include "OptionsGroup.hpp"
 
 
 namespace Slic3r { namespace GUI {
@@ -196,7 +197,15 @@ Plater::Plater(wxWindow* parent, const wxString& title) :
         wxPostEvent(this, new wxPlThreadEvent(-1, PROGRESS_BAR_EVENT, 
     });
     */
+    _presets->on_change = [this](preset_t) {
+        this->load_current_presets();
+        this->refresh_canvases();
+        if (this->quick_options_group) {
+             this->quick_options_group->update_options(&this->config->config());
+        }
+    };
     _presets->load();
+    this->load_current_presets();
 
     this->preview_notebook = new wxSimplebook(this, wxID_ANY);
 
@@ -317,18 +326,19 @@ Plater::Plater(wxWindow* parent, const wxString& title) :
     this->selection_changed();
 
 
-    // Quick Settings Placeholder
-    wxStaticBoxSizer* shortcut_sizer {nullptr};
+    // Quick Settings placeholder
     {
         auto* box {new wxStaticBox(this, wxID_ANY, _("Quick Settings"))};
-        shortcut_sizer = new wxStaticBoxSizer(box, wxVERTICAL);
-        shortcut_sizer->SetMinSize(wxSize(350, 60)); // Small height for now
+        this->shortcut_sizer = new wxStaticBoxSizer(box, wxVERTICAL);
+        this->shortcut_sizer->SetMinSize(wxSize(350, 60)); 
         
         this->quick_settings_label = new wxStaticText(box, wxID_ANY, _("Pinned settings will appear here..."), wxDefaultPosition, wxDefaultSize, wxALIGN_CENTER_HORIZONTAL);
         this->quick_settings_label->SetFont(ui_settings->small_font());
         if (ThemeManager::IsDark()) this->quick_settings_label->SetForegroundColour(*wxWHITE);
-        shortcut_sizer->Add(this->quick_settings_label, 1, wxEXPAND | wxTOP | wxBOTTOM, 15);
+        this->shortcut_sizer->Add(this->quick_settings_label, 1, wxEXPAND | wxTOP | wxBOTTOM, 15);
     }
+
+    this->update_quick_settings();
 
 
     // Toolbar
@@ -341,7 +351,7 @@ Plater::Plater(wxWindow* parent, const wxString& title) :
     left_sizer->Add(this->_presets, 0, wxEXPAND | wxTOP, 10);
     this->_presets->Show();
 
-    left_sizer->Add(shortcut_sizer, 0, wxEXPAND | wxTOP, 5);
+    left_sizer->Add(this->shortcut_sizer, 0, wxEXPAND | wxTOP, 5);
 
 //    $right_sizer->Add($self->{settings_override_panel}, 1, wxEXPAND, 5);
     left_sizer->Add(object_info_sizer, 0, wxEXPAND, 0);
@@ -397,6 +407,8 @@ void Plater::update_ui_from_settings() {
         if (ThemeManager::IsDark()) this->quick_settings_label->SetForegroundColour(*wxWHITE);
         else this->quick_settings_label->SetForegroundColour(*wxBLACK);
     }
+    
+    this->update_quick_settings();
 
     this->Refresh();
 }
@@ -1557,6 +1569,12 @@ void Plater::show_preset_editor(preset_t group, unsigned int idx) {
     }
     
     if (editor) {
+        if (auto* pe = dynamic_cast<PresetEditor*>(editor)) {
+             pe->on_quick_setting_change = [this](const std::string& key, bool active) {
+                  this->update_quick_settings();
+             };
+        }
+
         wxBoxSizer* sizer = new wxBoxSizer(wxVERTICAL);
         // Add editor to dialog sizer
         sizer->Add(editor, 1, wxEXPAND);
@@ -1726,6 +1744,51 @@ void Plater::slice() {
         this->print->status_cb = nullptr;
         
     }).detach();
+}
+
+void Plater::update_quick_settings() {
+    if (!this->shortcut_sizer) return;
+    
+    // Clear sizer
+    this->shortcut_sizer->Clear(true);
+    this->quick_options_group = nullptr;
+    this->quick_settings_label = nullptr;
+
+    if (ui_settings->quick_settings.empty()) {
+        this->quick_settings_label = new wxStaticText(this->shortcut_sizer->GetStaticBox(), wxID_ANY, _("Pinned settings will appear here..."), wxDefaultPosition, wxDefaultSize, wxALIGN_CENTER_HORIZONTAL);
+        this->quick_settings_label->SetFont(ui_settings->small_font());
+        if (ThemeManager::IsDark()) this->quick_settings_label->SetForegroundColour(*wxWHITE);
+        else this->quick_settings_label->SetForegroundColour(*wxBLACK);
+        this->shortcut_sizer->Add(this->quick_settings_label, 1, wxEXPAND | wxTOP | wxBOTTOM, 15);
+    } else {
+        this->quick_options_group = new OptionsGroup(this->shortcut_sizer->GetStaticBox());
+        this->quick_options_group->set_sizer(this->shortcut_sizer);
+        
+        for (const auto& key : ui_settings->quick_settings) {
+            this->quick_options_group->append_single_option_line(key);
+        }
+        
+        this->quick_options_group->on_change = [this](const std::string& key, boost::any value) {
+             try {
+                if (value.type() == typeid(bool)) this->config->set(key, boost::any_cast<bool>(value));
+                else if (value.type() == typeid(int)) this->config->set(key, boost::any_cast<int>(value));
+                else if (value.type() == typeid(double)) this->config->set(key, boost::any_cast<double>(value));
+                else if (value.type() == typeid(std::string)) this->config->set(key, boost::any_cast<std::string>(value));
+                
+                // Propagate to print
+                this->print->apply_config(this->config->config());
+            } catch(...) {}
+        };
+
+        this->quick_options_group->on_quick_setting_change = [this](const std::string& key, bool) {
+            ui_settings->toggle_quick_setting(key);
+            this->update_quick_settings();
+        };
+
+        this->quick_options_group->update_options(&this->config->config());
+    }
+    
+    this->Layout();
 }
 
 }} // Namespace Slic3r::GUI

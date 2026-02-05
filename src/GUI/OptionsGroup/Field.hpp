@@ -1,6 +1,5 @@
 #ifndef SLIC3R_FIELD_HPP
 #define SLIC3R_FIELD_HPP
-
 #include <functional>
 #include <string>
 #include <limits>
@@ -73,6 +72,8 @@ protected:
     
 public:
     virtual void set_dirty_status(bool dirty) {
+        // Disabled: Dirty status is now handled by the label in OptionsGroup
+        /*
         if (!this->window) return;
         if (dirty) {
              this->window->SetForegroundColour(wxColour(255, 128, 0)); // Orange
@@ -80,6 +81,7 @@ public:
              this->window->SetForegroundColour(wxNullColour); // Reset to default
         }
         this->window->Refresh();
+        */
     }
 };
 
@@ -233,11 +235,14 @@ public:
     
     // Override to ensure we set color on the actual text control, not the wrapper
     void set_dirty_status(bool dirty) override {
+        // Disabled: Dirty status is updated on Label
+        /*
         if (_text) {
              if (dirty) _text->SetForegroundColour(wxColour(255, 128, 0));
              else _text->SetForegroundColour(ThemeManager::GetColors().text);
              _text->Refresh();
         }
+        */
     }
 
     wxTextCtrl* textctrl() { return _text; }
@@ -268,6 +273,8 @@ public:
     void set_value(boost::any value) override;
 
     void set_dirty_status(bool dirty) override {
+        // Disabled
+        /*
         if (this->_combo) {
              if (dirty) this->_combo->SetForegroundColour(wxColour(255, 128, 0));
              else this->_combo->SetForegroundColour(wxNullColour);
@@ -281,11 +288,12 @@ public:
             // base fallback
             UI_Field::set_dirty_status(dirty);
         }
+        */
     }
 
     std::function<void (const std::string&, std::string value)> on_change {nullptr};
 
-    wxChoice* choice() { return this->_choice; }
+    ThemedSelect* choice() { return this->_choice; }
     wxComboBox* combo() { return this->_combo; }
 protected:
     virtual std::string LogChannel() override { return "UI_Choice"s; }
@@ -297,7 +305,7 @@ protected:
     }
 private:
     wxComboBox* _combo {nullptr};
-    wxChoice* _choice {nullptr};
+    ThemedSelect* _choice {nullptr};
 };
 
 
@@ -318,6 +326,8 @@ public:
     void set_value(boost::any value) override;
 
     void set_dirty_status(bool dirty) override {
+        // Disabled
+        /*
         if (this->_choice) {
              if (dirty) this->_choice->SetForegroundColour(wxColour(255, 128, 0));
              else this->_choice->SetForegroundColour(wxNullColour);
@@ -325,6 +335,7 @@ public:
         } else {
              UI_Field::set_dirty_status(dirty);
         }
+        */
     }
 
     std::function<void (const std::string&, std::string value)> on_change {nullptr};
@@ -491,11 +502,14 @@ public:
 protected:
     virtual std::string LogChannel() override { return "UI_Slider"s; }
     void set_dirty_status(bool dirty) override {
+        // Disabled
+        /*
         if (this->_textctrl) {
              if (dirty) this->_textctrl->SetForegroundColour(wxColour(255, 128, 0));
              else this->_textctrl->SetForegroundColour(wxNullColour);
              this->_textctrl->Refresh();
         }
+        */
     }
 
 private:

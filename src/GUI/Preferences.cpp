@@ -2,6 +2,7 @@
 #include "GUI.hpp"
 #include "Settings.hpp"
 #include "Theme/ThemeManager.hpp"
+#include "Widgets/ThemedControls.hpp"
 #include "libslic3r/Config.hpp"
 #include "libslic3r/PrintConfig.hpp"
 #include <wx/statbox.h>
@@ -255,10 +256,13 @@ PreferencesDialog::PreferencesDialog(wxWindow* parent)
 
     sizer->Add(sb_sizer, 1, wxEXPAND | wxALL, 10);
 
-    auto buttons = this->CreateStdDialogButtonSizer(wxOK | wxCANCEL);
-    this->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) { this->_accept(); }, wxID_OK);
+    auto* btn_sizer = new wxBoxSizer(wxHORIZONTAL);
+    btn_sizer->AddStretchSpacer();
+    auto* ok_btn = new ThemedButton(this, wxID_OK, _("OK"));
+    ok_btn->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) { this->_accept(); });
+    btn_sizer->Add(ok_btn, 0, wxALL, 10);
     
-    sizer->Add(buttons, 0, wxEXPAND | wxALL, 10);
+    sizer->Add(btn_sizer, 0, wxEXPAND);
 
     this->SetSizer(sizer);
     sizer->SetSizeHints(this);

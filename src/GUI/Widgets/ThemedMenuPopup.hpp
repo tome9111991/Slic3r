@@ -12,7 +12,7 @@ namespace GUI {
 
 class ThemedMenuPopup : public wxPopupTransientWindow {
 public:
-    ThemedMenuPopup(wxWindow* parent, ThemedMenu* menu);
+    ThemedMenuPopup(wxWindow* parent, ThemedMenu* menu, ThemedMenuPopup* parentPopup = nullptr);
     virtual ~ThemedMenuPopup();
 
     // Override to dismiss properly
@@ -35,6 +35,7 @@ protected:
 
 private:
     ThemedMenu* m_menu; 
+    ThemedMenuPopup* m_parentPopup = nullptr;
     bool m_ownsMenu = false;
     int m_hoveredIndex = -1;
     

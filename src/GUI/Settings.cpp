@@ -3,6 +3,7 @@
 #include "misc_ui.hpp"
 #include <wx/fileconf.h> 
 #include <wx/display.h>
+#include <wx/tokenzr.h>
 
 namespace Slic3r { namespace GUI {
 
@@ -36,6 +37,14 @@ void Settings::save_settings() {
     config.Write("dark_mode", this->dark_mode);
     config.Write("reload_behavior", (long)this->reload);
     config.Write("rotation_controls", wxString(this->rotation_controls));
+
+    // Save Quick Settings
+    wxString qs_str = "";
+    for (size_t i = 0; i < this->quick_settings.size(); ++i) {
+        qs_str << this->quick_settings[i];
+        if (i < this->quick_settings.size() - 1) qs_str << ",";
+    }
+    config.Write("quick_settings", qs_str);
 
     // Save window positions
     for (auto const& [name, tuple] : window_pos) {
@@ -93,6 +102,16 @@ void Settings::load_settings() {
     };
 
     load_win("main_frame");
+
+    // Load Quick Settings
+    wxString qs_str;
+    if (config.Read("quick_settings", &qs_str)) {
+        this->quick_settings.clear();
+        wxStringTokenizer tokenizer(qs_str, ",");
+        while (tokenizer.HasMoreTokens()) {
+            this->quick_settings.push_back(tokenizer.GetNextToken().ToStdString());
+        }
+    }
 }
 
 void Settings::save_window_pos(wxWindow* ref, wxString name) {

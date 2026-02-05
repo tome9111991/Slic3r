@@ -38,6 +38,7 @@ private:
     std::vector<MenuEntry> m_menus;
     int m_hoveredIndex = -1;
     int m_openMenuIndex = -1;
+    bool m_isResetting = false;
     
     // Non-modal tracking
     class ThemedMenuPopup* m_currentPopup = nullptr; 

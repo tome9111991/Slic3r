@@ -61,6 +61,7 @@ public:
     void save_preset();
     std::function<void (wxString, preset_t)> on_save_preset {nullptr};
     std::function<void (std::string)> on_value_change {nullptr};
+    std::function<void (std::string, bool)> on_quick_setting_change {nullptr};
 
     config_ptr config;
     void reload_config();
@@ -287,6 +288,7 @@ protected:
 class PresetPage : public wxScrolledWindow {
 public:
     std::function<void(const std::string&, boost::any)> on_change;
+    std::function<void(const std::string&, bool)> on_quick_setting_change;
 
     PresetPage(wxWindow* parent, wxString _title, int _iconID = 0) : 
         wxScrolledWindow(parent, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxTAB_TRAVERSAL),
@@ -304,6 +306,7 @@ public:
         auto* og = new OptionsGroup(this);
         og->set_sizer(sbs);
         og->on_change = this->on_change;
+        og->on_quick_setting_change = this->on_quick_setting_change;
         _optgroups.push_back(std::unique_ptr<OptionsGroup>(og));
         return og;
     }
@@ -320,6 +323,12 @@ public:
              if (f) return f;
         }
         return nullptr;
+    }
+
+    void set_quick_setting_status(const std::string& key, bool active) {
+        for (auto& og : _optgroups) {
+            og->set_quick_setting_status(key, active);
+        }
     }
 
 protected:

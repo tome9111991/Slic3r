@@ -108,7 +108,7 @@ AboutDialog::AboutDialog(wxWindow* parent)
 
     html->Bind(wxEVT_HTML_LINK_CLICKED, [](wxHtmlLinkEvent& e){ link_clicked(e); });
 
-    vsizer->Add(html, 1, wxEXPAND | wxALIGN_LEFT | wxRIGHT | wxBOTTOM, 20);
+    vsizer->Add(html, 1, wxEXPAND | wxRIGHT | wxBOTTOM, 20);
 
     // buttons
     auto buttons = this->CreateStdDialogButtonSizer(wxOK);

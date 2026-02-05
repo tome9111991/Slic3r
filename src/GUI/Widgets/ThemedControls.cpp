@@ -249,6 +249,13 @@ void ThemedSelect::Append(const wxString& item, const wxBitmapBundle& icon) {
     Refresh();
 }
 
+void ThemedSelect::SetItemIcon(int n, const wxBitmapBundle& icon) {
+    if (n >= 0 && n < (int)m_icons.size()) {
+        m_icons[n] = icon;
+        Refresh();
+    }
+}
+
 wxString ThemedSelect::GetString(int n) const {
     if (n >= 0 && n < (int)m_options.size()) return m_options[n];
     return "";

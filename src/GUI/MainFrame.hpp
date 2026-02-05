@@ -1,4 +1,3 @@
-
 #ifndef MAINFRAME_HPP
 #define MAINFRAME_HPP
 #include <wx/wxprec.h>

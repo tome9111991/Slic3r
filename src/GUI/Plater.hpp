@@ -36,6 +36,7 @@
 namespace Slic3r { namespace GUI {
 
 class PresetChooser; // forward dec
+class OptionsGroup;
 using UndoOperation = int;
 
 enum class UndoCmd {
@@ -127,6 +128,7 @@ public:
     void select_view(Direction dir);
 
     void update_ui_from_settings();
+    void update_quick_settings();
     
     /// Load configuration from currently selected presets into 'this->config' and 'this->print'
     void load_current_presets();
@@ -166,7 +168,7 @@ private:
 
     // PreviewDLP* previewDLP {nullptr}; //< DLP/SLA Preview canvas
 
-    wxStaticBoxSizer* object_info_size {nullptr};
+    wxStaticBoxSizer* shortcut_sizer {nullptr};
     wxStaticText* quick_settings_label {nullptr};
 
     /// Handles the actual load of the file from the dialog handoff.
@@ -284,6 +286,7 @@ private:
     info_fields object_info;
 
     PresetChooser* _presets;
+    OptionsGroup* quick_options_group {nullptr};
 
     void load_presets();
 

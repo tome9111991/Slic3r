@@ -60,6 +60,7 @@ public:
     // Compatibility helpers
     void Clear();
     void Append(const wxString& item, const wxBitmapBundle& icon = wxBitmapBundle());
+    void SetItemIcon(int n, const wxBitmapBundle& icon);
     size_t GetCount() const { return m_options.size(); }
     int FindString(const wxString& s) const;
     void SetString(int n, const wxString& s);

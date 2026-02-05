@@ -11,13 +11,14 @@ UI_Choice::UI_Choice(wxWindow* parent, Slic3r::ConfigOptionDef _opt, wxWindowID 
     for (auto v : opt.enum_values) values.Add(wxString(v));
 
     if (opt.gui_type.size() > 0 && opt.gui_type.compare("select_open"s)) {
-        _choice = new wxChoice(parent, id, 
-                wxDefaultPosition, _default_size(), values, style);
-        _choice->Bind(wxEVT_CHOICE, [this](wxCommandEvent& e) { this->_on_change(""); e.Skip(); });
+        _choice = new ThemedSelect(parent, id, values, wxDefaultPosition, _default_size());
+        // ThemedSelect should trigger events, binding to the control should work if it mimics basic events
+        // Assuming it emits wxEVT_COMBOBOX or similar command events
+        _choice->Bind(wxEVT_COMBOBOX, [this](wxCommandEvent& e) { this->_on_change(""); e.Skip(); }); 
         window = _choice;
     } else {
         _combo = new wxComboBox(parent, id, 
-                (opt.default_value != nullptr ? opt.default_value->getString() : ""),
+                (opt.default_value != nullptr ? opt.default_value->serialize() : ""),
                 wxDefaultPosition, _default_size(), values, style);
         _combo->Bind(wxEVT_COMBOBOX, [this](wxCommandEvent& e) { this->_on_change(""); e.Skip(); });
         window = _combo;

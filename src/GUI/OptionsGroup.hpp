@@ -26,30 +26,12 @@ public:
         desc.default_value = _def.clone();
     }
 
-    Option(const Option& other) : opt_id(other.opt_id), desc(other.desc) {
-        if (other.desc.default_value)
-            desc.default_value = other.desc.default_value->clone();
-    }
-
-    Option(Option&& other) noexcept : opt_id(std::move(other.opt_id)), desc(std::move(other.desc)) {
-        other.desc.default_value = nullptr;
-    }
-
-    Option& operator=(Option other) {
-        swap(*this, other);
-        return *this;
-    }
-
-    ~Option() {
-        if (desc.default_value) delete desc.default_value;
-        desc.default_value = nullptr;
-    }
-
-    friend void swap(Option& first, Option& second) {
-        using std::swap;
-        swap(first.opt_id, second.opt_id);
-        swap(first.desc, second.desc);
-    }
+    // Rely on ConfigOptionDef's copy constructor and destructor
+    Option(const Option& other) = default;
+    Option(Option&& other) = default;
+    Option& operator=(const Option& other) = default;
+    Option& operator=(Option&& other) = default;
+    ~Option() = default;
 };
 
 class Line {
@@ -94,12 +76,27 @@ public:
     void update_options(const ConfigBase* config, const std::vector<std::string>& dirty_keys = {});
 
     std::function<void(const std::string&, boost::any)> on_change {nullptr};
+    
+    // Callback for Quick Setting Toggle (key, is_active)
+    std::function<void(const std::string&, bool)> on_quick_setting_change {nullptr};
+
+    void set_quick_setting_status(const std::string& opt_key, bool active);
 
 protected:
     wxWindow* parent;
     std::map<t_config_option_key, std::unique_ptr<Option>> _options;
     std::map<t_config_option_key, std::unique_ptr<UI_Field>> _fields;
+    
+    // UI Elements storage
+    std::map<t_config_option_key, wxStaticText*> _labels;
+    std::map<t_config_option_key, wxStaticText*> _units;
+    // We use a simple bitmap button or static bitmap for the star
+    std::map<t_config_option_key, wxWindow*> _quick_toggles; 
+    
     wxBoxSizer* sizer; // The sizer this group populates
+
+    wxBitmapBundle star_filled;
+    wxBitmapBundle star_empty;
 };
 
 class ConfigOptionsGroup : public OptionsGroup {

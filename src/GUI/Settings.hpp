@@ -1,6 +1,5 @@
 #ifndef SETTINGS_HPP
 #define SETTINGS_HPP
-
 #include <wx/wxprec.h>
 #ifndef WX_PRECOMP
     #include <wx/wx.h>
@@ -10,6 +9,7 @@
 #include <tuple>
 #include <vector>
 #include <array>
+#include <algorithm>
 
 #include "libslic3r.h"
 #include "Theme/ThemeManager.hpp"
@@ -65,6 +65,18 @@ class Settings {
         void apply_theme_to_window(wxWindow* win);
 
         std::array<std::vector<wxString>, preset_types> default_presets {};
+
+        // Quick Settings (Pinned)
+        std::vector<std::string> quick_settings {};
+        bool is_quick_setting(const std::string& key) const {
+             return std::find(quick_settings.begin(), quick_settings.end(), key) != quick_settings.end();
+        }
+        void toggle_quick_setting(const std::string& key) {
+             auto it = std::find(quick_settings.begin(), quick_settings.end(), key);
+             if (it == quick_settings.end()) quick_settings.push_back(key);
+             else quick_settings.erase(it);
+             save_settings();
+        }
 
         /// Storage for window positions
         std::map<wxString, std::tuple<wxPoint, wxSize, bool> > window_pos { std::map<wxString, std::tuple<wxPoint, wxSize, bool> >() };

@@ -130,6 +130,8 @@ void ThemedMenuBar::OnLeftUp(wxMouseEvent& event)
 
 void ThemedMenuBar::OnMotion(wxMouseEvent& event)
 {
+    if (m_isResetting) return;
+
     wxPoint pos = event.GetPosition();
     int prevIndex = m_hoveredIndex;
     m_hoveredIndex = -1;
@@ -171,11 +173,23 @@ void ThemedMenuBar::OpenMenu(int index)
     ThemedMenuPopup* popup = new ThemedMenuPopup(this, entry.menu);
     
     popup->SetOnDismissCallback([this]() {
+        m_isResetting = true;
         m_openMenuIndex = -1;
-        m_hoveredIndex = -1; // Ensure stale hover doesn't keep it highlighted
+        m_hoveredIndex = -1; 
         m_currentPopup = nullptr;
+        
         Refresh();
         Update(); 
+
+        // Also force parent update if possible, to ensure the repaint is visible before any modal dialogs
+        if (GetParent()) {
+            GetParent()->Update();
+        }
+
+        // Defer clearing the resetting flag to allow event queue to settle
+        wxTheApp->CallAfter([this]() {
+            m_isResetting = false;
+        });
     });
 
     wxPoint screenPos = ClientToScreen(wxPoint(entry.rect.GetLeft(), entry.rect.GetBottom()));

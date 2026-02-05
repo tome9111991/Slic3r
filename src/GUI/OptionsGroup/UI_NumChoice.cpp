@@ -91,11 +91,11 @@ UI_NumChoice::UI_NumChoice(wxWindow* parent, Slic3r::ConfigOptionDef _opt, wxWin
 
 
     _choice = new wxComboBox(parent, id, 
-            (opt.default_value != nullptr ? opt.default_value->getString() : ""),
+            (opt.default_value != nullptr ? opt.default_value->serialize() : ""),
             wxDefaultPosition, _default_size(), values, style);
     window = _choice;
 
-    this->set_value(opt.default_value != nullptr ? opt.default_value->getString() : "");
+    this->set_value(opt.default_value != nullptr ? opt.default_value->serialize() : "");
 
 
     // Event handler for data entry and changing the combobox
