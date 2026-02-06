@@ -75,6 +75,7 @@ private:
     wxArrayString m_options;
     std::vector<wxBitmapBundle> m_icons;
     wxString m_current;
+    bool m_popupOpen = false;
 };
 
 // D. Text Input Wrapper

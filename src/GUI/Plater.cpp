@@ -1,6 +1,5 @@
 #include <memory>
 #include <climits>
-#include <fstream>
 #include <cmath>
 
 #include <wx/progdlg.h>
@@ -1628,19 +1627,12 @@ void Plater::export_gcode() {
         // Ensure Print object has the latest Model state
         this->print->reload_model_instances();
 
-        std::ofstream log("slicing_debug.log", std::ios::app);
-        log << "Starting process()" << std::endl;
-
         // Process
         this->print->process();
 
-        log << "Finished process(), starting export_gcode()" << std::endl;
-        
         // Export
         this->print->export_gcode(output_file);
 
-        log << "Finished export_gcode()" << std::endl;
-        
         wxMessageBox(_("G-code exported successfully."), _("Done"), wxICON_INFORMATION);
 
     } catch (std::exception& e) {

@@ -6,15 +6,17 @@
     #include <wx/dir.h>
 #endif
 #include <wx/display.h>
+#include <wx/stopwatch.h>
 #include <string>
 
-
+#include "libslic3r.h"
 #include "MainFrame.hpp"
 #include "GUI.hpp"
 #include "misc_ui.hpp"
 #include "Settings.hpp"
 #include "Preset.hpp"
 #include "ConfigWizard.hpp"
+#include "Widgets/SplashScreen.hpp"
 
 // Logging mechanism
 #include "Log.hpp"
@@ -27,10 +29,41 @@ bool App::OnInit()
 {
     try {
         this->SetAppName("Slic3r");
-        this->notifier = std::unique_ptr<Notifier>();
         
+        // Initialize image handlers early to load splash screen
+        wxImage::AddHandler(new wxPNGHandler());
+
         if (datadir.empty())
             datadir = decode_path(wxStandardPaths::Get().GetUserDataDir());
+
+        // Initialize global paths
+        set_data_dir(datadir.ToStdString());
+        
+        // Locate resources directory
+        wxString exe_path = wxStandardPaths::Get().GetExecutablePath();
+        wxFileName exe_fn(exe_path);
+        wxString res_path = exe_fn.GetPath() + "/resources";
+        if (!wxDirExists(res_path)) res_path = exe_fn.GetPath() + "/../resources";
+        if (!wxDirExists(res_path)) res_path = exe_fn.GetPath() + "/../../resources";
+        // Dev fallback
+        if (!wxDirExists(res_path)) res_path = "c:/Users/Tommi/Documents/Codeing/Slic3r-master/resources";
+        
+        set_resources_dir(res_path.ToStdString());
+        set_var_dir(res_path.ToStdString()); // var_dir often overlaps with resources in simple setups
+        set_local_dir(res_path.ToStdString() + "/localization");
+        
+        Slic3r::Log::info(LogChannel, "Resources Dir: " + resources_dir());
+
+        ui_settings = Settings::init_settings();
+        ui_settings->load_settings();
+
+        SplashScreen* splash = new SplashScreen("Slic3r", SLIC3R_VERSION);
+        splash->Show();
+        wxStopWatch sw; // Start timing here
+        
+        splash->SetStatus(_("Loading configuration..."));
+
+        this->notifier = std::unique_ptr<Notifier>();
         wxString enc_datadir = encode_path(datadir);
         
         const wxString& slic3r_ini  {datadir + "/slic3r.ini"};
@@ -46,6 +79,12 @@ bool App::OnInit()
         bool run_wizard = (!wxDirExists(datadir) || !wxFileExists(slic3r_ini));
         
         if (run_wizard) {
+             // Destroy splash screen before showing wizard
+             if (splash) {
+                 splash->Destroy();
+                 splash = nullptr;
+             }
+
              // Ensure datadir exists at least
              if (!wxDirExists(datadir)) wxMkdir(datadir);
              
@@ -66,20 +105,32 @@ bool App::OnInit()
 
         Slic3r::Log::info(LogChannel, (_("Data dir: ") + datadir).ToStdWstring());
 
-        ui_settings = Settings::init_settings();
-
-        // Load gui settings from slic3r.ini
-        ui_settings->load_settings();
-
+        // Load presets
+        splash->SetStatus(_("Loading presets..."));
+        this->load_presets();
         ui_settings->save_settings();
 
-        // Load presets
-        this->load_presets();
-
-
-        wxImage::AddHandler(new wxPNGHandler());
+        // Create the main frame while the splash screen is still visible
+        // This utilizes the waiting time for heavy UI initialization
+        splash->SetStatus(_("Initializing UI..."));
         MainFrame *frame = new MainFrame( "Slic3r", wxDefaultPosition, wxDefaultSize);
+
+        // Ensure splash is visible for at least 2000ms
+        // We use a loop with wxSafeYield to keep the splash screen responsive 
+        // without blocking the entire UI thread or showing the main frame.
+        while (sw.Time() < 2000) {
+            wxSafeYield(); 
+            wxMilliSleep(50);
+        }
+
+        // Now that we've waited and the frame is ready, show it and remove splash
+        if (splash) {
+            splash->Destroy();
+            splash = nullptr;
+        }
+        
         this->SetTopWindow(frame);
+        frame->Show(true);
 
         // run callback functions during idle on the main frame
         this->Bind(wxEVT_IDLE, 

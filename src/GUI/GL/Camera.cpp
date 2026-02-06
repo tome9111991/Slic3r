@@ -7,10 +7,10 @@ namespace GL {
 
 Camera::Camera() 
     : m_target(0.0f, 0.0f, 0.0f)
-    , m_distance(250.0f)
+    , m_distance(200.0f)
     , m_theta(45.0f)
-    , m_phi(45.0f)
-    , m_zoom(1.0f)
+    , m_phi(225.0f)
+    , m_zoom(3.5f)
     , m_near_plane(-1000.0f)
     , m_far_plane(1000.0f)
     , m_viewport_x(0)
@@ -46,28 +46,28 @@ void Camera::rotate(float delta_theta, float delta_phi) {
 
 void Camera::zoom(float factor) {
     m_zoom *= factor;
-    // Clamp zoom
-    m_zoom = std::max(0.01f, std::min(50.0f, m_zoom));
+    // Clamp zoom to prevent going too far out or too close
+    m_zoom = std::max(1.0f, std::min(1000.0f, m_zoom));
 }
 
 void Camera::pan(float dx, float dy) {
-    // To pan correctly, we need to move the target in the plane of the camera
-    // This requires the Right and Up vectors of the camera
+    if (m_zoom <= 0.0f) return;
+
+    glm::mat4 view = get_view_matrix();
     
-    // Simple ortho panning:
-    // dx, dy are in screen pixels.
-    // We need to convert to world units.
+    // The rows of the rotation part of the view matrix are the camera's basis vectors in world space.
+    // Row 0: Right vector, Row 1: Up vector
+    glm::vec3 right(view[0][0], view[1][0], view[2][0]);
+    glm::vec3 up(view[0][1], view[1][1], view[2][1]);
     
-    float scale_w = (float)m_viewport_w / m_zoom;
-    float scale_h = (float)m_viewport_h / m_zoom;
+    // dx and dy are in pixels. m_zoom is pixels per world unit.
+    // We move the target (and consequently the camera position) in the opposite direction 
+    // of the mouse movement to achieve a "drag world" effect.
+    float world_dx = dx / m_zoom;
+    float world_dy = dy / m_zoom;
     
-    // This is approximate, ideally we use the inverse view matrix
-    // But since we are Ortho, it's linear.
-    // TODO: Implement proper panning relative to camera orientation
-    
-    // For now, simple XY pan (won't work well when rotated)
-    // m_target.x -= dx * 0.1f / m_zoom;
-    // m_target.y += dy * 0.1f / m_zoom;
+    m_target -= right * world_dx;
+    m_target += up * world_dy; // dy is positive down in screen space, up is positive up in world space
 }
 
 glm::mat4 Camera::get_view_matrix() const {

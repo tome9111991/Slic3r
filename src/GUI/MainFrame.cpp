@@ -302,13 +302,11 @@ Slic3r::GUI::MainFrame::MainFrame(const wxString& title, const wxPoint& pos, con
         this->SetMinSize(wxSize(960, 640));
         this->SetSize(this->GetMinSize());
         
-        wxTheApp->SetTopWindow(this);
         ui_settings->restore_window_pos(this, "main_frame");
         
         this->sync_colors();
 
-        this->Show();
-        this->Layout();
+        // Removed explicit Show() and Layout() to allow the app to control the timing
     }
     // Set up event handlers.
     this->Bind(wxEVT_CLOSE_WINDOW, [=](wxCloseEvent& e) {

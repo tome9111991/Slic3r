@@ -331,7 +331,7 @@ target_include_directories(poly2tri PUBLIC ${COMMON_INCLUDES})
 target_compile_options(poly2tri PRIVATE -w)
 
 if(WIN32)
-    add_executable(slic3r src/slic3r.cpp package/win/slic3r.rc package/win/slic3r.exe.manifest)
+    add_executable(slic3r WIN32 src/slic3r.cpp package/win/slic3r.rc package/win/slic3r.exe.manifest)
 else()
     add_executable(slic3r src/slic3r.cpp)
 endif()
@@ -449,6 +449,7 @@ IF(wxWidgets_FOUND AND OPENGL_FOUND AND Enable_GUI)
     ${GUI_LIBDIR}/Theme/ThemeManager.cpp
     ${GUI_LIBDIR}/Theme/CanvasTheme.cpp
     ${GUI_LIBDIR}/Widgets/ThemedControls.cpp
+    ${GUI_LIBDIR}/Widgets/SplashScreen.cpp
     ${GUI_LIBDIR}/Widgets/ThemedMenuBar.cpp
     ${GUI_LIBDIR}/Widgets/ThemedMenuPopup.cpp
     ${GUI_LIBDIR}/Widgets/ThemedMenu.cpp

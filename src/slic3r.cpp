@@ -7,6 +7,8 @@
     #endif
     #define WIN32_LEAN_AND_MEAN
     #define NOMINMAX
+    #include <windows.h>
+    #include <shellapi.h>
 #endif
 
 #include "slic3r.hpp"
@@ -42,6 +44,25 @@
 using namespace Slic3r;
 
 #ifndef BUILD_TEST
+#ifdef _WIN32
+int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine, int nCmdShow) {
+    int argc;
+    LPWSTR* argv_w = CommandLineToArgvW(GetCommandLineW(), &argc);
+    
+    std::vector<std::string> argv_s;
+    std::vector<char*> argv;
+    for (int i = 0; i < argc; ++i) {
+        argv_s.push_back(boost::nowide::narrow(argv_w[i]));
+    }
+    for (int i = 0; i < argc; ++i) {
+        argv.push_back(const_cast<char*>(argv_s[i].c_str()));
+    }
+    LocalFree(argv_w);
+
+    return CLI().run(argc, argv.data());
+}
+#endif
+
 int
 main(int argc, char **argv) {
     return CLI().run(argc, argv);

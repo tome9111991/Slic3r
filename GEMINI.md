@@ -17,9 +17,10 @@ The legacy Perl code in `port/lib/` and `port/xs/` serves as the "source of trut
 **Key Gaps (To-Do):**
 1.  **Un-vendoring:** Replace local sources in `src/` (Clipper, Admesh, Poly2Tri) with vcpkg packages.
 2.  **Preset Management:** Saving/Loading config profiles (`.ini`).
-3.  **Configuration Wizard:** First-run setup logic.
-4.  **Undo/Redo:** History stack for the Plater.
-5.  **2D/3D Interaction:** Advanced object manipulation (Cut, Mirror, etc.).
+3.  **Font Manager:** Centralized handling of UI and 3D Canvas fonts, including support for bundled TTF/OTF resources for cross-platform consistency.
+4.  **Configuration Wizard:** First-run setup logic.
+5.  **Undo/Redo:** History stack for the Plater.
+6.  **2D/3D Interaction:** Advanced object manipulation (Cut, Mirror, etc.).
 
 ## Directory Structure
 
@@ -78,6 +79,12 @@ We enforce a strict separation between Application UI and 3D Canvas rendering:
     *   **Dark Mode Check:** `ThemeManager::IsDark()`.
     *   **Icons:** `ThemeManager::GetSVG("name", size, color)`.
     *   **Recoloring:** The manager replaces `#333` with `color` automatically. Use generic icons in `resources/images/`.
+
+*   **Font Management (UI & 3D):**
+    *   **Goal:** Provide a consistent typographic experience.
+    *   **Manager:** Integrated into `ThemeManager` (for now) or a dedicated `FontManager`.
+    *   **Usage:** `ThemeManager::GetFont(FontSize::Small, FontWeight::Normal)`.
+    *   **Future:** Support loading embedded font resources (e.g., `resources/fonts/`) to avoid reliance on varying system fonts.
 
 *   **3D Canvas (Plater, Preview, Toolpaths):**
     *   **Manager:** `src/GUI/Theme/CanvasTheme.hpp`

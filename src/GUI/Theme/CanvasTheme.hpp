@@ -3,6 +3,7 @@
 
 #include <wx/wx.h>
 #include <string>
+#include "ExtrusionEntity.hpp"
 
 namespace Slic3r { namespace GUI {
 
@@ -42,19 +43,26 @@ struct CanvasThemeColors {
     wxColour bed_clearance;
     wxColour bed_dark;
 
-    // Toolpaths / GCode
-    wxColour tool_dark;
-    wxColour tool_support;
-    wxColour tool_infill;
-    wxColour tool_stepperim;
-    wxColour tool_shade;
-    wxColour tool_color;
+    // G-Code Roles (New State-of-the-Art)
+    wxColour role_perimeter;
+    wxColour role_external_perimeter;
+    wxColour role_overhang_perimeter;
+    wxColour role_internal_infill;
+    wxColour role_solid_infill;
+    wxColour role_top_solid_infill;
+    wxColour role_bridge_infill;
+    wxColour role_gap_fill;
+    wxColour role_skirt;
+    wxColour role_support_material;
+    wxColour role_support_material_interface;
 
     // Splines (Layer Height Editor)
     wxColour spline_l_pen;
     wxColour spline_o_pen;
     wxColour spline_i_pen;
     wxColour spline_r_pen;
+
+    wxColour get_role_color(ExtrusionRole role) const;
 };
 
 class CanvasTheme {

@@ -3,9 +3,9 @@
 #include "libslic3r.h"
 #include "ExtrusionEntity.hpp"
 #include "Layer.hpp"
-#include <fstream>
 #include "ExtrusionGeometry.hpp"
 #include "ExtrusionEntityCollection.hpp"
+#include "Theme/CanvasTheme.hpp"
 
 namespace Slic3r { namespace GUI {
 
@@ -14,92 +14,72 @@ void PreviewScene3D::load_print_toolpaths(std::shared_ptr<Slic3r::Print> print) 
     this->layers.clear();
     
     if(!print || print->objects.empty()) return;
-    
-    double nozzle_dm = 0.4;
-    if (!print->config.nozzle_diameter.values.empty())
-        nozzle_dm = print->config.nozzle_diameter.values[0];
 
-    // Helper to get color for role
-    auto get_color = [&](int role) -> wxColor {
-        // Simple color mapping for now
-        // 0: Perimeter (Yellow), 1: Infill (Red), 2: Support (Green)
-        switch(role) {
-            case 0: return wxColor(240, 180, 50); // Softer Gold
-            case 1: return wxColor(200, 100, 70); // Terracotta (Less jarring vs Gold)
-            case 2: return wxColor(100, 200, 120); // Mint Green
-            default: return wxColor(150, 150, 160); // Neutral Grey
-        }
+    CanvasThemeColors theme = CanvasTheme::GetColors();
+
+    struct VolData {
+        std::vector<Slic3r::ExtrusionGeometry::InstanceData> instances;
     };
+    std::map<unsigned long, VolData> vol_map; // Key: RGB value
 
     // Helper to process extrusion collection recursively
-    std::function<void(const ExtrusionEntityCollection&, const Point&, double, ::Slic3r::GLVertexArray&, ::Slic3r::GLVertexArray&)> process_collection;
-    process_collection = [&](const ExtrusionEntityCollection& collection, const Point& copy, double top_z, ::Slic3r::GLVertexArray& qverts_out, ::Slic3r::GLVertexArray& tverts_out) {
+    std::function<void(const ExtrusionEntityCollection&, const Point&, double, std::map<unsigned long, VolData>&)> process_collection;
+    process_collection = [&](const ExtrusionEntityCollection& collection, const Point& copy, double top_z, std::map<unsigned long, VolData>& vol_map) {
         for(const auto* entity : collection.entities) {
             Lines lines;
             std::vector<double> widths;
             std::vector<double> heights;
-            bool closed = false;
-            float flatness = 0.0f;
+            ExtrusionRole role = erNone;
 
             if (const auto* path = dynamic_cast<const ExtrusionPath*>(entity)) {
                 Polyline polyline = path->polyline;
                 polyline.remove_duplicate_points();
-                polyline.translate(copy);
+                // Translation handled by extrusion_to_instanced
                 lines = polyline.lines();
-                widths.assign(lines.size(), path->width);
+                
+                double w = ::Slic3r::ExtrusionGeometry::get_stadium_width(path->mm3_per_mm, path->height, path->width);
+                widths.assign(lines.size(), w);
                 heights.assign(lines.size(), path->height);
-                closed = false;
-                if (path->is_solid_infill()) flatness = 0.85f;
+                role = path->role;
             } else if (const auto* loop = dynamic_cast<const ExtrusionLoop*>(entity)) {
                 for(const auto& path : loop->paths) {
                     Polyline polyline = path.polyline;
                     polyline.remove_duplicate_points();
-                    polyline.translate(copy);
+                    // Translation handled by extrusion_to_instanced
                     Lines path_lines = polyline.lines();
                     lines.insert(lines.end(), path_lines.begin(), path_lines.end());
-                    widths.insert(widths.end(), path_lines.size(), path.width);
+                    
+                    double w = ::Slic3r::ExtrusionGeometry::get_stadium_width(path.mm3_per_mm, path.height, path.width);
+                    widths.insert(widths.end(), path_lines.size(), w);
                     heights.insert(heights.end(), path_lines.size(), path.height);
                 }
-                closed = true;
-                if (loop->is_solid_infill()) flatness = 0.85f;
+                if (!loop->paths.empty()) role = loop->paths.front().role;
             } else if (const auto* sub = dynamic_cast<const ExtrusionEntityCollection*>(entity)) {
-                process_collection(*sub, copy, top_z, qverts_out, tverts_out);
+                process_collection(*sub, copy, top_z, vol_map);
                 continue;
             }
 
-            if(!lines.empty()) {
-                ::Slic3r::ExtrusionGeometry::_extrusionentity_to_verts_do(lines, widths, heights, closed, top_z, Point(0,0), &qverts_out, &tverts_out, nozzle_dm, flatness);
+            if(!lines.empty() && role != erNone) {
+                wxColor c = theme.get_role_color(role);
+                unsigned long color_key = c.GetRGB();
+                float gl_color[4] = { c.Red()/255.0f, c.Green()/255.0f, c.Blue()/255.0f, 1.0f };
+                
+                ::Slic3r::ExtrusionGeometry::extrusion_to_instanced(lines, widths, heights, top_z, copy, gl_color, vol_map[color_key].instances);
             }
         }
-    };
-
-    // Temporary storage for volume data by color
-    struct VolData {
-        ::Slic3r::GLVertexArray qverts;
-        ::Slic3r::GLVertexArray tverts;
-        std::vector<float> q_tube_x;
-        std::vector<float> t_tube_x;
-        BoundingBoxf3 bb;
-    };
-    std::map<unsigned long, VolData> vol_map; // Key: RGB value
-
-    auto add_to_volume = [&](int role, const ExtrusionEntityCollection& collection, const Point& copy, double z) {
-        wxColor c = get_color(role);
-        unsigned long color_key = c.GetRGB();
-        process_collection(collection, copy, z, vol_map[color_key].qverts, vol_map[color_key].tverts);
     };
 
     for (auto* object : print->objects) {
         for(const auto& copy : object->_shifted_copies) {
             for (auto* layer : object->layers) {
                 for (auto* region : layer->regions) {
-                    add_to_volume(0, region->perimeters, copy, layer->print_z);
-                    add_to_volume(1, region->fills, copy, layer->print_z);
+                    process_collection(region->perimeters, copy, layer->print_z, vol_map);
+                    process_collection(region->fills, copy, layer->print_z, vol_map);
                 }
             }
             for (auto* layer : object->support_layers) {
-                add_to_volume(2, layer->support_fills, copy, layer->print_z);
-                add_to_volume(2, layer->support_interface_fills, copy, layer->print_z);
+                process_collection(layer->support_fills, copy, layer->print_z, vol_map);
+                process_collection(layer->support_interface_fills, copy, layer->print_z, vol_map);
             }
         }
     }
@@ -109,54 +89,20 @@ void PreviewScene3D::load_print_toolpaths(std::shared_ptr<Slic3r::Print> print) 
         Volume vol;
         vol.color.SetRGB(pair.first);
         vol.origin = Pointf3(0,0,0);
+        vol.instances = std::move(pair.second.instances);
         
-        // Convert qverts (Quads) to Triangles and merge with tverts
-        ::Slic3r::GLVertexArray& q = pair.second.qverts;
-        ::Slic3r::GLVertexArray& t = pair.second.tverts;
+        // Sort instances by Z height (PosA.z) to allow drawing only up to specific layer
+        std::sort(vol.instances.begin(), vol.instances.end(), [](const Slic3r::ExtrusionGeometry::InstanceData& a, const Slic3r::ExtrusionGeometry::InstanceData& b) {
+            return a.posA[2] < b.posA[2];
+        });
+
+        vol.is_instanced = true;
+        vol.gpu_dirty = true;
         
-        vol.model.verts = t.verts;
-        vol.model.norms = t.norms;
-        vol.tube_coords = t.tube_coords;
-        
-        // Append quads as triangles
-        for(size_t i=0; i < q.verts.size(); i += 12) {
-             // Quad Verts indices: i, i+1, i+2, i+3 (relative to quad start, each is 3 floats)
-             if(i+11 >= q.verts.size()) break; // Safety check
-
-             size_t v_idx = i / 3; // Index in tube_coords
-
-             // Triangle 1: V0, V1, V2
-             for(int k=0; k<3; ++k) vol.model.verts.push_back(q.verts[i+k]);
-             for(int k=0; k<3; ++k) vol.model.norms.push_back(q.norms[i+k]);
-             vol.tube_coords.push_back(q.tube_coords[v_idx]);
-             
-             for(int k=0; k<3; ++k) vol.model.verts.push_back(q.verts[i+3+k]);
-             for(int k=0; k<3; ++k) vol.model.norms.push_back(q.norms[i+3+k]);
-             vol.tube_coords.push_back(q.tube_coords[v_idx+1]);
-
-             for(int k=0; k<3; ++k) vol.model.verts.push_back(q.verts[i+6+k]);
-             for(int k=0; k<3; ++k) vol.model.norms.push_back(q.norms[i+6+k]);
-             vol.tube_coords.push_back(q.tube_coords[v_idx+2]);
-             
-             // Triangle 2: V0, V2, V3
-             for(int k=0; k<3; ++k) vol.model.verts.push_back(q.verts[i+k]);
-             for(int k=0; k<3; ++k) vol.model.norms.push_back(q.norms[i+k]);
-             vol.tube_coords.push_back(q.tube_coords[v_idx]); // V0
-
-             for(int k=0; k<3; ++k) vol.model.verts.push_back(q.verts[i+6+k]);
-             for(int k=0; k<3; ++k) vol.model.norms.push_back(q.norms[i+6+k]);
-             vol.tube_coords.push_back(q.tube_coords[v_idx+2]); // V2
-
-             for(int k=0; k<3; ++k) vol.model.verts.push_back(q.verts[i+9+k]);
-             for(int k=0; k<3; ++k) vol.model.norms.push_back(q.norms[i+9+k]);
-             vol.tube_coords.push_back(q.tube_coords[v_idx+3]); // V3
-        }
-        
-        // Compute BB
-        if(!vol.model.verts.empty()) {
-            for(size_t i=0; i<vol.model.verts.size(); i+=3) {
-                vol.bb.merge(Pointf3(vol.model.verts[i], vol.model.verts[i+1], vol.model.verts[i+2]));
-            }
+        // Compute BB roughly
+        for(const auto& inst : vol.instances) {
+            vol.bb.merge(Pointf3(inst.posA[0], inst.posA[1], inst.posA[2]));
+            vol.bb.merge(Pointf3(inst.posB[0], inst.posB[1], inst.posB[2]));
         }
         
         this->volumes.push_back(vol);
@@ -235,10 +181,7 @@ void Preview3D::reload_print(){
 }
 
 void Preview3D::load_print() {
-    std::ofstream log("preview_debug.log", std::ios::app);
-    log << "Preview3D::load_print called" << std::endl;
     if(loaded) {
-        log << "Already loaded" << std::endl;
         return;
     }
     
@@ -246,13 +189,11 @@ void Preview3D::load_print() {
     // is performed on all of them (this ensures that _shifted_copies was
     // populated and we know the number of layers)
     if(!print->step_done(posSlice)) {
-        log << "Slice step NOT done" << std::endl;
         _enabled = false;
         slider->Hide();
         canvas.Refresh();  // clears canvas
         return;
     }
-    log << "Slice step DONE" << std::endl;
     
     size_t z_idx = 0;
     {
@@ -274,8 +215,7 @@ void Preview3D::load_print() {
         // If invalid z_idx,  move the slider to the top
         if (z_idx >= layers_z.size() || slider->GetValue() == 0) {
             slider->SetValue(layers_z.size()-1);
-            //$z_idx = @{$self->{layer_z}} ? -1 : undef;
-            z_idx = slider->GetValue(); // not sure why the perl version makes z_idx invalid
+            z_idx = layers_z.size()-1;
         }
         slider->Show();
         Layout();

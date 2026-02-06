@@ -82,19 +82,19 @@ const std::string TMF_MODEL_WILDCARD { FILE_WILDCARDS.at("tmf") };
 
 
 /// Mostly useful for Linux distro maintainers, this will change where Slic3r assumes 
-/// its ./var directory lives (where its art assets are). 
-/// Define VAR_ABS and VAR_ABS_PATH 
-#ifndef VAR_ABS
-    #define VAR_ABS false
+/// its resources directory lives (where its art assets are). 
+/// Define RESOURCE_ABS and RESOURCE_ABS_PATH 
+#ifndef RESOURCE_ABS
+    #define RESOURCE_ABS false
 #else 
-    #define VAR_ABS true
+    #define RESOURCE_ABS true
 #endif
-#ifndef VAR_ABS_PATH
-    #define VAR_ABS_PATH "/usr/share/Slic3r/resources"
+#ifndef RESOURCE_ABS_PATH
+    #define RESOURCE_ABS_PATH "/usr/share/Slic3r/resources"
 #endif
 
-#ifndef VAR_REL // Redefine on compile
-    #define VAR_REL L"/resources"
+#ifndef RESOURCE_REL // Redefine on compile
+    #define RESOURCE_REL L"/resources"
 #endif
 
 /// Performs a check via the Internet for a new version of Slic3r.

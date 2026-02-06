@@ -6,12 +6,11 @@ namespace Slic3r {
 void
 ExtrusionGeometry::_extrusionentity_to_verts_do(const Lines &lines, const std::vector<double> &widths,
         const std::vector<double> &heights, bool closed, double top_z, const Point &copy,
-        GLVertexArray* qverts, GLVertexArray* tverts, double nozzle_dm, float flatness)
+        GLVertexArray* qverts, GLVertexArray* tverts, float flatness)
 {
     if (lines.empty()) return;
     
     const int N = 8;
-    const double angles[N] = { 0, M_PI/4.0, M_PI/2.0, 3.0*M_PI/4.0, M_PI, 5.0*M_PI/4.0, 3.0*M_PI/2.0, 7.0*M_PI/4.0 };
     const float tube_values[N] = { 1.0f, 0.5f, 0.0f, -0.5f, -1.0f, -0.5f, 0.0f, 0.5f };
 
     struct Ring {
@@ -22,35 +21,51 @@ ExtrusionGeometry::_extrusionentity_to_verts_do(const Lines &lines, const std::v
     auto get_ring = [&](const Pointf &center, const Vectorf &dir, double w, double h) {
         Ring r;
         Vectorf right_vec = Vectorf(dir.y, -dir.x);
-        double rw = w / 2.0;
         double rh = h / 2.0;
         double z_mid = top_z - rh;
         
+        // Stadium geometry: width w, height h.
+        // Flat top/bottom width is (w-h).
+        double d_half = (w > h) ? (w - h) / 2.0 : 0.0;
+        double r_semi = (w > h) ? rh : w / 2.0;
+
         for (int i = 0; i < N; ++i) {
-            double c = cos(angles[i]);
-            double s = sin(angles[i]);
+            double x_off, z_off;
+            float nx, ny, nz;
             
-            // Apply flatness: if flatness > 0, we pull the top/bottom vertices closer to the z bounds
-            // and keep the side vertices where they are.
-            double s_flat = s;
-            if (flatness > 0.001f) {
-                // Towards the top/bottom (s=1 or s=-1), we make the curve "boxier"
-                s_flat = std::pow(std::abs(s), 1.0 - 0.7 * flatness) * (s > 0 ? 1.0 : -1.0);
+            // Define 8 vertices for a proper stadium:
+            // 0: right extreme, 1: top-right arc, 2: top-right corner, 3: top-left corner,
+            // 4: left extreme, 5: bottom-left arc, 6: bottom-left corner, 7: bottom-right corner
+            switch(i) {
+                case 0: x_off =  d_half + r_semi;      z_off = 0;           nx = (float)right_vec.x; ny = (float)right_vec.y; nz = 0; break;
+                case 1: x_off =  d_half + r_semi*0.707; z_off = rh*0.707;    nx = (float)right_vec.x*0.707f; ny = (float)right_vec.y*0.707f; nz = 0.707f; break;
+                case 2: x_off =  d_half;               z_off = rh;          nx = 0; ny = 0; nz = 1.0f; break;
+                case 3: x_off = -d_half;               z_off = rh;          nx = 0; ny = 0; nz = 1.0f; break;
+                case 4: x_off = -d_half - r_semi;      z_off = 0;           nx = -(float)right_vec.x; ny = -(float)right_vec.y; nz = 0; break;
+                case 5: x_off = -d_half - r_semi*0.707; z_off = -rh*0.707;   nx = -(float)right_vec.x*0.707f; ny = -(float)right_vec.y*0.707f; nz = -0.707f; break;
+                case 6: x_off = -d_half;               z_off = -rh;         nx = 0; ny = 0; nz = -1.0f; break;
+                case 7: x_off =  d_half;               z_off = -rh;         nx = 0; ny = 0; nz = -1.0f; break;
+                default: x_off = 0; z_off = 0; nx=0; ny=0; nz=1.0f; break;
             }
 
-            r.p[i] = Pointf3((float)(center.x + c * rw * right_vec.x), 
-                             (float)(center.y + c * rw * right_vec.y), 
-                             (float)(z_mid + s_flat * rh));
+            if (flatness > 0.001f) {
+                double s = z_off / rh;
+                // Towards the top/bottom, we make the curve "boxier" for infill
+                double s_flat = std::pow(std::abs(s), 1.0 - 0.7 * (double)flatness) * (s > 0 ? 1.0 : -1.0);
+                z_off = s_flat * rh;
+            }
+
+            r.p[i] = Pointf3((float)(center.x + x_off * right_vec.x), 
+                             (float)(center.y + x_off * right_vec.y), 
+                             (float)(z_mid + z_off));
             
-            // Recalculate normal for flattened shape
-            Vectorf3 n_vec((float)(c * right_vec.x), (float)(c * right_vec.y), (float)(s * (1.0 - flatness * 0.5)));
-            r.n[i] = n_vec.normalize();
+            float n_l = std::sqrt(nx*nx + ny*ny + nz*nz);
+            r.n[i] = Pointf3(nx/n_l, ny/n_l, nz/n_l);
         }
         return r;
     };
 
     Ring prev_ring;
-    const Line* prev_line = nullptr;
     bool first_done = false;
 
     size_t n_segments = lines.size();
@@ -64,29 +79,37 @@ ExtrusionGeometry::_extrusionentity_to_verts_do(const Lines &lines, const std::v
         
         double w = widths[idx];
         double h = heights[idx];
-        
-        // Removed the nozzle_dm cap to prevent "holey" infill.
-        // The slicer's width w is the correct spacing between centerlines.
 
         Vectorf v = Vectorf::new_unscale(line.vector());
         v.scale(1.0 / unscale(len));
         
         Pointf a = Pointf::new_unscale(line.a);
         Pointf b = Pointf::new_unscale(line.b);
-        Pointf center_a = a;
-        Pointf center_b = b;
 
-        Ring ring_a = get_ring(center_a, v, w, h);
-        Ring ring_b = get_ring(center_b, v, w, h);
+        Ring ring_a = get_ring(a, v, w, h);
+        Ring ring_b = get_ring(b, v, w, h);
 
         if (first_done) {
-            // Corner Gap Filling
-            Pointf3 jc((float)center_a.x, (float)center_a.y, (float)(top_z - h/2.0));
+            // Joint / Corner Filling
+            Pointf3 jc((float)a.x, (float)a.y, (float)(top_z - h/2.0));
             
             for (int j = 0; j < N; ++j) {
+                int next_j = (j + 1) % N;
+                
+                // 1. Joint Axis Fan Triangle (Internal volume filler)
                 tverts->push_norm(prev_ring.n[j]); tverts->push_vert(jc);              tverts->push_tube(0.0f);
                 tverts->push_norm(prev_ring.n[j]); tverts->push_vert(prev_ring.p[j]); tverts->push_tube(tube_values[j]);
                 tverts->push_norm(ring_a.n[j]);    tverts->push_vert(ring_a.p[j]);    tverts->push_tube(tube_values[j]);
+
+                // 2. Miter Surface Quad (Fills the gap between segments)
+                // Triangle 1
+                tverts->push_norm(prev_ring.n[j]);     tverts->push_vert(prev_ring.p[j]);     tverts->push_tube(tube_values[j]);
+                tverts->push_norm(ring_a.n[j]);        tverts->push_vert(ring_a.p[j]);        tverts->push_tube(tube_values[j]);
+                tverts->push_norm(ring_a.n[next_j]);   tverts->push_vert(ring_a.p[next_j]);   tverts->push_tube(tube_values[next_j]);
+                // Triangle 2
+                tverts->push_norm(prev_ring.n[j]);     tverts->push_vert(prev_ring.p[j]);     tverts->push_tube(tube_values[j]);
+                tverts->push_norm(ring_a.n[next_j]);   tverts->push_vert(ring_a.p[next_j]);   tverts->push_tube(tube_values[next_j]);
+                tverts->push_norm(prev_ring.n[next_j]); tverts->push_vert(prev_ring.p[next_j]); tverts->push_tube(tube_values[next_j]);
             }
         }
 
@@ -101,10 +124,10 @@ ExtrusionGeometry::_extrusionentity_to_verts_do(const Lines &lines, const std::v
             qverts->push_norm(ring_a.n[next_j]); qverts->push_vert(ring_a.p[next_j]); qverts->push_tube(tube_values[next_j]);
         }
 
-        // Caps
+        // End Caps (Only for open paths)
         if (!closed) {
             if (i == 0) {
-                Pointf3 jc((float)center_a.x, (float)center_a.y, (float)(top_z - h/2.0));
+                Pointf3 jc((float)a.x, (float)a.y, (float)(top_z - h/2.0));
                 Vectorf3 back_norm((float)-v.x, (float)-v.y, 0);
                 for (int j = 0; j < N; ++j) {
                     int next_j = (j + 1) % N;
@@ -114,7 +137,7 @@ ExtrusionGeometry::_extrusionentity_to_verts_do(const Lines &lines, const std::v
                 }
             }
             if (i == n_segments - 1) {
-                Pointf3 jc((float)center_b.x, (float)center_b.y, (float)(top_z - h/2.0));
+                Pointf3 jc((float)b.x, (float)b.y, (float)(top_z - h/2.0));
                 Vectorf3 front_norm((float)v.x, (float)v.y, 0);
                 for (int j = 0; j < N; ++j) {
                     int next_j = (j + 1) % N;
@@ -126,10 +149,10 @@ ExtrusionGeometry::_extrusionentity_to_verts_do(const Lines &lines, const std::v
         }
 
         prev_ring = ring_b;
-        prev_line = &line;
         first_done = true;
     }
 }
+
 
 void
 GLVertexArray::load_mesh(const TriangleMesh &mesh)
@@ -143,6 +166,53 @@ GLVertexArray::load_mesh(const TriangleMesh &mesh)
             this->push_vert(facet.vertex[j].x, facet.vertex[j].y, facet.vertex[j].z);
         }
     }
+}
+
+
+
+void ExtrusionGeometry::extrusion_to_instanced(const Lines &lines, const std::vector<double> &widths,
+    const std::vector<double> &heights, double top_z, const Point &copy,
+    const float* color, std::vector<InstanceData>& instances)
+{
+    size_t count = lines.size();
+    instances.reserve(instances.size() + count);
+
+    for (size_t i = 0; i < count; ++i) {
+        const Line &line = lines[i];
+        double w = widths[i];
+        double h = heights[i];
+        double z = top_z - h * 0.5;
+
+        Point p1 = line.a;
+        Point p2 = line.b;
+        p1.translate(copy);
+        p2.translate(copy);
+
+        InstanceData inst;
+        inst.posA[0] = (float)unscale(p1.x); 
+        inst.posA[1] = (float)unscale(p1.y); 
+        inst.posA[2] = (float)z;
+        inst.width   = (float)w;
+        
+        inst.posB[0] = (float)unscale(p2.x); 
+        inst.posB[1] = (float)unscale(p2.y); 
+        inst.posB[2] = (float)z;
+        inst.height  = (float)h;
+
+        inst.color[0] = color[0];
+        inst.color[1] = color[1];
+        inst.color[2] = color[2];
+        inst.color[3] = color[3];
+
+        instances.push_back(inst);
+    }
+}
+
+double ExtrusionGeometry::get_stadium_width(double mm3_per_mm, double height, double default_width)
+{
+    if (mm3_per_mm <= 0) return default_width;
+    // Stadium model formula: w = A/h + h(1 - PI/4)
+    return mm3_per_mm / height + height * (1.0 - M_PI / 4.0);
 }
 
 }

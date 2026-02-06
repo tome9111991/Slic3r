@@ -1,8 +1,12 @@
 #include "Scene3D.hpp"
+#include <cmath>
 #include "Theme/CanvasTheme.hpp"
 #include "Log.hpp"
 #include "ExtrusionGeometry.hpp"
 #include "libslic3r/ClipperUtils.hpp"
+#include "libslic3r/Utils.hpp"
+#include <fstream>
+#include <sstream>
 
 // GLM
 #include <glm/glm.hpp>
@@ -66,6 +70,9 @@ Scene3D::~Scene3D() {
         m_vao_selection.reset();
         m_shader.reset();
         m_shader_bg.reset();
+        m_shader_instanced.reset();
+        m_vbo_instanced_template.reset();
+        m_vao_instanced_template.reset();
         volumes.clear();
     }
     delete m_context;
@@ -101,94 +108,32 @@ void Scene3D::init_gl(){
     if (!m_vbo_selection) m_vbo_selection = std::make_unique<GL::VertexBuffer>();
     if (!m_vao_selection) m_vao_selection = std::make_unique<GL::VertexArray>();
 
+    if (!m_vbo_selection) m_vbo_selection = std::make_unique<GL::VertexBuffer>();
+    if (!m_vao_selection) m_vao_selection = std::make_unique<GL::VertexArray>();
+    if (!m_vbo_instanced_template) m_vbo_instanced_template = std::make_unique<GL::VertexBuffer>();
+    if (!m_vao_instanced_template) m_vao_instanced_template = std::make_unique<GL::VertexArray>();
+
     init_shaders();
 }
 
 void Scene3D::init_shaders() {
     m_shader = std::make_unique<GL::Shader>("MainShader");
     
-    std::string vs = R"(
-        #version 460 core
-        layout (location = 0) in vec3 aPos;
-        layout (location = 1) in vec3 aNormal;
-        layout (location = 2) in float aTube;
-        
-        uniform mat4 view;
-        uniform mat4 projection;
-        uniform mat4 model;
-        
-        out vec3 v_frag_pos;
-        out vec3 v_normal;
-        out float v_z_height;
-        out float v_tube;
-        
-        void main() {
-            vec4 worldPos = model * vec4(aPos, 1.0);
-            v_frag_pos = vec3(worldPos);
-            v_normal = mat3(transpose(inverse(model))) * aNormal;
-            v_z_height = aPos.z;
-            v_tube = aTube;
-            gl_Position = projection * view * worldPos;
-        }
-    )";
+    auto read_file = [](const std::string& path) -> std::string {
+        std::ifstream in(path);
+        if(!in.is_open()) return "";
+        std::stringstream buffer;
+        buffer << in.rdbuf();
+        return buffer.str();
+    };
     
-    std::string fs = R"(
-        #version 460 core
-        out vec4 FragColor;
-        
-        in vec3 v_frag_pos;
-        in vec3 v_normal;
-        in float v_z_height;
-        in float v_tube;
-        
-        uniform vec3 objectColor;
-        uniform vec3 lightPos;
-        uniform vec3 viewPos;
-        uniform float u_clipping_z;
-        uniform float u_alpha;
-        uniform int u_lit; // 1 = lit, 0 = flat
-        
-        void main() {
-            if (v_z_height > u_clipping_z) discard;
-            
-            if (u_lit == 0) {
-                FragColor = vec4(objectColor, u_alpha);
-                return;
-            }
-        
-            vec3 N = normalize(v_normal);
-            // Ambient Occlusion based on tube coordinate (crevice between beads)
-            float ao = 1.0 - 0.4 * pow(abs(v_tube), 4.0);
-            
-            // Subtle normal enhancement to make it look even rounder than the 8-segments
-            if (abs(v_tube) > 0.1) {
-                float tilt = v_tube * 0.4;
-                N = normalize(N + vec3(tilt, 0.0, 0.0)); // Fake extra curvature
-            }
-
-            vec3 lightDir = normalize(vec3(0.5, 0.5, 1.0)); 
-            vec3 viewDir = normalize(viewPos - v_frag_pos);
-            
-            float diff = max(dot(N, lightDir), 0.0);
-            
-            // Specular highlighting (Shinier for 3D prints)
-            vec3 halfwayDir = normalize(lightDir + viewDir);
-            float spec = pow(max(dot(N, halfwayDir), 0.0), 32.0);
-            
-            vec3 ambient = 0.4 * objectColor; 
-            vec3 diffuse = 0.6 * diff * objectColor;
-            vec3 specular = vec3(0.4) * spec; 
-            
-            vec3 result = (ambient + diffuse + specular) * ao;
-            
-            // Subtle "layer" edge darkening to emphasize the 3D printed nature
-            result *= (0.9 + 0.1 * smoothstep(0.95, 1.0, 1.0 - abs(v_tube)));
-            
-            // Gamma correction
-            result = pow(result, vec3(1.0/2.2));
-            FragColor = vec4(result, u_alpha);
-        }
-    )";
+    std::string shaders_dir = Slic3r::resources_dir() + "/shaders/";
+    std::string vs = read_file(shaders_dir + "gouraud_light.vs");
+    std::string fs = read_file(shaders_dir + "gouraud_light.fs");
+    
+    if (vs.empty() || fs.empty()) {
+        Slic3r::Log::error("Scene3D", "Failed to load shaders from " + shaders_dir);
+    }
     
     if(!m_shader->init(vs, fs)) {
         Slic3r::Log::error("Scene3D", "Shader init failed");
@@ -223,6 +168,53 @@ void Scene3D::init_shaders() {
     m_vao_bg->bind();
     m_vbo_bg->upload_data(bg_quad, sizeof(bg_quad));
     m_vao_bg->add_attribute(0, 2, GL_FLOAT, GL_FALSE, 2*sizeof(float), 0);
+    m_vao_bg->add_attribute(0, 2, GL_FLOAT, GL_FALSE, 2*sizeof(float), 0);
+    
+    // Instanced Shader
+    m_shader_instanced = std::make_unique<GL::Shader>("InstancedShader");
+    std::string ivs = read_file(shaders_dir + "instanced.vs");
+    std::string ifs = read_file(shaders_dir + "instanced.fs");
+    if(!m_shader_instanced->init(ivs, ifs)) {
+        Slic3r::Log::error("Scene3D", "Instanced Shader init failed");
+    }
+
+    // Init Instanced Template (Unit Octagon Tube along Z, 0 to 1)
+    std::vector<float> t_data;
+    const int N = 8;
+    struct Vec2 { float x, y; };
+    std::vector<Vec2> ps(N);
+    std::vector<Vec2> ns(N);
+
+    for(int i=0; i<N; ++i) {
+        float angle = (float)i * 2.0f * 3.14159265f / (float)N;
+        ps[i].x = cos(angle);
+        ps[i].y = sin(angle);
+        // Smooth normals (same as position direction)
+        ns[i] = ps[i];
+    }
+    
+    for(int i=0; i<N; ++i) {
+        int next = (i+1)%N;
+        
+        auto push = [&](const Vec2& p, float z, const Vec2& n) {
+            t_data.push_back(p.x); t_data.push_back(p.y); t_data.push_back(z);
+            t_data.push_back(n.x); t_data.push_back(n.y); t_data.push_back(0); // Normal z=0 (approx)
+        };
+        
+        // 2 Triangles per face
+        // Bottom-Left, Bottom-Right, Top-Left
+        push(ps[i], 0, ns[i]);    push(ps[next], 0, ns[next]); push(ps[i], 1, ns[i]);
+        // Top-Left, Bottom-Right, Top-Right
+        push(ps[i], 1, ns[i]);    push(ps[next], 0, ns[next]); push(ps[next], 1, ns[next]);
+    }
+    
+    m_vbo_instanced_template->upload_data(t_data.data(), t_data.size() * sizeof(float));
+    m_vbo_instanced_template->set_count(t_data.size() / 6);
+    
+    m_vao_instanced_template->bind();
+    m_vbo_instanced_template->bind();
+    m_vao_instanced_template->add_attribute(0, 3, GL_FLOAT, GL_FALSE, 6*sizeof(float), 0);
+    m_vao_instanced_template->add_attribute(1, 3, GL_FLOAT, GL_FALSE, 6*sizeof(float), (void*)(3*sizeof(float)));
 }
 
 void Scene3D::resize(){
@@ -332,8 +324,8 @@ void Scene3D::repaint(wxPaintEvent& e) {
     
     m_shader->set_uniform("view", view);
     m_shader->set_uniform("projection", projection);
-    m_shader->set_uniform("viewPos", camPos);
-    m_shader->set_uniform("lightPos", glm::vec3(0.0f, 0.0f, 100.0f)); 
+    // m_shader->set_uniform("viewPos", camPos); // Unused in new shader
+    // m_shader->set_uniform("lightPos", glm::vec3(0.0f, 0.0f, 100.0f)); // Unused in new shader
     m_shader->set_uniform("u_clipping_z", m_clipping_z);
     m_shader->set_uniform("u_alpha", 1.0f);
     m_shader->set_uniform("u_lit", 1);
@@ -399,55 +391,113 @@ void Scene3D::draw_ground() {
 
 void Scene3D::draw_volumes() {
     for(auto &volume : volumes) {
-        if(volume.gpu_dirty) {
-            // Create VBO/VAO
-            volume.vbo = std::make_shared<GL::VertexBuffer>();
-            volume.vao = std::make_shared<GL::VertexArray>();
+        if (volume.is_instanced) {
+             // --- Instanced Render Path ---
+             m_shader_instanced->bind();
+             
+             // Set Uniforms (since we switched programs)
+             glm::mat4 view = m_camera.get_view_matrix();
+             glm::mat4 projection = m_camera.get_projection_matrix();
+             m_shader_instanced->set_uniform("view", view);
+             m_shader_instanced->set_uniform("projection", projection);
+             m_shader_instanced->set_uniform("u_lit", 1);
+             // m_shader_instanced->set_uniform("u_clipping_z", m_clipping_z); // Not used anymore (CPU masking)
+             
+             glm::mat4 model = glm::mat4(1.0f);
+             model = glm::translate(model, glm::vec3(volume.origin.x, volume.origin.y, volume.origin.z));
+             m_shader_instanced->set_uniform("model", model);
 
-            // Interleave: Pos(3), Normal(3), Tube(1) = 7 floats per vertex
-            std::vector<float> data;
-            size_t count = volume.model.verts.size() / 3; 
-            for(size_t i=0; i<count; ++i) {
-                // Pos
-                data.push_back(volume.model.verts[i*3]);
-                data.push_back(volume.model.verts[i*3+1]);
-                data.push_back(volume.model.verts[i*3+2]);
-                // Norm
-                if(volume.model.norms.size() > i*3+2) {
-                    data.push_back(volume.model.norms[i*3]);
-                    data.push_back(volume.model.norms[i*3+1]);
-                    data.push_back(volume.model.norms[i*3+2]);
-                } else {
-                    data.push_back(0); data.push_back(0); data.push_back(1);
+             if(volume.gpu_dirty) {
+                 if(!volume.instance_buffer) volume.instance_buffer = std::make_shared<GL::VertexBuffer>();
+                 // Upload SSBO
+                 // Note: InstanceData size is 48 bytes
+                 volume.instance_buffer->upload_data(volume.instances.data(), volume.instances.size() * sizeof(ExtrusionGeometry::InstanceData), GL_DYNAMIC_DRAW);
+                 volume.instance_count = volume.instances.size();
+                 volume.gpu_dirty = false;
+             }
+             
+             if(volume.instance_count > 0 && volume.instance_buffer) {
+                 // Determine how many instances to draw based on Z clipping
+                 // Binary search for the first instance that is ABOVe clipping Z
+                 // Since instances are sorted by Z, we can just draw 0..Index
+                 
+                 GLsizei draw_count = (GLsizei)volume.instance_count;
+                 
+                 // Optimization: Only search if clipping is active (somewhere below max)
+                 if (m_clipping_z < 10000.0f) {
+                     // We find the first element that has Z > clipping_z + small margin
+                     auto it = std::upper_bound(volume.instances.begin(), volume.instances.end(), m_clipping_z + 0.01f, 
+                         [](float val, const Slic3r::ExtrusionGeometry::InstanceData& inst) {
+                             return val < inst.posA[2];
+                         });
+                      draw_count = (GLsizei)std::distance(volume.instances.begin(), it);
+                 }
+
+                 if (draw_count > 0) {
+                     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, volume.instance_buffer->get_id());
+                     
+                     m_vao_instanced_template->bind();
+                     glDrawArraysInstanced(GL_TRIANGLES, 0, (GLsizei)m_vbo_instanced_template->get_count(), draw_count);
+                     m_vao_instanced_template->unbind();
+
+                     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, 0); 
+                 }
+             }
+             
+             // Restore Main Shader
+             m_shader->bind();
+        } else {
+            // --- Standard Render Path ---
+            if(volume.gpu_dirty) {
+                // Create VBO/VAO
+                volume.vbo = std::make_shared<GL::VertexBuffer>();
+                volume.vao = std::make_shared<GL::VertexArray>();
+    
+                // Interleave: Pos(3), Normal(3), Tube(1) = 7 floats per vertex
+                std::vector<float> data;
+                size_t count = volume.model.verts.size() / 3; 
+                for(size_t i=0; i<count; ++i) {
+                    // Pos
+                    data.push_back(volume.model.verts[i*3]);
+                    data.push_back(volume.model.verts[i*3+1]);
+                    data.push_back(volume.model.verts[i*3+2]);
+                    // Norm
+                    if(volume.model.norms.size() > i*3+2) {
+                        data.push_back(volume.model.norms[i*3]);
+                        data.push_back(volume.model.norms[i*3+1]);
+                        data.push_back(volume.model.norms[i*3+2]);
+                    } else {
+                        data.push_back(0); data.push_back(0); data.push_back(1);
+                    }
+                    // Tube Coords
+                    if (volume.tube_coords.size() > i) {
+                        data.push_back(volume.tube_coords[i]);
+                    } else {
+                        data.push_back(0.0f);
+                    }
                 }
-                // Tube Coords
-                if (volume.tube_coords.size() > i) {
-                    data.push_back(volume.tube_coords[i]);
-                } else {
-                    data.push_back(0.0f);
-                }
+                
+                volume.vbo->upload_data(data.data(), data.size() * sizeof(float));
+                volume.vbo->set_count(count);
+                
+                volume.vao->bind();
+                volume.vbo->bind();
+                volume.vao->add_attribute(0, 3, GL_FLOAT, GL_FALSE, 7*sizeof(float), (void*)0);
+                volume.vao->add_attribute(1, 3, GL_FLOAT, GL_FALSE, 7*sizeof(float), (void*)(3*sizeof(float)));
+                volume.vao->add_attribute(2, 1, GL_FLOAT, GL_FALSE, 7*sizeof(float), (void*)(6*sizeof(float)));
+                
+                volume.gpu_dirty = false;
             }
             
-            volume.vbo->upload_data(data.data(), data.size() * sizeof(float));
-            volume.vbo->set_count(count);
+            glm::mat4 model = glm::mat4(1.0f);
+            model = glm::translate(model, glm::vec3(volume.origin.x, volume.origin.y, volume.origin.z));
+            
+            m_shader->set_uniform("model", model);
+            m_shader->set_uniform("objectColor", glm::vec3(volume.color.Red()/255.0f, volume.color.Green()/255.0f, volume.color.Blue()/255.0f));
             
             volume.vao->bind();
-            volume.vbo->bind();
-            volume.vao->add_attribute(0, 3, GL_FLOAT, GL_FALSE, 7*sizeof(float), (void*)0);
-            volume.vao->add_attribute(1, 3, GL_FLOAT, GL_FALSE, 7*sizeof(float), (void*)(3*sizeof(float)));
-            volume.vao->add_attribute(2, 1, GL_FLOAT, GL_FALSE, 7*sizeof(float), (void*)(6*sizeof(float)));
-            
-            volume.gpu_dirty = false;
+            glDrawArrays(GL_TRIANGLES, 0, (GLsizei)volume.vbo->get_count());
         }
-        
-        glm::mat4 model = glm::mat4(1.0f);
-        model = glm::translate(model, glm::vec3(volume.origin.x, volume.origin.y, volume.origin.z));
-        
-        m_shader->set_uniform("model", model);
-        m_shader->set_uniform("objectColor", glm::vec3(volume.color.Red()/255.0f, volume.color.Green()/255.0f, volume.color.Blue()/255.0f));
-        
-        volume.vao->bind();
-        glDrawArrays(GL_TRIANGLES, 0, (GLsizei)volume.vbo->get_count());
     }
 }
 
@@ -588,8 +638,8 @@ void Scene3D::mouse_down(wxMouseEvent &e){
 
 void Scene3D::mouse_wheel(wxMouseEvent &e){
     float delta = ((float)e.GetWheelRotation()) / e.GetWheelDelta();
-    // Reduced zoom speed from 5% to 2% per notch
-    float zoom_factor = (delta > 0) ? 1.02f : 0.98f;
+    // Increased zoom speed from 2% to 10% per notch for better responsiveness
+    float zoom_factor = std::pow(1.1f, delta);
     m_camera.zoom(zoom_factor);
     Refresh();
 }

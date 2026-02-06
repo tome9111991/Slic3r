@@ -24,11 +24,29 @@ void check_version(bool manual)  {
 #endif
 
 const wxString var(const wxString& in) {
-    // TODO replace center string with path to VAR in actual distribution later
-    if (VAR_ABS) {
-        return wxString(VAR_ABS_PATH) + "/" + in;
+    if (RESOURCE_ABS) {
+        return wxString(RESOURCE_ABS_PATH) + "/" + in;
     } else {
-        return bin() + wxString(VAR_REL) + "/" + in;
+        // Robust search logic for resources
+        wxString appDir = bin();
+        wxArrayString searchPaths;
+        
+        // 1. Preferred: bin/resources/
+        searchPaths.Add(appDir + wxString(RESOURCE_REL) + "/");
+        // 2. Dev/VS Layout: bin/../resources/
+        searchPaths.Add(appDir + "/.." + wxString(RESOURCE_REL) + "/");
+        // 3. Fallback: ./resources/
+        searchPaths.Add(wxString(".") + wxString(RESOURCE_REL) + "/");
+
+        for (const auto& path : searchPaths) {
+            wxString fullPath = path + in;
+            if (wxFileExists(fullPath)) {
+                return fullPath;
+            }
+        }
+
+        // Default fallback if not found
+        return appDir + wxString(RESOURCE_REL) + "/" + in;
     }
 }
 

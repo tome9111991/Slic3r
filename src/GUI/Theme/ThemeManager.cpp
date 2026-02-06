@@ -147,7 +147,7 @@ ThemeColors ThemeManager::GetColors() {
             wxColour(45, 45, 45),    // surface (Panels/Inputs)
             wxColour(240, 240, 240), // text
             wxColour(150, 150, 150), // textMuted
-            wxColour(0, 174, 126),   // accent (Orca Green)
+            wxColour(117, 117, 12),  // accent
             wxColour(70, 70, 70),    // border
             wxColour(24, 24, 24),    // header (Top Bar)
             true                     // isDark

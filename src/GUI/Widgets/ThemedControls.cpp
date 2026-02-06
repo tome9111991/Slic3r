@@ -2,6 +2,7 @@
 #include "../Theme/ThemeManager.hpp"
 #include <wx/dcbuffer.h>
 #include <wx/menu.h>
+#include <wx/popupwin.h>
 
 namespace Slic3r { namespace GUI {
 
@@ -154,6 +155,8 @@ void ThemedCheckBox::OnPaint(wxPaintEvent&) {
     
     auto theme = ThemeManager::GetColors();
     
+    double scale = GetContentScaleFactor();
+
     // Choose icon and color
     wxString iconName = m_checked ? "checkbox_checked" : "checkbox_unchecked";
     wxColour iconColor = m_checked ? theme.accent : theme.textMuted;
@@ -161,13 +164,13 @@ void ThemedCheckBox::OnPaint(wxPaintEvent&) {
     // Load and Draw SVG (14x14 fits better with small text)
     wxBitmapBundle bundle = ThemeManager::GetSVG(iconName, wxSize(14, 14), iconColor);
     
-    // Center vertically
-    int yPos = (GetSize().y - 14) / 2;
-    // Ensure we don't draw off-canvas if squeezed
-    if (yPos < 0) yPos = 0;
-    
     if (bundle.IsOk()) {
-        dc.DrawBitmap(bundle.GetBitmapFor(this), 0, yPos, true);
+        wxBitmap bmp = bundle.GetBitmapFor(this);
+        // Center the icon horizontally in the 18*scale reserved box and vertically in the control height
+        int xPos = std::max(0, (int)((18.0 * scale - bmp.GetWidth()) / 2.0));
+        int yPos = std::max(0, (GetSize().y - bmp.GetHeight()) / 2);
+        
+        dc.DrawBitmap(bmp, xPos, yPos, true);
     }
 
     // Text (if any)
@@ -175,7 +178,6 @@ void ThemedCheckBox::OnPaint(wxPaintEvent&) {
         dc.SetTextForeground(theme.text);
         dc.SetFont(GetFont());
         wxSize extent = dc.GetTextExtent(m_label);
-        double scale = GetContentScaleFactor();
         dc.DrawText(m_label, 18 * scale, (GetSize().y - extent.y) / 2);
     }
 }
@@ -285,50 +287,184 @@ void ThemedSelect::SetString(int n, const wxString& s) {
     }
 }
 
-void ThemedSelect::OpenPopup(wxMouseEvent&) {
-    wxMenu menu;
-    // Map ID to index
-    // Note: wxMenu with bitmaps
-    for (size_t i = 0; i < m_options.size(); ++i) {
-        int itemId = 20000 + (int)i; 
-        wxMenuItem* item = new wxMenuItem(&menu, itemId, m_options[i]);
-        if (i < m_icons.size() && m_icons[i].IsOk()) {
-            item->SetBitmap(m_icons[i]);
-        }
-        menu.Append(item);
-    }
+// --- ThemedSelectPopup ---
+// Internal helper class for ThemedSelect's dropdown
+class ThemedSelectPopup : public wxPopupTransientWindow {
+public:
+    ThemedSelectPopup(wxWindow* parent, const wxArrayString& options, const std::vector<wxBitmapBundle>& icons, const wxString& current, std::function<void(int)> onDismiss)
+        : wxPopupTransientWindow(parent, wxBORDER_NONE), m_options(options), m_icons(icons), m_current(current), m_onDismiss(onDismiss)
+    {
+        SetBackgroundStyle(wxBG_STYLE_PAINT);
         
-
-    
-    // Handle menu selection
-    menu.Bind(wxEVT_MENU, [this](wxCommandEvent& e) {
-        int idx = e.GetId() - 20000;
-        if (idx >= 0 && idx < (int)m_options.size()) {
-            m_current = m_options[idx];
-            Refresh();
-            
-            wxCommandEvent evt(wxEVT_COMBOBOX, GetId());
-            evt.SetString(m_current);
-            evt.SetInt(idx);
-            evt.SetEventObject(this);
-            GetEventHandler()->ProcessEvent(evt);
+        // Find current index
+        for (size_t i = 0; i < m_options.size(); ++i) {
+            if (m_options[i] == m_current) {
+                m_hoverIndex = (int)i;
+                break;
+            }
         }
-    });
 
-    PopupMenu(&menu);
+        // Calculate size
+        double scale = GetContentScaleFactor();
+        int rowH = 26 * scale;
+        int totalH = (int)m_options.size() * rowH + (int)(2 * scale); // 1px padding top/bottom
+        
+        // Match parent width
+        int w = parent->GetSize().x;
+        SetSize(w, totalH);
+
+        Bind(wxEVT_PAINT, &ThemedSelectPopup::OnPaint, this);
+        Bind(wxEVT_MOTION, &ThemedSelectPopup::OnMotion, this);
+        Bind(wxEVT_LEFT_UP, &ThemedSelectPopup::OnMouseClick, this);
+        Bind(wxEVT_ERASE_BACKGROUND, [](wxEraseEvent&){ /* do nothing */ });
+    }
+
+    int GetSelection() const { return m_selection; }
+
+    void OnDismiss() override {
+        if (m_onDismiss) m_onDismiss(m_selection);
+        wxPopupTransientWindow::OnDismiss();
+        wxTheApp->CallAfter([this]() {
+            this->Destroy();
+        });
+    }
+
+private:
+    void OnPaint(wxPaintEvent&) {
+        wxAutoBufferedPaintDC dc(this);
+        // dc.Clear() is not needed as we fill the whole area with gc
+        
+        auto theme = ThemeManager::GetColors();
+        double scale = GetContentScaleFactor();
+        int rowH = 26 * scale;
+        int paddingY = 1 * scale;
+        
+        std::unique_ptr<wxGraphicsContext> gc(wxGraphicsContext::Create(dc));
+        if (gc) {
+            // 1. Draw background
+            gc->SetBrush(wxBrush(theme.bg));
+            gc->SetPen(*wxTRANSPARENT_PEN);
+            gc->DrawRectangle(0, 0, GetSize().x, GetSize().y);
+            
+            // 2. Draw items
+            gc->SetFont(ThemeManager::GetFont(ThemeManager::FontSize::Small), theme.text);
+            
+            for (size_t i = 0; i < m_options.size(); ++i) {
+                int rowY = paddingY + (int)i * rowH;
+                
+                // Highlight frame
+                if ((int)i == m_hoverIndex) {
+                    gc->SetBrush(wxBrush(theme.accent.ChangeLightness(180))); // Subtle highlight background
+                    gc->SetPen(wxPen(theme.accent, 1));
+                    gc->DrawRectangle(1 * scale, rowY, GetSize().x - 2 * scale, rowH);
+                }
+
+                // Icon
+                int tx = 8 * scale;
+                if (i < m_icons.size() && m_icons[i].IsOk()) {
+                    wxBitmap bmp = m_icons[i].GetBitmapFor(this);
+                    double iy = rowY + (rowH - bmp.GetHeight()) / 2.0;
+                    gc->DrawBitmap(bmp, tx, iy, bmp.GetWidth(), bmp.GetHeight());
+                    tx += bmp.GetWidth() + 6 * scale;
+                }
+
+                // Label
+                double tw, th;
+                gc->GetTextExtent(m_options[i], &tw, &th);
+                double ty = rowY + (rowH - th) / 2.0;
+                gc->DrawText(m_options[i], tx, ty);
+            }
+
+            // 3. Border (draw last to be on top)
+            gc->SetPen(wxPen(theme.border, 1));
+            gc->SetBrush(*wxTRANSPARENT_BRUSH);
+            gc->DrawRectangle(0, 0, GetSize().x, GetSize().y);
+        }
+    }
+
+    void OnMotion(wxMouseEvent& evt) {
+        double scale = GetContentScaleFactor();
+        int rowH = 26 * scale;
+        int paddingY = 1 * scale;
+        
+        int y = evt.GetPosition().y;
+        int newHover = -1;
+        if (y >= paddingY) {
+            newHover = (y - paddingY) / rowH;
+        }
+        
+        if (newHover >= (int)m_options.size() || newHover < 0) newHover = -1;
+
+        if (newHover != m_hoverIndex) {
+            int oldHover = m_hoverIndex;
+            m_hoverIndex = newHover;
+
+            // Only refresh the affected rows to prevent flicker
+            if (oldHover != -1) {
+                RefreshRect(wxRect(0, paddingY + oldHover * rowH, GetSize().x, rowH));
+            }
+            if (m_hoverIndex != -1) {
+                RefreshRect(wxRect(0, paddingY + m_hoverIndex * rowH, GetSize().x, rowH));
+            }
+        }
+    }
+
+    void OnMouseClick(wxMouseEvent& evt) {
+        if (m_hoverIndex != -1) {
+            m_selection = m_hoverIndex;
+            Dismiss();
+            
+            // Trigger parent event
+            wxCommandEvent event(wxEVT_COMBOBOX, GetParent()->GetId());
+            event.SetInt(m_selection);
+            event.SetString(m_options[m_selection]);
+            event.SetEventObject(GetParent());
+            GetParent()->GetEventHandler()->ProcessEvent(event);
+        }
+    }
+
+    wxArrayString m_options;
+    std::vector<wxBitmapBundle> m_icons;
+    wxString m_current;
+    int m_hoverIndex = -1;
+    int m_selection = -1;
+    std::function<void(int)> m_onDismiss;
+};
+
+
+
+void ThemedSelect::OpenPopup(wxMouseEvent&) {
+    if (m_options.IsEmpty()) return;
+
+    m_popupOpen = true;
+    Refresh();
+
+    ThemedSelectPopup* popup = new ThemedSelectPopup(this, m_options, m_icons, m_current, [this](int sel) {
+        if (sel != wxNOT_FOUND) {
+            m_current = m_options[sel];
+        }
+        m_popupOpen = false;
+        Refresh();
+    });
+    
+    // Position directly below the control
+    wxPoint screenPos = ClientToScreen(wxPoint(0, GetSize().y));
+    popup->Position(screenPos, wxSize(0,0));
+    
+    popup->Popup();
 }
 
 void ThemedSelect::OnPaint(wxPaintEvent&) {
     wxAutoBufferedPaintDC dc(this);
     auto theme = ThemeManager::GetColors();
-    dc.SetBackground(wxBrush(theme.bg));
-    dc.Clear();
-
-    wxGraphicsContext* gc = wxGraphicsContext::Create(dc);
-    double scale = GetContentScaleFactor();
     
+    std::unique_ptr<wxGraphicsContext> gc(wxGraphicsContext::Create(dc));
     if (gc) {
-        gc->SetPen(wxPen(theme.border, 1));
+        double scale = GetContentScaleFactor();
+        
+        // Background and Border
+        wxColour borderColor = m_popupOpen ? theme.accent : theme.border;
+        gc->SetPen(wxPen(borderColor, 1));
         gc->SetBrush(wxBrush(theme.surface));
         gc->DrawRoundedRectangle(0, 0, GetSize().x, GetSize().y, 3 * scale);
         
@@ -341,7 +477,6 @@ void ThemedSelect::OnPaint(wxPaintEvent&) {
         
         // Find current icon
         wxBitmap iconBmp;
-        // This is O(N) but N is small.
         for(size_t i=0; i<m_options.size(); i++) {
             if (m_options[i] == m_current && i < m_icons.size()) {
                  iconBmp = m_icons[i].GetBitmapFor(this);
@@ -351,44 +486,31 @@ void ThemedSelect::OnPaint(wxPaintEvent&) {
         
         if (iconBmp.IsOk()) {
              double iy = (GetSize().y - iconBmp.GetHeight()) / 2.0;
-             gc->DrawBitmap(iconBmp, x, iy, iconBmp.GetWidth(), iconBmp.GetHeight());
+             gc->DrawBitmap(iconBmp, (int)x, (int)iy, iconBmp.GetWidth(), iconBmp.GetHeight());
              x += iconBmp.GetWidth() + (6 * scale);
         }
         
-        // Left align with padding
-        gc->DrawText(m_current, x, (GetSize().y - th) / 2);
-        
-        delete gc;
-    }
-    
-    // Arrow Icon
-    int arrowSz = 10 * scale; // Keep slightly larger for touch/highdpi? 10 is small.
-    // Actually GetSVG uses logical size usually if we don't scale it, but let's be consistent.
-    // If I ask for 14px SVG on 2x screen, it should render 28px bitmap.
-    // Passing scaled size to GetSVG assures clarity.
-    
-    // However, ThemeManager::GetSVG takes 'size' as requested size. 
-    // Let's stick to logical size for SVG request as current implementation (misc_ui.cpp) returns FromSVG with that size. 
-    // wxBitmapBundle will handle the rasterization.
-    
-    wxBitmapBundle arrow = ThemeManager::GetSVG("arrow_down", wxSize(10, 10), theme.text);
-    if (arrow.IsOk()) {
-        // DrawBitmap with bundle handles scaling automatically in newer wxWidgets if DC is set up right.
-        // But we need to position it manually.
-        wxBitmap bmp = arrow.GetBitmapFor(this);
-        int margin = 18 * scale;
-        // Vertically center
-        int yPos = (GetSize().y - bmp.GetHeight()) / 2;
-        dc.DrawBitmap(bmp, GetSize().x - margin, yPos, true);
-    } else {
-        // Fallback arrow
-        dc.SetPen(wxPen(theme.text, 2 * scale));
-        int margin = 15 * scale;
-        int sz = 5 * scale;
-        int topY = (GetSize().y / 2) - (4 * scale);
-        
-        dc.DrawLine(GetSize().x - margin, topY, GetSize().x - (margin - sz), topY + sz);
-        dc.DrawLine(GetSize().x - (margin - sz), topY + sz, GetSize().x - (margin - 2*sz), topY);
+        // Selection Text
+        gc->DrawText(m_current, (int)x, (int)((GetSize().y - th) / 2.0));
+
+        // Arrow Icon
+        wxBitmapBundle arrow = ThemeManager::GetSVG("arrow_down", wxSize(10, 10), theme.text);
+        if (arrow.IsOk()) {
+            wxBitmap bmp = arrow.GetBitmapFor(this);
+            int margin = 18 * scale;
+            int yPos = (GetSize().y - bmp.GetHeight()) / 2;
+            gc->DrawBitmap(bmp, GetSize().x - margin, yPos, bmp.GetWidth(), bmp.GetHeight());
+        } else {
+            // Fallback arrow
+            gc->SetPen(wxPen(theme.text, 2 * scale));
+            int margin = 15 * scale;
+            int sz = 5 * scale;
+            double cy = GetSize().y / 2.0;
+            double topY = cy - 2 * scale;
+            
+            gc->StrokeLine(GetSize().x - margin, topY, GetSize().x - (margin - sz), topY + sz);
+            gc->StrokeLine(GetSize().x - (margin - sz), topY + sz, GetSize().x - (margin - 2*sz), topY);
+        }
     }
 }
 
@@ -636,7 +758,7 @@ void ThemedNumberInput::OnPaint(wxPaintEvent&) {
     dc.SetBackground(wxBrush(theme.bg));
     dc.Clear();
     
-    wxGraphicsContext* gc = wxGraphicsContext::Create(dc);
+    std::unique_ptr<wxGraphicsContext> gc(wxGraphicsContext::Create(dc));
     if (gc) {
         double scale = GetContentScaleFactor();
         
@@ -668,26 +790,21 @@ void ThemedNumberInput::OnPaint(wxPaintEvent&) {
         }
 
         // Draw Arrows
-        // Re-use ThemeManager::GetSVG?
-        // We have "arrow_up", "arrow_down"
-        wxSize iconSz(8, 8); // Logical pixels
-        
+        wxSize iconSz(8, 8);
         wxBitmapBundle upIcon = ThemeManager::GetSVG("arrow_up", iconSz, theme.text);
         wxBitmapBundle downIcon = ThemeManager::GetSVG("arrow_down", iconSz, theme.text);
         
         if (upIcon.IsOk()) {
              wxBitmap bmp = upIcon.GetBitmapFor(this);
-             dc.DrawBitmap(bmp, m_upRect.GetX() + (m_upRect.GetWidth() - bmp.GetWidth()) / 2, 
-                           m_upRect.GetY() + (m_upRect.GetHeight() - bmp.GetHeight()) / 2, true);
+             gc->DrawBitmap(bmp, m_upRect.GetX() + (m_upRect.GetWidth() - bmp.GetWidth()) / 2.0, 
+                           m_upRect.GetY() + (m_upRect.GetHeight() - bmp.GetHeight()) / 2.0, bmp.GetWidth(), bmp.GetHeight());
         }
         
         if (downIcon.IsOk()) {
              wxBitmap bmp = downIcon.GetBitmapFor(this);
-             dc.DrawBitmap(bmp, m_downRect.GetX() + (m_downRect.GetWidth() - bmp.GetWidth()) / 2, 
-                           m_downRect.GetY() + (m_downRect.GetHeight() - bmp.GetHeight()) / 2, true);
+             gc->DrawBitmap(bmp, m_downRect.GetX() + (m_downRect.GetWidth() - bmp.GetWidth()) / 2.0, 
+                           m_downRect.GetY() + (m_downRect.GetHeight() - bmp.GetHeight()) / 2.0, bmp.GetWidth(), bmp.GetHeight());
         }
-        
-        delete gc;
     }
 }
 

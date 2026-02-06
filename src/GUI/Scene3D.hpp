@@ -36,6 +36,12 @@ struct Volume {
     std::shared_ptr<GL::VertexBuffer> vbo;
     std::shared_ptr<GL::VertexArray> vao;
     bool gpu_dirty = true;
+    
+    // Instancing
+    bool is_instanced = false;
+    std::vector<ExtrusionGeometry::InstanceData> instances;
+    std::shared_ptr<GL::VertexBuffer> instance_buffer;
+    size_t instance_count = 0;
 };
 
 class Scene3D : public wxGLCanvas {
@@ -92,6 +98,11 @@ protected:
     // Shaders
     std::unique_ptr<GL::Shader> m_shader;
     std::unique_ptr<GL::Shader> m_shader_bg;
+    std::unique_ptr<GL::Shader> m_shader_instanced;
+    
+    // Instancing Template
+    std::unique_ptr<GL::VertexBuffer> m_vbo_instanced_template;
+    std::unique_ptr<GL::VertexArray> m_vao_instanced_template;
 
     void draw_selection_box(const BoundingBoxf3& bb);
 

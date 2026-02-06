@@ -12,28 +12,21 @@ Plate3D::Plate3D(wxWindow* parent, const wxSize& size, std::vector<PlaterObject>
     this->Bind(wxEVT_RIGHT_DOWN, [this](wxMouseEvent &e) { this->mouse_down(e); });
 }
 
-void Plate3D::mouse_down(wxMouseEvent &e){
-    if(hover){
+void Plate3D::mouse_down(wxMouseEvent &e)
+{
+    Scene3D::mouse_down(e);
+    if (hover) {
         on_select_object(hover_object);
-        if (e.RightDown()) {
-            if (on_right_click)
-                on_right_click(this, e.GetPosition());
-        } else {
+        if (e.LeftDown()) {
             moving = true;
             moving_volume = hover_volume;
             move_start = Point(e.GetX(), e.GetY());
         }
-    }else{
-        on_select_object(-1);
-        if (e.RightDown()) {
-            if (on_right_click)
-                on_right_click(this, e.GetPosition());
-        }
     }
-    hover = false;
 }
 
 void Plate3D::mouse_up(wxMouseEvent &e){
+    bool was_dragging = dragging;
     if(moving){
         //translate object
         moving = false;
@@ -51,6 +44,16 @@ void Plate3D::mouse_up(wxMouseEvent &e){
                 }else{
                     i+=size;
                 }
+            }
+        }
+    } else if (!was_dragging) {
+        if (e.GetButton() == wxMOUSE_BTN_RIGHT) {
+            if (on_right_click) {
+                on_right_click(this, e.GetPosition());
+            }
+        } else if (e.GetButton() == wxMOUSE_BTN_LEFT) {
+            if (!hover) {
+                on_select_object(-1);
             }
         }
     }
@@ -130,9 +133,9 @@ void Plate3D::before_render(){
     }
 
     // Color each volume a different color, render and test which color is beneath the mouse.
-    
-    //glDisable(GL_MULTISAMPLE) if ($self->{can_multisample});
-    glDisable(GL_LIGHTING);
+    m_shader->set_uniform("u_lit", 0);
+    m_shader->set_uniform("u_alpha", 1.0f);
+
     unsigned int i = 1;
     for(Volume &volume : volumes){
         volume.color = wxColor((i>>16)&0xFF,(i>>8)&0xFF,i&0xFF);
@@ -141,39 +144,38 @@ void Plate3D::before_render(){
     draw_volumes();
     glFlush();
     glFinish();
+    
     GLubyte color[4] = {0,0,0,0};
-    glReadPixels(pos.x, GetSize().GetHeight()-  pos.y, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, color);
+    double scale = GetContentScaleFactor();
+    glReadPixels((int)(pos.x * scale), (int)((GetSize().GetHeight() - pos.y) * scale), 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, color);
 
     // Handle the hovered volume
     unsigned int index = (color[0]<<16) + (color[1]<<8) + color[2];
     hover = false;
-    ///*$self->_hover_volume_idx(undef);
-    //$_->hover(0) for @{$self->volumes};
+
     if (index != 0 && index <= volumes.size()) {
         hover = true;
         hover_volume = index - 1;
         unsigned int k = 0;
+        unsigned int v_idx = 0;
         for(const PlaterObject &object: objects){
             const auto &modelobj = model->objects.at(object.identifier);
-            if(k <= hover_volume && hover_volume < k+modelobj->instances.size()*modelobj->volumes.size()){
+            unsigned int volumes_count = modelobj->instances.size() * modelobj->volumes.size();
+            if(v_idx <= hover_volume && hover_volume < v_idx + volumes_count){
                 hover_object = k;
                 break;
             }
+            v_idx += volumes_count;
             k++;
         }
-        /*
-        $self->volumes->[$volume_idx]->hover(1);
-        my $group_id = $self->volumes->[$volume_idx]->select_group_id;
-        if ($group_id != -1) {
-            $_->hover(1) for grep { $_->select_group_id == $group_id } @{$self->volumes};
-        }*/
-        
-        //$self->on_hover->($volume_idx) if $self->on_hover;
     }
+    
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glFlush();
     glFinish();
-    glEnable(GL_LIGHTING);
+    
+    // Reset shader state for normal rendering
+    m_shader->set_uniform("u_lit", 1);
     color_volumes();
     mouse = false;
 }
