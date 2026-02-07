@@ -1,7 +1,7 @@
 # Slic3r C++ Porting Project
 
 ## Project Overview
-This project is an active effort to port the original Perl-based Slic3r application to a pure **Modern C++ (C++17)** application.
+This project is an active effort to port the original Perl-based Slic3r application to a pure **Modern C++ (C++23)** application.
 The goal is to eliminate the Perl dependency entirely, resulting in a faster, more maintainable, and self-contained executable.
 
 *   **Current Status:** Core slicing engine (`libslic3r`) is fully ported. The GUI is approximately 50% complete.
@@ -54,7 +54,7 @@ This script handles `vcpkg` dependencies and CMake configuration automatically.
 
 ## Development Guidelines
 1.  **Read Legacy:** When tasked to "fix" or "implement" a feature, first locate the corresponding Perl implementation in `port/lib/Slic3r/`.
-2.  **Implement C++:** Reimplement the logic in `src/` using C++17 and wxWidgets.
+2.  **Implement C++:** Reimplement the logic in `src/` using C++23 and wxWidgets.
 3.  **Verify:** Ensure the C++ behavior matches the legacy Perl behavior.
 4.  **Style:** Follow the surrounding C++ code style (indentation, naming).
 5.  **Forward Thinking:** When implementing new features, always design with future scalability and modularity in mind. Don't just port the logic; consider how it can be improved or extended in the modern C++ context.
@@ -90,7 +90,7 @@ We enforce a strict separation between Application UI and 3D Canvas rendering:
 *   **3D Canvas (Plater, Preview, Toolpaths):**
     *   **Manager:** `src/GUI/Theme/CanvasTheme.hpp`
     *   **Usage:** Use `CanvasTheme::GetColors()` to access `bed_color`, `grid_color`, `canvas_bg_top`.
-    *   **Note:** Only use this for OpenGL rendering contexts.
+    *   **Note:** Only use this for OpenGL 4.6 rendering contexts.
 
 ### 3. Workflow for New Elements
 1.  Define the control in `src/GUI/Widgets/ThemedControls.hpp` (or a new file if complex).

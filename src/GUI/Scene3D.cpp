@@ -24,8 +24,9 @@ static const int gl_attrs[] = {
 };
 
 Scene3D::Scene3D(wxWindow* parent, const wxSize& size) :
-    wxGLCanvas(parent, wxID_ANY, gl_attrs, wxDefaultPosition, size)
-{
+    wxGLCanvas(parent, wxID_ANY, gl_attrs, wxDefaultPosition, size),
+    m_imgui(nullptr)
+{ 
     // Request OpenGL 4.6 Core Profile
     wxGLContextAttrs ctxAttrs;
     ctxAttrs.PlatformDefaults().OGLVersion(4, 6).CoreProfile().EndList();
@@ -81,6 +82,9 @@ Scene3D::~Scene3D() {
 void Scene3D::init_gl(){
     if(this->init) return;
 
+    // Ensure we have a context and it's current
+    if (!m_context) return;
+    
     if (!m_imgui) m_imgui = std::make_unique<ImGuiWrapper>();
     
     // Initialize GLAD
@@ -116,6 +120,14 @@ void Scene3D::init_gl(){
     if (!m_vao_instanced_template) m_vao_instanced_template = std::make_unique<GL::VertexArray>();
 
     init_shaders();
+
+    // Initial viewport setup if possible (useful during splash screen init)
+    const auto s = GetSize();
+    if (s.GetWidth() > 0 && s.GetHeight() > 0) {
+        m_camera.set_viewport(0, 0, s.GetWidth(), s.GetHeight());
+        double scale = GetContentScaleFactor();
+        glViewport(0, 0, (int)(s.GetWidth() * scale), (int)(s.GetHeight() * scale));
+    }
 }
 
 void Scene3D::init_shaders() {
@@ -241,6 +253,13 @@ void Scene3D::repaint(wxPaintEvent& e) {
     SetCurrent(*m_context);
     
     init_gl();
+    if (!this->init) return;
+
+    // Ensure viewport is correct before drawing
+    const auto s = GetSize();
+    double scale = GetContentScaleFactor();
+    glViewport(0, 0, (int)(s.GetWidth() * scale), (int)(s.GetHeight() * scale));
+    m_camera.set_viewport(0, 0, s.GetWidth(), s.GetHeight());
 
     if (m_imgui) m_imgui->new_frame(this->GetSize().GetWidth(), this->GetSize().GetHeight());
     
@@ -361,11 +380,8 @@ void Scene3D::repaint(wxPaintEvent& e) {
 
     // Draw ImGui
     if (m_imgui) {
-        ImGui::Begin("Slic3r ImGui Overlay");
-        ImGui::Text("Frames: %.1f FPS", ImGui::GetIO().Framerate);
-        ImGui::End();
-        
-        m_imgui->render();
+         this->render_imgui();
+         m_imgui->render();
     }
 
     glFlush();
@@ -614,8 +630,11 @@ void Scene3D::set_bed_shape(Points _bed_shape){
     Refresh();
 }
 
-void Scene3D::mouse_move(wxMouseEvent &e){
-    if (m_imgui && m_imgui->update_mouse_data(e)) return;
+bool Scene3D::mouse_move(wxMouseEvent &e){
+    if (m_imgui && m_imgui->update_mouse_data(e)) {
+        Refresh(); // Ensure UI updates when hovering
+        return true;
+    }
     if(e.Dragging()){
         const auto pos = Point(e.GetX(),e.GetY());
         if(dragging){
@@ -637,33 +656,45 @@ void Scene3D::mouse_move(wxMouseEvent &e){
     }else{
         e.Skip();
     }
+    return false;
 }
 
-void Scene3D::mouse_up(wxMouseEvent &e){
-    if (m_imgui && m_imgui->update_mouse_data(e)) return;
+bool Scene3D::mouse_up(wxMouseEvent &e){
+    if (m_imgui && m_imgui->update_mouse_data(e)) {
+        Refresh();
+        return true;
+    }
     dragging = false;
     Refresh();
+    return false;
 }
 
-void Scene3D::mouse_down(wxMouseEvent &e){
-    if (m_imgui && m_imgui->update_mouse_data(e)) return;
+bool Scene3D::mouse_down(wxMouseEvent &e){
+    this->SetFocus(); // Ensure canvas has focus for keyboard/imgui
+    if (m_imgui && m_imgui->update_mouse_data(e)) {
+        Refresh();
+        return true;
+    }
     dragging = false;
     drag_start = Point(e.GetX(), e.GetY());
     e.Skip();
+    return false;
 }
 
-void Scene3D::mouse_wheel(wxMouseEvent &e){
-    if (m_imgui && m_imgui->update_mouse_data(e)) return;
+bool Scene3D::mouse_wheel(wxMouseEvent &e){
+    if (m_imgui && m_imgui->update_mouse_data(e)) return true;
     float delta = ((float)e.GetWheelRotation()) / e.GetWheelDelta();
     // Increased zoom speed from 2% to 10% per notch for better responsiveness
     float zoom_factor = std::pow(1.1f, delta);
     m_camera.zoom(zoom_factor);
     Refresh();
+    return false;
 }
 
-void Scene3D::mouse_dclick(wxMouseEvent &e){
+bool Scene3D::mouse_dclick(wxMouseEvent &e){
     // Reset view?
     Refresh();
+    return false;
 }
 
 Linef3 Scene3D::mouse_ray(Point win){

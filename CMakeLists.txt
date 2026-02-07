@@ -16,7 +16,7 @@ if(NOT MSVC)
 endif()
 add_compile_options(-DNO_PERL -DM_PI=3.14159265358979323846 -DHAS_BOOL -DBOOST_ASIO_DISABLE_KQUEUE)
 # Define SLIC3R_CPPVER to 11 to enforce C++11 paths (e.g. using unique_ptr instead of auto_ptr)
-add_compile_options(-DSLIC3R_CPPVER=11)
+add_compile_options(-DSLIC3R_CPPVER=23)
 
 if(SLIC3R_DEBUG)
     add_compile_options(-DSLIC3R_DEBUG)
@@ -203,7 +203,7 @@ add_library(ZipArchive STATIC
 add_library(miniz STATIC
     ${LIBDIR}/miniz/miniz.c
 )
-target_compile_features(ZipArchive PUBLIC cxx_std_17)
+target_compile_features(ZipArchive PUBLIC cxx_std_23)
 target_include_directories(ZipArchive PUBLIC ${COMMON_INCLUDES})
 target_compile_options(ZipArchive PRIVATE -w)
 
@@ -269,7 +269,7 @@ add_library(libslic3r STATIC
     ${LIBDIR}/libslic3r/utils.cpp
     ${LIBDIR}/libslic3r/miniz_extension.cpp
 )
-target_compile_features(libslic3r PUBLIC cxx_std_17)
+target_compile_features(libslic3r PUBLIC cxx_std_23)
 target_include_directories(libslic3r SYSTEM PUBLIC ${SLIC3R_INCLUDES})
 target_include_directories(libslic3r PUBLIC ${LIBSLIC3R_INCLUDES})
     
@@ -303,7 +303,7 @@ target_compile_options(admesh PRIVATE -w)
 
 
 add_library(clipper STATIC ${LIBDIR}/clipper.cpp)
-target_compile_features(clipper PUBLIC cxx_std_17)
+target_compile_features(clipper PUBLIC cxx_std_23)
 target_include_directories(clipper PUBLIC ${COMMON_INCLUDES})
 target_compile_options(clipper PRIVATE -w)
 
@@ -312,7 +312,7 @@ add_library(expat STATIC
     ${LIBDIR}/expat/xmlrole.c
     ${LIBDIR}/expat/xmltok.c
 )
-target_compile_features(expat PUBLIC cxx_std_17)
+target_compile_features(expat PUBLIC cxx_std_23)
 target_include_directories(expat PUBLIC ${EXPAT_INCLUDES})
 target_compile_options(expat PRIVATE -w)
 
@@ -335,7 +335,7 @@ if(WIN32)
 else()
     add_executable(slic3r src/slic3r.cpp)
 endif()
-target_compile_features(slic3r PUBLIC cxx_std_17)
+target_compile_features(slic3r PUBLIC cxx_std_23)
 
 if (${CMAKE_MAJOR_VERSION}.${CMAKE_MINOR_VERSION} VERSION_GREATER 3.10)
 cmake_policy(SET CMP0072 NEW)
@@ -435,6 +435,7 @@ IF(wxWidgets_FOUND AND OPENGL_FOUND AND Enable_GUI)
     ${GUI_LIBDIR}/Plater/Preview3D.cpp
     ${GUI_LIBDIR}/Plater/PlaterObject.cpp
     ${GUI_LIBDIR}/Plater/PresetChooser.cpp
+    ${GUI_LIBDIR}/Plater/ImGuiToolbar.cpp
     ${GUI_LIBDIR}/Settings.cpp
     ${GUI_LIBDIR}/misc_ui.cpp
     ${GUI_LIBDIR}/OptionsGroup.cpp
@@ -462,7 +463,7 @@ IF(wxWidgets_FOUND AND OPENGL_FOUND AND Enable_GUI)
     ${GUI_LIBDIR}/GL/Buffer.cpp
     ${GUI_LIBDIR}/ImGuiWrapper.cpp
     )
-    target_compile_features(slic3r_gui PUBLIC cxx_std_17)
+    target_compile_features(slic3r_gui PUBLIC cxx_std_23)
     target_include_directories(slic3r_gui PUBLIC ${SLIC3R_GUI_INCLUDES} ${SLIC3R_INCLUDES} )
     #only build GUI lib if building with wx
     target_link_libraries (slic3r_gui ${wxWidgets_LIBRARIES} ${OPENGL_LIBRARIES} glad::glad glm::glm imgui::imgui)

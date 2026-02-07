@@ -114,6 +114,27 @@ bool App::OnInit()
         // This utilizes the waiting time for heavy UI initialization
         splash->SetStatus(_("Initializing UI..."));
         MainFrame *frame = new MainFrame( "Slic3r", wxDefaultPosition, wxDefaultSize);
+        
+        // Layout early so canvases get their correct sizes for GL initialization
+        frame->Layout();
+
+        // Pre-initialize 3D Engine (Shaders, ImGui, GLAD) while splash is showing
+        if (frame->get_plater()) {
+            splash->SetStatus(_("Initializing 3D Engine..."));
+            auto init_canvas = [splash](Scene3D* canvas, const wxString& name) {
+                if (canvas) {
+                    splash->SetStatus(_("Initializing ") + name + "...");
+                    // SetCurrent requires the window to be at least created (which MainFrame is)
+                    canvas->SetCurrent(*canvas->GetContext());
+                    canvas->init_gl();
+                }
+            };
+            
+            init_canvas(frame->get_plater()->get_canvas3d(), "3D Editor");
+            if (frame->get_plater()->get_preview3d()) {
+                init_canvas(frame->get_plater()->get_preview3d()->get_canvas(), "G-code Preview");
+            }
+        }
 
         // Ensure splash is visible for at least 2000ms
         // We use a loop with wxSafeYield to keep the splash screen responsive 

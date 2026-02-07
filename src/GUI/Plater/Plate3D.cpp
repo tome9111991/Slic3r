@@ -12,9 +12,9 @@ Plate3D::Plate3D(wxWindow* parent, const wxSize& size, std::vector<PlaterObject>
     this->Bind(wxEVT_RIGHT_DOWN, [this](wxMouseEvent &e) { this->mouse_down(e); });
 }
 
-void Plate3D::mouse_down(wxMouseEvent &e)
+bool Plate3D::mouse_down(wxMouseEvent &e)
 {
-    Scene3D::mouse_down(e);
+    if (Scene3D::mouse_down(e)) return true;
     if (hover) {
         on_select_object(hover_object);
         if (e.LeftDown()) {
@@ -23,9 +23,11 @@ void Plate3D::mouse_down(wxMouseEvent &e)
             move_start = Point(e.GetX(), e.GetY());
         }
     }
+    return false;
 }
 
-void Plate3D::mouse_up(wxMouseEvent &e){
+bool Plate3D::mouse_up(wxMouseEvent &e){
+    if (Scene3D::mouse_up(e)) return true;
     bool was_dragging = dragging;
     if(moving){
         //translate object
@@ -40,7 +42,7 @@ void Plate3D::mouse_up(wxMouseEvent &e){
                     modelobj->update_bounding_box();
                     on_instances_moved();
                     Refresh();
-                    return;
+                    return true;
                 }else{
                     i+=size;
                 }
@@ -57,10 +59,11 @@ void Plate3D::mouse_up(wxMouseEvent &e){
             }
         }
     }
-    Scene3D::mouse_up(e);
+    return false;
 }
 
-void Plate3D::mouse_move(wxMouseEvent &e){
+bool Plate3D::mouse_move(wxMouseEvent &e){
+    if (Scene3D::mouse_move(e)) return true;
     if(!e.Dragging()){
         pos = Point(e.GetX(),e.GetY());
         mouse = true;
@@ -81,15 +84,14 @@ void Plate3D::mouse_move(wxMouseEvent &e){
                         i++;
                     }
                     Refresh();
-                    return;
+                    return true;
                 }else{
                     i+=size;
                 }
             }
         }
-    } else {
-        Scene3D::mouse_move(e);
     }
+    return false;
 }
 
 void Plate3D::update(){
@@ -178,6 +180,10 @@ void Plate3D::before_render(){
     m_shader->set_uniform("u_lit", 1);
     color_volumes();
     mouse = false;
+}
+
+void Plate3D::render_imgui() {
+    ImGuiToolbar::draw(m_actions, (float)this->GetSize().GetWidth(), (float)this->GetSize().GetHeight());
 }
 
 } } // Namespace Slic3r::GUI

@@ -4,6 +4,7 @@
 #ifndef WX_PRECOMP
     #include <wx/wx.h>
 #endif
+#include "ImGuiToolbar.hpp"
 #include "Plater/PlaterObject.hpp"
 #include "Scene3D.hpp"
 #include "Settings.hpp"
@@ -28,16 +29,21 @@ public:
     /// Registered function to fire when the user right clicks.
     std::function<void(wxWindow* canvas, const wxPoint& pos)> on_right_click {};
     
+    // Toolbar Callbacks (struct)
+    PlaterActions m_actions;
+
     void selection_changed(){Refresh();}
+
  protected:
+    virtual void render_imgui() override;
     // Render each volume as a different color and check what color is beneath
     // the mouse to determine the hovered volume
     void before_render();
 
     // Mouse events are needed to handle selecting and moving objects
-    void mouse_up(wxMouseEvent &e);
-    void mouse_move(wxMouseEvent &e);
-    void mouse_down(wxMouseEvent &e);
+    bool mouse_up(wxMouseEvent& e) override;
+    bool mouse_move(wxMouseEvent& e) override;
+    bool mouse_down(wxMouseEvent& e) override;
 
 private:
     void color_volumes();

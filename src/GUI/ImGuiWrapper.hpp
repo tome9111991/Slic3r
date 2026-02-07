@@ -19,11 +19,14 @@ public:
     void render();
     
     // Event Forwarding (return true if ImGui handled the event)
-    bool update_mouse_data(wxMouseEvent &evt);
-    bool update_key_data(wxKeyEvent &evt);
+    bool update_mouse_data(wxMouseEvent& evt);
+    bool update_key_data(wxKeyEvent& evt);
 
     // Scaling
     void set_scaling(float scale);
+    
+    // Texture Management
+    unsigned int load_texture(const std::string& name);
 
 private:
     void init_style();

@@ -46,14 +46,18 @@ SplashScreen::SplashScreen(const wxString& title, const wxString& version)
 void SplashScreen::SetStatus(const wxString& status)
 {
     m_status = status;
-    Refresh();
+    // The status text is drawn at y=380. Refresh only this band to avoid full-screen flicker.
+    RefreshRect(wxRect(0, 360, 500, 60));
     Update();
 }
 
 void SplashScreen::OnPaint(wxPaintEvent& evt)
 {
     wxAutoBufferedPaintDC dc(this);
-    dc.Clear();
+    
+    // We don't call dc.Clear() here because it would clear the entire buffer 
+    // even for partial refreshes, potentially causing flicker.
+    // Instead, we rely on the DrawRoundedRectangle to fill the background.
 
     auto colors = ThemeManager::GetColors();
 
@@ -61,6 +65,7 @@ void SplashScreen::OnPaint(wxPaintEvent& evt)
     if (!gc) return;
 
     // 1. Draw Background (Rounded Rect)
+    // Even if we only refresh a part, we draw the background to ensure it's correct.
     gc->SetBrush(wxBrush(colors.surface));
     gc->SetPen(wxPen(colors.border, 1));
     gc->DrawRoundedRectangle(0, 0, 500, 500, 12);

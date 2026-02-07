@@ -1,6 +1,6 @@
 # Slic3r (Modern C++ Port)
 
-This project is an active, work-in-progress effort to port the original Perl-based Slic3r application to a pure **Modern C++ (C++17)** codebase. The goal is to create a high-performance, maintainable, and self-contained executable.
+This project is an active, work-in-progress effort to port the original Perl-based Slic3r application to a pure **Modern C++ (C++23)** codebase. The goal is to create a high-performance, maintainable, and self-contained executable.
 
 > **⚠️ Status:** Active Development / Alpha.
 > While the core slicing engine is largely functional, many UI features and advanced tools are still being implemented or optimized. This is **not** yet a 1:1 replacement for the legacy Perl version.
@@ -22,11 +22,11 @@ The user interface is being rebuilt from scratch using **wxWidgets** and **ImGui
     *   **Theming:** Custom "owner-drawn" controls for full Dark/Light mode support on Windows.
 
 ## 🛠 Tech Stack
-*   **Language:** C++17
+*   **Language:** C++23
 *   **Build System:** CMake + Ninja / Visual Studio 2022
 *   **Dependency Management:** `vcpkg` (Boost, wxWidgets, OpenSSL, etc.)
 *   **GUI Library:** wxWidgets 3.2+ (Core UI) + ImGui (3D Overlays)
-*   **Rendering:** Modern OpenGL (Glad + GLM)
+*   **Rendering:** Modern OpenGL 4.6 (Glad + GLM)
 
 ## 📂 Directory Structure
 

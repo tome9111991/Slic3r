@@ -265,19 +265,25 @@ Slic3r::GUI::MainFrame::MainFrame(const wxString& title, const wxPoint& pos, con
         // Wiring Events
         this->btn_prepare->Bind(wxEVT_TOGGLEBUTTON, [=](wxCommandEvent& e) {
              update_nav(dynamic_cast<FlatToggleButton*>(this->btn_prepare));
-             this->tabpanel->SetSelection(0); // Show Plater Panel
+             if (this->plater) this->plater->Show();
+             if (this->controller) this->controller->Hide();
+             this->tabpanel->Layout();
              if (this->plater) this->plater->select_view_3d();
         });
 
         this->btn_preview->Bind(wxEVT_TOGGLEBUTTON, [=](wxCommandEvent& e) {
              update_nav(dynamic_cast<FlatToggleButton*>(this->btn_preview));
-             this->tabpanel->SetSelection(0); // Stay on Plater
+             if (this->plater) this->plater->Show();
+             if (this->controller) this->controller->Hide();
+             this->tabpanel->Layout();
              if (this->plater) this->plater->select_view_preview();
         });
 
         this->btn_device->Bind(wxEVT_TOGGLEBUTTON, [=](wxCommandEvent& e) {
              update_nav(dynamic_cast<FlatToggleButton*>(this->btn_device));
-             if (this->tabpanel->GetPageCount() > 1) this->tabpanel->SetSelection(1);
+             if (this->plater) this->plater->Hide();
+             if (this->controller) this->controller->Show();
+             this->tabpanel->Layout();
         });
 
         // Action Buttons
@@ -329,6 +335,9 @@ Slic3r::GUI::MainFrame::MainFrame(const wxString& title, const wxPoint& pos, con
             // save window size
             ui_settings->save_window_pos(this, "main_frame");
 
+            // HACK: Hide window immediately to improve perceived shutdown speed
+            this->Hide();
+
             // Propagate event
             e.Skip();
         }
@@ -338,26 +347,18 @@ Slic3r::GUI::MainFrame::MainFrame(const wxString& title, const wxPoint& pos, con
 /// Private initialization function for the main frame tab panel.
 void Slic3r::GUI::MainFrame::init_tabpanel()
 {
-    this->tabpanel = new wxSimplebook(this, wxID_ANY);
+    this->tabpanel = new wxPanel(this, wxID_ANY);
     auto panel = this->tabpanel; 
 
+    wxBoxSizer* panel_sizer = new wxBoxSizer(wxVERTICAL);
     this->plater = new Slic3r::GUI::Plater(panel, _("Prepare")); // Renamed "Plater" to "Prepare"
     this->controller = new Slic3r::GUI::Controller(panel, _("Controller"));
 
-    panel->AddPage(this->plater, _("Prepare"));
-    
-    if (ui_settings->show_host) {
-        panel->AddPage(this->controller, _("Device")); // Rename Controller to Device like Orca
-    }
+    panel_sizer->Add(this->plater, 1, wxEXPAND);
+    panel_sizer->Add(this->controller, 1, wxEXPAND);
+    this->controller->Hide(); // Show Plater by default
 
-    // User requested to remove bottom tabs for settings
-    /*
-    if (ui_settings->preset_editor_tabs) {
-        this->plater->show_preset_editor(preset_t::Print,0);
-        this->plater->show_preset_editor(preset_t::Material,0);
-        this->plater->show_preset_editor(preset_t::Printer,0);
-    }
-    */
+    panel->SetSizer(panel_sizer);
 }
 
 void Slic3r::GUI::MainFrame::init_menubar()
@@ -373,7 +374,7 @@ void Slic3r::GUI::MainFrame::init_menubar()
 
     ThemedMenu* menuFile = new ThemedMenu();
     {
-        menuFile->AddItem(_(L"Open STL/OBJ/AMF/3MF\u2026"), _("Open a model"), [=](wxCommandEvent& e) { if (this->plater != nullptr) this->plater->add();}, wxID_ANY, "brick_add.svg", "Ctrl+O");
+        menuFile->AddItem(_(L"Open STL/OBJ/AMF/3MF\u2026"), _("Open a model"), [this](wxCommandEvent& e) { if (this->plater != nullptr) this->plater->add();}, wxID_ANY, "brick_add.svg", "Ctrl+O");
         menuFile->AppendSeparator();
         menuFile->AddItem(_("&Load Config\u2026"), _("Load exported configuration file"), 
             [=](wxCommandEvent& e) { 
@@ -445,7 +446,7 @@ void Slic3r::GUI::MainFrame::init_menubar()
                 prefs.ShowModal();
             }, wxID_PREFERENCES, "", "Ctrl+,");
         menuFile->AppendSeparator();
-        menuFile->AddItem(_("&Quit"), _("Quit Slic3r"), [=](wxCommandEvent& e) { this->Close(true); }, wxID_EXIT);
+        menuFile->AddItem(_("&Quit"), _("Quit Slic3r"), [this](wxCommandEvent& e) { this->Close(); }, wxID_EXIT);
     }
     
     ThemedMenu* menuPlater = this->plater_menu = new ThemedMenu();
@@ -516,12 +517,20 @@ void Slic3r::GUI::MainFrame::init_menubar()
     ThemedMenu* menuWindow = new ThemedMenu();
     {
         menuWindow->AddItem(_("&Plater"), _("Show the plater"), 
-            [this](wxCommandEvent&) { if(this->tabpanel) this->tabpanel->SetSelection(0); }, wxID_ANY, "application_view_tile.svg", "Ctrl+T");
+            [this](wxCommandEvent&) { 
+                if(this->tabpanel) {
+                    if (this->plater) this->plater->Show();
+                    if (this->controller) this->controller->Hide();
+                    this->tabpanel->Layout();
+                }
+            }, wxID_ANY, "application_view_tile.svg", "Ctrl+T");
         menuWindow->AddItem(_("&Controller"), _("Show the printer controller"), 
             [this](wxCommandEvent&) { 
                 if(this->tabpanel) {
-                    if (this->tabpanel->GetPageCount() > 1) {
-                        this->tabpanel->SetSelection(1);
+                    if (ui_settings->show_host) {
+                        if (this->plater) this->plater->Hide();
+                        if (this->controller) this->controller->Show();
+                        this->tabpanel->Layout();
                     } else {
                          if (wxMessageBox(_("The printer controller is currently disabled in the preferences. Do you want to enable it?"), _("Controller"), wxYES_NO | wxICON_QUESTION) == wxYES) {
                              ui_settings->show_host = true;

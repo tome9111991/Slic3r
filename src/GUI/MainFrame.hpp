@@ -32,7 +32,7 @@ public:
 
     bool has_plater_menu() { return this->plater_menu != nullptr; }
     ThemedMenu* plater_select_menu {nullptr};
-    wxSimplebook* tabs() { return tabpanel; }
+    wxPanel* tabs() { return tabpanel; }
 
     std::map<preset_t, PresetEditor*> preset_editor_tabs;
 
@@ -40,6 +40,7 @@ public:
     void on_plater_selection_changed(bool force) {};
 
     void sync_colors();
+    Plater* get_plater() { return plater; }
 private:
     wxDECLARE_EVENT_TABLE();
 
@@ -49,7 +50,7 @@ private:
     bool loaded; //< Main frame itself has finished loading.
     // STUB: preset editor tabs storage
 
-    wxSimplebook* tabpanel;
+    wxPanel* tabpanel;
     Controller* controller;
     Plater* plater;
 

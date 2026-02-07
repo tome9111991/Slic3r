@@ -129,7 +129,6 @@ void PreviewScene3D::after_render() {
 Preview3D::Preview3D(wxWindow* parent, const wxSize& size, std::shared_ptr<Slic3r::Print> _print, std::vector<PlaterObject>& _objects, std::shared_ptr<Model> _model, std::shared_ptr<Config> _config) :
     wxPanel(parent, wxID_ANY, wxDefaultPosition, size, wxTAB_TRAVERSAL), print(_print), objects(_objects), model(_model), config(_config), canvas(this,size)
 {
-
     // init GUI elements
     slider = new wxSlider(
         this, -1,
@@ -191,6 +190,7 @@ void Preview3D::load_print() {
     if(!print->step_done(posSlice)) {
         _enabled = false;
         slider->Hide();
+        Layout();
         canvas.Refresh();  // clears canvas
         return;
     }

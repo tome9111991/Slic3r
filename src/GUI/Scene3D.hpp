@@ -52,6 +52,9 @@ public:
     
     void set_camera_view(Direction dir);
     void set_z_clipping(float z);
+    
+    void init_gl();
+    wxGLContext* GetContext() { return m_context; }
 
 private:
     wxGLContext* m_context = nullptr;
@@ -59,7 +62,6 @@ private:
     
     // GL State
     bool init = false;
-    void init_gl();
     void init_shaders();
     
 protected:
@@ -116,15 +118,16 @@ protected:
     Volume load_object(ModelVolume &mv, ModelInstance &mi);
     
     // Event Handlers
-    virtual void mouse_up(wxMouseEvent &e);
-    virtual void mouse_move(wxMouseEvent &e);
-    virtual void mouse_down(wxMouseEvent &e);
-    virtual void mouse_dclick(wxMouseEvent &e);
-    virtual void mouse_wheel(wxMouseEvent &e);
+    virtual bool mouse_up(wxMouseEvent& e);
+    virtual bool mouse_move(wxMouseEvent& e);
+    virtual bool mouse_down(wxMouseEvent& e);
+    virtual bool mouse_dclick(wxMouseEvent& e);
+    virtual bool mouse_wheel(wxMouseEvent& e);
     
     // Hooks
     virtual void before_render(){};
     virtual void after_render(){};
+    virtual void render_imgui(){};
  };
 
 } } // Namespace Slic3r::GUI

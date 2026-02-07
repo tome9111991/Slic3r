@@ -33,158 +33,16 @@
 
 namespace Slic3r { namespace GUI {
 
-class ToolbarButton : public wxPanel {
-    wxString m_label;
-    wxString m_icon_name;
-    wxBitmap m_icon;
-    bool m_hover;
-    bool m_down;
-
-public:
-    ToolbarButton(wxWindow* parent, int id, const wxString& label, const wxString& icon_name, const wxString& tooltip)
-        : wxPanel(parent, id, wxDefaultPosition, wxDefaultSize, wxBORDER_NONE | wxTAB_TRAVERSAL), m_label(label), m_icon_name(icon_name), m_hover(false), m_down(false)
-    {
-        if (!icon_name.IsEmpty()) {
-            // Load a 16px icon but we'll render it nicely
-            m_icon = get_bmp_bundle(icon_name).GetBitmap(wxSize(16,16)); 
-        }
-        
-        this->SetToolTip(tooltip);
-        this->SetBackgroundStyle(wxBG_STYLE_PAINT);
-        
-        this->Bind(wxEVT_PAINT, &ToolbarButton::OnPaint, this);
-        this->Bind(wxEVT_ENTER_WINDOW, &ToolbarButton::OnEnter, this);
-        this->Bind(wxEVT_LEAVE_WINDOW, &ToolbarButton::OnLeave, this);
-        this->Bind(wxEVT_LEFT_DOWN, &ToolbarButton::OnDown, this);
-        this->Bind(wxEVT_LEFT_UP, &ToolbarButton::OnUp, this);
-    }
-
-    void UpdateTheme() {
-        if (!m_icon_name.IsEmpty()) {
-            m_icon = get_bmp_bundle(m_icon_name).GetBitmap(wxSize(16,16));
-        }
-        Refresh();
-    }
-    
-    void OnPaint(wxPaintEvent& evt) {
-        wxAutoBufferedPaintDC dc(this);
-        Render(dc);
-    }
-    
-    void Render(wxDC& dc) {
-        wxColour bg = GetParent()->GetBackgroundColour(); // Match parent
-        
-        // Custom colors for state
-        if (m_down) bg = wxColour(100, 100, 100); 
-        else if (m_hover) bg = wxColour(80, 80, 80);
-        else {
-             // Transparent / Match Parent
-             if (ThemeManager::IsDark()) 
-                 bg = ThemeManager::GetColors().header;
-             else
-                 // FORCE Light Grey instead of System Button Face (which is dark in Win Dark Mode)
-                 bg = wxColour(240, 240, 240);
-        }
-
-        dc.SetBackground(wxBrush(GetParent()->GetBackgroundColour())); 
-        dc.Clear();
-        
-        // Draw Rounded Rectangle if interacted
-        if (m_hover || m_down) {
-             dc.SetBrush(wxBrush(bg));
-             dc.SetPen(wxPen(bg));
-             dc.DrawRoundedRectangle(GetClientRect(), 4.0); // 4px radius
-        }
-
-        // Draw Content
-        int content_width = 0;
-        int gap = 4; // Use small gap as requested
-        
-        if (m_icon.IsOk()) content_width += m_icon.GetWidth();
-        if (!m_label.IsEmpty()) {
-            if (m_icon.IsOk()) content_width += gap;
-            dc.SetFont(ui_settings->small_font());
-            wxSize textSize = dc.GetTextExtent(m_label);
-            content_width += textSize.GetWidth();
-        }
-        
-        wxRect rect = GetClientRect();
-        int x = (rect.GetWidth() - content_width) / 2;
-        int y = rect.GetHeight() / 2;
-        
-        if (m_icon.IsOk()) {
-            dc.DrawBitmap(m_icon, x, y - m_icon.GetHeight()/2, true);
-            x += m_icon.GetWidth() + gap;
-        }
-        
-        if (!m_label.IsEmpty()) {
-            dc.SetFont(ui_settings->small_font());
-            if (!IsEnabled()) {
-                 dc.SetTextForeground(wxSystemSettings::GetColour(wxSYS_COLOUR_GRAYTEXT));
-            } else {
-                 if (ThemeManager::IsDark()) dc.SetTextForeground(*wxWHITE);
-                 else dc.SetTextForeground(*wxBLACK);
-            }
-            wxSize textSize = dc.GetTextExtent(m_label);
-            dc.DrawText(m_label, x, y - textSize.GetHeight()/2);
-        }
-    }
-
-    void OnEnter(wxMouseEvent& e) { if(IsEnabled()) { m_hover = true; Refresh(); } e.Skip(); }
-    void OnLeave(wxMouseEvent& e) { m_hover = false; m_down = false; Refresh(); e.Skip(); }
-    void OnDown(wxMouseEvent& e) { if(IsEnabled()) { m_down = true; Refresh(); } e.Skip(); }
-    void OnUp(wxMouseEvent& e) { 
-        if (m_down && IsEnabled()) {
-            m_down = false; 
-            Refresh(); 
-            wxCommandEvent btnEvent(wxEVT_BUTTON, GetId());
-            btnEvent.SetEventObject(this);
-            GetEventHandler()->ProcessEvent(btnEvent);
-        }
-        e.Skip(); 
-    }
-    
-    wxSize DoGetBestSize() const override {
-        wxClientDC dc(const_cast<ToolbarButton*>(this));
-        dc.SetFont(ui_settings->small_font());
-        int w = 12; // horizontal padding (6px each side)
-        int h = 26; // min height
-        
-        if (m_icon.IsOk()) {
-            w += m_icon.GetWidth();
-            h = std::max(h, m_icon.GetHeight() + 8);
-        }
-        if (!m_label.IsEmpty()) {
-            w += dc.GetTextExtent(m_label).GetWidth();
-            if (m_icon.IsOk()) w += 4; // gap
-            h = std::max(h, dc.GetTextExtent(m_label).GetHeight() + 8);
-        }
-        return wxSize(w, h);
-    }
-};
-
-
-const auto TB_ADD           {wxNewId()};
-const auto TB_REMOVE        {wxNewId()};
-const auto TB_RESET         {wxNewId()};
-const auto TB_ARRANGE       {wxNewId()};
-const auto TB_EXPORT_GCODE  {wxNewId()};
-const auto TB_EXPORT_STL    {wxNewId()};
-const auto TB_MORE          {wxNewId()};
-const auto TB_FEWER         {wxNewId()};
-const auto TB_45CW          {wxNewId()};
-const auto TB_45CCW         {wxNewId()};
-const auto TB_SCALE         {wxNewId()};
-const auto TB_SPLIT         {wxNewId()};
-const auto TB_CUT           {wxNewId()};
-const auto TB_LAYERS        {wxNewId()};
-const auto TB_SETTINGS      {wxNewId()};
-
 const auto PROGRESS_BAR_EVENT = wxNewEventType();
 
 Plater::Plater(wxWindow* parent, const wxString& title) : 
-    wxPanel(parent, wxID_ANY, wxDefaultPosition, wxDefaultSize, 0, title)
+    wxPanel(parent, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxTAB_TRAVERSAL, title)
 {
+    this->left_sizer = new wxBoxSizer(wxVERTICAL);
+
+    // Apply background color early to prevent artifacts
+    SetBackgroundColour(ThemeManager::GetColors().bg);
+
     // Use ThemedPanel with "hard black" style
     this->sidebar_content = new ThemedPanel(this);
     this->sidebar_content->SetBorder(true, *wxBLACK);
@@ -239,6 +97,40 @@ Plater::Plater(wxWindow* parent, const wxString& title) :
     canvas3D->on_select_object = std::function<void (ObjIdx obj_idx)>(on_select_object);
     canvas3D->on_instances_moved = std::function<void ()>(on_instances_moved);
     canvas3D->on_right_click = std::function<void(wxWindow* canvas, const wxPoint& pos)>([=](wxWindow* canvas, const wxPoint& pos) { on_right_click(static_cast<wxPanel*>(canvas), pos); });
+    
+    // Bind ImGui Toolbar Callbacks (Dynamic List)
+    canvas3D->m_actions.clear();
+    
+    // Group 1: Add/File
+    canvas3D->m_actions.push_back(ToolbarItem::Action("brick_add", "Add Object", [this](){ wxTheApp->CallAfter([this](){ this->add(); }); }));
+    canvas3D->m_actions.push_back(ToolbarItem::Separator());
+
+    // Group 2: Arrange
+    canvas3D->m_actions.push_back(ToolbarItem::Action("bricks", "Arrange", [this](){ wxTheApp->CallAfter([this](){ this->arrange(); }); }));
+    canvas3D->m_actions.push_back(ToolbarItem::Separator());
+
+    // Group 3: Copies
+    canvas3D->m_actions.push_back(ToolbarItem::Action("add", "Increase Copies", [this](){ wxTheApp->CallAfter([this](){ this->increase(); }); }));
+    canvas3D->m_actions.push_back(ToolbarItem::Action("delete", "Decrease Copies", [this](){ wxTheApp->CallAfter([this](){ this->decrease(); }); }));
+    canvas3D->m_actions.push_back(ToolbarItem::Separator());
+
+    // Group 4: Rotate
+    canvas3D->m_actions.push_back(ToolbarItem::Action("arrow_rotate_anticlockwise", "Rotate -45", [this](){ wxTheApp->CallAfter([this](){ this->rotate(45); }); }));
+    canvas3D->m_actions.push_back(ToolbarItem::Action("arrow_rotate_clockwise", "Rotate +45", [this](){ wxTheApp->CallAfter([this](){ this->rotate(-45); }); }));
+    canvas3D->m_actions.push_back(ToolbarItem::Separator());
+
+    // Group 5: Scale
+    canvas3D->m_actions.push_back(ToolbarItem::Action("arrow_out", "Scale", [this](){ wxTheApp->CallAfter([this](){ this->changescale(); }); }));
+    canvas3D->m_actions.push_back(ToolbarItem::Separator());
+
+    // Group 6: Tools
+    canvas3D->m_actions.push_back(ToolbarItem::Action("shape_ungroup", "Split", [this](){ wxTheApp->CallAfter([this](){ this->split_object(); }); }));
+    canvas3D->m_actions.push_back(ToolbarItem::Action("package", "Cut", [this](){ wxTheApp->CallAfter([this](){ this->object_cut_dialog(); }); }));
+    canvas3D->m_actions.push_back(ToolbarItem::Separator());
+
+    // Group 7: Settings
+    canvas3D->m_actions.push_back(ToolbarItem::Action("cog", "Settings", [this](){ wxTheApp->CallAfter([this](){ this->object_settings_dialog(); }); }));
+    canvas3D->m_actions.push_back(ToolbarItem::Action("variable_layer_height", "Layers", [this](){ wxTheApp->CallAfter([this](){ this->object_layers_dialog(); }); }));
     
     preview3D = new Preview3D(preview_notebook, wxDefaultSize, print, objects, model, config);
     preview_notebook->AddPage(preview3D, _("Preview"));
@@ -353,9 +245,6 @@ Plater::Plater(wxWindow* parent, const wxString& title) :
     this->update_quick_settings();
 
 
-    // Toolbar
-    this->build_toolbar();
-
     // Finally assemble the sizers into the display.
     
     // left panel sizer
@@ -371,16 +260,14 @@ Plater::Plater(wxWindow* parent, const wxString& title) :
 
 
     auto hsizer {new wxBoxSizer(wxHORIZONTAL)};
-    hsizer->Add(this->sidebar_content, 0, wxEXPAND | wxALL, 1);
+    hsizer->Add(this->sidebar_content, 0, wxEXPAND);
     
     // The sidebar_frame already provides the black separator via its border,
     // so we don't need the static gray line here.
 
-    hsizer->Add(this->preview_notebook, 1, wxEXPAND | wxTOP, 1);
+    hsizer->Add(this->preview_notebook, 1, wxEXPAND);
 
     auto sizer {new wxBoxSizer(wxVERTICAL)};
-    // Add the new modern toolbar panel
-    if (this->toolbar_panel != nullptr) sizer->Add(this->toolbar_panel, 0, wxEXPAND | wxALL, 0);
     
     sizer->Add(hsizer, 1, wxEXPAND,0);
 
@@ -389,6 +276,11 @@ Plater::Plater(wxWindow* parent, const wxString& title) :
     this->Layout();
 
     this->selection_changed();
+}
+
+Plater::~Plater() {
+    stop_background_process();
+    // smart pointers handle the rest
 }
 
 void Plater::update_ui_from_settings() {
@@ -404,13 +296,6 @@ void Plater::update_ui_from_settings() {
         this->sidebar_content->Refresh();
     }
     
-    // Update Toolbar Buttons
-    for (auto const& [id, win] : this->toolbar_tools) {
-        if (ToolbarButton* btn = dynamic_cast<ToolbarButton*>(win)) {
-            btn->UpdateTheme();
-        }
-    }
-
     // Update Warning Icon
     if (this->object_info.manifold_warning_icon) {
         this->object_info.manifold_warning_icon->SetBitmap(get_bmp_bundle("error.svg"));
@@ -866,14 +751,6 @@ void Plater::selection_changed() {
         }
     }
 
-    if (this->toolbar_panel != nullptr) {
-        for (auto tb : {TB_REMOVE, TB_MORE, TB_FEWER, TB_45CW, TB_45CCW, TB_SCALE, TB_SPLIT, TB_CUT, TB_LAYERS, TB_SETTINGS}) {
-            if (this->toolbar_tools.count(tb)) {
-                this->toolbar_tools[tb]->Enable(have_sel);
-            }
-        }
-    }
-
     if (this->object_info.choice != nullptr) {
         if (have_sel) {
             int obj_idx = std::distance(this->objects.begin(), obj);
@@ -935,108 +812,13 @@ void Plater::selection_changed() {
     this->GetFrame()->on_plater_selection_changed(have_sel);
 }
 
-void Plater::build_toolbar() {
-    wxToolTip::Enable(true);
-    
-    // Create the main toolbar panel
-    this->toolbar_panel = new wxPanel(this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxBORDER_NONE);
-    if (ThemeManager::IsDark()) {
-        this->toolbar_panel->SetBackgroundColour(ThemeManager::GetColors().header);
-    }
-
-    auto* sizer = new wxBoxSizer(wxHORIZONTAL);
-    this->toolbar_panel->SetSizer(sizer);
-
-    // Add leading spacer to center the buttons
-    sizer->AddStretchSpacer();
-
-    // Helper to add a custom toolbar button
-    auto add_tool = [&](int id, const wxString& label, const wxString& icon_name, const wxString& tooltip) {
-        ToolbarButton* btn = new ToolbarButton(this->toolbar_panel, id, label, icon_name, tooltip);
-        
-        // Add to sizer
-        sizer->Add(btn, 0, wxALIGN_CENTER_VERTICAL | wxALL, 2);
-
-        // Store reference
-        this->toolbar_tools[id] = btn;
-        
-        return btn;
-    };
-
-    auto add_separator = [&]() {
-         // Vertical line separator
-         auto* line = new wxPanel(this->toolbar_panel, wxID_ANY, wxDefaultPosition, wxSize(1, 24));
-         if (ThemeManager::IsDark()) {
-             line->SetBackgroundColour(wxColour(100, 100, 100)); // Visible dark mode separator
-         } else {
-             line->SetBackgroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_BTNSHADOW));
-         }
-         sizer->Add(line, 0, wxALIGN_CENTER_VERTICAL | wxLEFT | wxRIGHT, 6); 
-    };
-
-    // Group 1: File/Object Management
-    wxWindow* b;
-    b = add_tool(TB_ADD, _("Add"), "brick_add.png", _(L"Add object"));
-    b->Bind(wxEVT_BUTTON, [this](wxCommandEvent &e) { this->add(); });
-
-    b = add_tool(TB_REMOVE, _("Delete"), "brick_delete.png", _("Delete selected object"));
-    b->Bind(wxEVT_BUTTON, [this](wxCommandEvent &e) { this->remove(); });
-
-    b = add_tool(TB_RESET, _("Delete All"), "cross.png", _("Delete all objects"));
-    b->Bind(wxEVT_BUTTON, [this](wxCommandEvent &e) { this->reset(); });
-
-    b = add_tool(TB_ARRANGE, _("Arrange"), "bricks.png", _("Arrange objects"));
-    b->Bind(wxEVT_BUTTON, [this](wxCommandEvent &e) { this->arrange(); });
-
-    add_separator();
-
-    // Group 2: Instances
-    b = add_tool(TB_MORE, _("More"), "add.png", _("Increase copies"));
-    b->Bind(wxEVT_BUTTON, [this](wxCommandEvent &e) { this->increase(); });
-
-    b = add_tool(TB_FEWER, _("Fewer"), "delete.png", _("Decrease copies"));
-    b->Bind(wxEVT_BUTTON, [this](wxCommandEvent &e) { this->decrease(); });
-
-    add_separator();
-
-    // Group 3: Manipulation
-    b = add_tool(TB_45CCW, _(L"-45\u00B0"), "arrow_rotate_anticlockwise.png", _(L"Rotate 45\u00B0 Counter-Clockwise"));
-    b->Bind(wxEVT_BUTTON, [this](wxCommandEvent &e) { this->rotate(45); });
-
-    b = add_tool(TB_45CW, _(L"+45\u00B0"), "arrow_rotate_clockwise.png", _(L"Rotate 45\u00B0 Clockwise"));
-    b->Bind(wxEVT_BUTTON, [this](wxCommandEvent &e) { this->rotate(-45); });
-
-    b = add_tool(TB_SCALE, _("Scale"), "arrow_out.png", _(L"Scale object"));
-    b->Bind(wxEVT_BUTTON, [this](wxCommandEvent &e) { this->changescale(); });
-    
-    b = add_tool(TB_SPLIT, _("Split"), "shape_ungroup.png", _("Split object into parts"));
-    b->Bind(wxEVT_BUTTON, [this](wxCommandEvent &e) { this->split_object(); });
-
-    b = add_tool(TB_CUT, _("Cut"), "package.png", _("Cut object"));
-    b->Bind(wxEVT_BUTTON, [this](wxCommandEvent &e) { this->object_cut_dialog(); });
-
-    add_separator();
-
-    // Group 4: Settings
-    b = add_tool(TB_SETTINGS, _("Settings"), "cog.png", _(L"Object Settings"));
-    b->Bind(wxEVT_BUTTON, [this](wxCommandEvent &e) { this->object_settings_dialog(); });
-
-    b = add_tool(TB_LAYERS, _("Layers"), "variable_layer_height.png", _(L"Variable Layer Heights"));
-    b->Bind(wxEVT_BUTTON, [this](wxCommandEvent &e) { this->object_layers_dialog(); });
-    
-    // Add spacer at end
-    sizer->AddStretchSpacer();
-
-    this->toolbar_panel->SetMinSize(wxSize(-1, 38)); // Ensure height
-}
-
 void Plater::remove() {
     this->remove(-1, false);
 }
 
 void Plater::remove(int obj_idx, bool dont_push) {
     
-    // TODO: $self->stop_background_process;
+    stop_background_process();
     
     // Prevent toolpaths preview from rendering while we modify the Print object
 
@@ -1062,24 +844,27 @@ void Plater::remove(int obj_idx, bool dont_push) {
     Slic3r::Log::info(LogChannel, "Assigned obj_ref");
     // Save the object identifier and copy the object for undo/redo operations.
     auto object_id { obj_ref->identifier };
+    int idx = this->get_object_index(object_id);
+    if (idx < 0) return;
+
     auto new_model { Slic3r::Model() };
-    new_model.add_object(*(this->model->objects.at(obj_ref->identifier)));
+    new_model.add_object(*(this->model->objects.at(idx)));
    
     Slic3r::Log::info(LogChannel, "Assigned obj_ref");
     try {
-        this->model->delete_object(obj_ref->identifier);
+        this->model->delete_object(idx);
     } catch (out_of_range & /*ex*/) {
-        Slic3r::Log::error(LogChannel, LOG_WSTRING("Failed to delete object " << obj_ref->identifier << " from Model."));
+        Slic3r::Log::error(LogChannel, LOG_WSTRING("Failed to delete object " << idx << " from Model."));
     }
     try {
-        this->print->delete_object(obj_ref->identifier);
+        this->print->delete_object(idx);
     } catch (out_of_range & /*ex*/) {
-        Slic3r::Log::error(LogChannel, LOG_WSTRING("Failed to delete object " << obj_ref->identifier << " from Print."));
+        Slic3r::Log::error(LogChannel, LOG_WSTRING("Failed to delete object " << idx << " from Print."));
     }
 
     this->objects.erase(const_ref);
     int i = 0;
-    for (auto o : this->objects) { o.identifier = i++; } // fix identifiers
+    for (auto &o : this->objects) { o.identifier = i++; } // fix identifiers
     this->object_identifier = this->objects.size();
 
     this->object_list_changed();
@@ -1096,7 +881,7 @@ void Plater::remove(int obj_idx, bool dont_push) {
 }
 
 void Plater::reset(bool dont_push) {
-    // TODO: $self->stop_background_process;
+    stop_background_process();
     
     // Prevent toolpaths preview from rendering while we modify the Print object
 
@@ -1130,19 +915,30 @@ void Plater::reset(bool dont_push) {
 }
 
 void Plater::increase(size_t copies, bool dont_push) {
+
     auto obj {this->selected_object()};
+
     if (obj == this->objects.end()) return; // do nothing; nothing is selected.
+
     
+
     this->stop_background_process();
 
-    auto* model_object {this->model->objects.at(obj->identifier)};
+    int idx = this->get_object_index(obj->identifier);
+
+    if (idx < 0) return;
+
+
+
+    auto* model_object {this->model->objects.at(idx)};
+
     ModelInstance* instance {model_object->instances.back()};
 
     for (size_t i = 1; i <= copies; i++) {
         instance = model_object->add_instance(*instance);
         instance->offset.x += 10;
         instance->offset.y += 10;
-        this->print->objects.at(obj->identifier)->add_copy(instance->offset);
+        this->print->objects.at(idx)->add_copy(instance->offset);
     }
 
     if (!dont_push) {
@@ -1161,11 +957,14 @@ void Plater::decrease(size_t copies, bool dont_push) {
     if (obj == this->objects.end()) return; // do nothing; nothing is selected.
     
     this->stop_background_process();
-    auto* model_object {this->model->objects.at(obj->identifier)};
+    int idx = this->get_object_index(obj->identifier);
+    if (idx < 0) return;
+
+    auto* model_object {this->model->objects.at(idx)};
     if (model_object->instances.size() > copies) {
         for (size_t i = 1; i <= copies; i++) {
             model_object->delete_last_instance();
-            this->print->objects.at(obj->identifier)->delete_last_copy();
+            this->print->objects.at(idx)->delete_last_copy();
         }
         if (!dont_push) {
             this->add_undo_operation(UndoCmd::Decrease, obj->identifier, copies);
@@ -1181,7 +980,10 @@ void Plater::rotate(Axis axis, bool dont_push) {
     if (obj == this->objects.end()) return;
     double angle {0.0};
 
-    auto* model_object {this->model->objects.at(obj->identifier)};
+    int idx = this->get_object_index(obj->identifier);
+    if (idx < 0) return;
+
+    auto* model_object {this->model->objects.at(idx)};
     auto model_instance {model_object->instances.begin()};
 
     // pop a menu to get the angle
@@ -1199,7 +1001,10 @@ void Plater::rotate(double angle, Axis axis, bool dont_push) {
     ObjRef obj {this->selected_object()};
     if (obj == this->objects.end()) return;
 
-    auto* model_object {this->model->objects.at(obj->identifier)};
+    int idx = this->get_object_index(obj->identifier);
+    if (idx < 0) return;
+
+    auto* model_object {this->model->objects.at(idx)};
     auto* model_instance {model_object->instances.front()};
 
     if(obj->thumbnail.expolygons.size() == 0) { return; }
@@ -1207,19 +1012,19 @@ void Plater::rotate(double angle, Axis axis, bool dont_push) {
     if (axis == Z) {
         for (auto* instance : model_object->instances)
             instance->rotation += Geometry::deg2rad(angle);
-        obj->transform_thumbnail(this->model, obj->identifier);
+        obj->transform_thumbnail(this->model, idx);
     } else {
         model_object->transform_by_instance(*model_instance, true);
         model_object->rotate(Geometry::deg2rad(angle), axis);
 
         // realign object to Z=0
         model_object->center_around_origin();
-        this->make_thumbnail(obj->identifier);
+        this->make_thumbnail(idx);
     }
 
     model_object->update_bounding_box();
 
-    this->print->add_model_object(model_object, obj->identifier);
+    this->print->add_model_object(model_object, idx);
 
     if (!dont_push) {
         add_undo_operation(UndoCmd::Rotate, obj->identifier, angle, axis);
@@ -1385,7 +1190,10 @@ void Plater::object_cut_dialog() {
     ObjRef obj {this->selected_object()};
     if (obj == this->objects.end()) return;
 
-    auto* model_object {this->model->objects.at(obj->identifier)};
+    int idx = this->get_object_index(obj->identifier);
+    if (idx < 0) return;
+
+    auto* model_object {this->model->objects.at(idx)};
     auto cut_dialog = new ObjectCutDialog(nullptr, model_object);
     cut_dialog->ShowModal();
     cut_dialog->Destroy();
@@ -1428,7 +1236,9 @@ void Plater::object_list_changed() {
 }
 
 void Plater::stop_background_process() {
-    //TODO
+    if (m_slicing_thread.joinable()) {
+        m_slicing_thread.join();
+    }
 }
 
 void Plater::start_background_process() {
@@ -1522,7 +1332,11 @@ void Plater::set_number_of_copies() {
 
     ObjRef obj {this->selected_object()};
     if (obj == this->objects.end()) return;
-    auto* model_object { this->model->objects.at(obj->identifier) };
+
+    int idx = this->get_object_index(obj->identifier);
+    if (idx < 0) return;
+
+    auto* model_object { this->model->objects.at(idx) };
 
     long copies = -1;
     copies = wxGetNumberFromUser("", _("Enter the number of copies of the selected object:"), _("Copies"), model_object->instances.size(), 0, 1000, this);
@@ -1543,7 +1357,11 @@ void Plater::center_selected_object_on_bed() {
     ObjRef obj {this->selected_object()};
     
     if (obj == this->objects.end()) return;
-    auto* model_object { this->model->objects.at(obj->identifier) };
+
+    int idx = this->get_object_index(obj->identifier);
+    if (idx < 0) return;
+
+    auto* model_object { this->model->objects.at(idx) };
     auto bb {model_object->bounding_box()};
     auto size {bb.size()};
 
@@ -1705,8 +1523,12 @@ void Plater::slice() {
     // But for now, ensuring it runs in a thread prevents "Not Responding" windows ghosting.
     
     // To allow UI updates, we pass the pointer. Mutable lambda.
-    
-    std::thread([this, progressDialog]() {
+
+    // Ensure previous thread is joined before starting new one
+    stop_background_process();
+
+    m_slicing_active = true;
+    m_slicing_thread = std::thread([this, progressDialog]() {
         try {
             // Ensure Print object has the latest Model state
              // This touches Model which might be main-thread only if not careful, but usually Model is data.
@@ -1752,8 +1574,9 @@ void Plater::slice() {
         
         // Cleanup callback
         this->print->status_cb = nullptr;
+        m_slicing_active = false;
         
-    }).detach();
+    });
 }
 
 void Plater::update_quick_settings() {

@@ -11,6 +11,8 @@
 #include <wx/simplebook.h>
 
 #include <stack>
+#include <thread>
+#include <atomic>
 
 #include "libslic3r.h"
 #include "Model.hpp"
@@ -73,6 +75,7 @@ class Plater : public wxPanel
 {
 public:
     Plater(wxWindow* parent, const wxString& title);
+    ~Plater();
 
     /// User-level function called through external interface.
     /// Pops file dialog.
@@ -133,6 +136,9 @@ public:
     /// Load configuration from currently selected presets into 'this->config' and 'this->print'
     void load_current_presets();
 
+    Plate3D* get_canvas3d() { return canvas3D; }
+    Preview3D* get_preview3d() { return preview3D; }
+
 private:
     std::shared_ptr<Slic3r::Print> print {std::make_shared<Print>(Slic3r::Print())};
     std::shared_ptr<Slic3r::Model> model {std::make_shared<Model>(Slic3r::Model())};
@@ -152,11 +158,7 @@ private:
     std::stack<UndoOperation> _redo {}; 
 
     wxSimplebook* preview_notebook {nullptr};
-    wxBoxSizer* left_sizer {new wxBoxSizer(wxVERTICAL)};
-
-    // Replacement for native toolbar
-    wxPanel* toolbar_panel {nullptr}; 
-    std::map<int, wxWindow*> toolbar_tools; 
+    wxBoxSizer* left_sizer {nullptr};
 
     // wxToolBar* htoolbar {nullptr}; //< toolbar for non-MSW platforms.
     wxBoxSizer* btoolbar {nullptr}; //< button-based toolbar for Windows
@@ -228,13 +230,8 @@ private:
     void object_settings_dialog(ObjIdx obj_idx);
     void object_settings_dialog(ObjRef obj);
 
-    /// Instantiate the toolbar 
-    void build_toolbar();
-
     /// Clear plate.
     void reset(bool dont_push = false);
-
-    /// Make instances of the currently selected model.
     void increase(size_t copies = 1, bool dont_push = false); 
 
     /// Remove instances of the currently selected model.
@@ -293,6 +290,8 @@ private:
 
     void load_presets();
 
+    std::thread m_slicing_thread;
+    std::atomic<bool> m_slicing_active {false};
 };
 
 
