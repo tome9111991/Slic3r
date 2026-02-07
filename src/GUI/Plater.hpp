@@ -168,7 +168,10 @@ private:
 
     // PreviewDLP* previewDLP {nullptr}; //< DLP/SLA Preview canvas
 
-    wxStaticBoxSizer* shortcut_sizer {nullptr};
+    wxBoxSizer* shortcut_sizer {nullptr};
+    ThemedPanel* sidebar_content {nullptr};
+    ThemedSection* quick_settings_section {nullptr};
+    ThemedSection* object_info_section {nullptr};
     wxStaticText* quick_settings_label {nullptr};
 
     /// Handles the actual load of the file from the dialog handoff.

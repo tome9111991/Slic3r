@@ -65,32 +65,32 @@ void PrinterEditor::_build() {
     {
         auto* page = this->add_options_page("General", "printer_empty.svg");
         {
-            auto* optgroup = page->new_optgroup("Size and coordinates");
+            auto* optgroup = page->new_optgroup("Size and coordinates", "arrow_out.svg");
             // Bed shape button missing in C++ framework, skipped.
             optgroup->append_single_option_line("z_offset");
         }
         {
-            auto* optgroup = page->new_optgroup("Capabilities");
+            auto* optgroup = page->new_optgroup("Capabilities", "star.svg");
             optgroup->append_single_option_line("extruders_count");
             optgroup->append_single_option_line("has_heatbed");
         }
         {
-            auto* optgroup = page->new_optgroup("USB/Serial connection");
+            auto* optgroup = page->new_optgroup("USB/Serial connection", "connection.svg");
             optgroup->append_single_option_line("serial_port");
             optgroup->append_single_option_line("serial_speed");
         }
         {
-            auto* optgroup = page->new_optgroup("Print server upload");
+            auto* optgroup = page->new_optgroup("Print server upload", "server.svg");
             optgroup->append_single_option_line("host_type");
             optgroup->append_single_option_line("print_host");
             optgroup->append_single_option_line("octoprint_apikey");
         }
         {
-            auto* optgroup = page->new_optgroup("Firmware");
+            auto* optgroup = page->new_optgroup("Firmware", "cog.svg");
             optgroup->append_single_option_line("gcode_flavor");
         }
         {
-            auto* optgroup = page->new_optgroup("Advanced");
+            auto* optgroup = page->new_optgroup("Advanced", "wand.svg");
             optgroup->append_single_option_line("use_relative_e_distances");
             optgroup->append_single_option_line("use_firmware_retraction");
             optgroup->append_single_option_line("use_volumetric_e");
@@ -106,27 +106,27 @@ void PrinterEditor::_build() {
     {
         auto* page = this->add_options_page("Custom G-code", "script.svg");
         {
-            auto* optgroup = page->new_optgroup("Start G-code");
+            auto* optgroup = page->new_optgroup("Start G-code", "control_play.svg");
             optgroup->append_single_option_line("start_gcode");
         }
         {
-            auto* optgroup = page->new_optgroup("End G-code");
+            auto* optgroup = page->new_optgroup("End G-code", "control_stop.svg");
             optgroup->append_single_option_line("end_gcode");
         }
         {
-            auto* optgroup = page->new_optgroup("Before layer change G-code");
+            auto* optgroup = page->new_optgroup("Before layer change G-code", "layers.svg");
             optgroup->append_single_option_line("before_layer_gcode");
         }
         {
-            auto* optgroup = page->new_optgroup("After layer change G-code");
+            auto* optgroup = page->new_optgroup("After layer change G-code", "layers.svg");
             optgroup->append_single_option_line("layer_gcode");
         }
         {
-            auto* optgroup = page->new_optgroup("Tool change G-code");
+            auto* optgroup = page->new_optgroup("Tool change G-code", "wrench.svg");
             optgroup->append_single_option_line("toolchange_gcode");
         }
         {
-            auto* optgroup = page->new_optgroup("Between objects G-code (for sequential printing)");
+            auto* optgroup = page->new_optgroup("Between objects G-code (for sequential printing)", "bricks.svg");
             optgroup->append_single_option_line("between_objects_gcode");
         }
     }
@@ -135,20 +135,20 @@ void PrinterEditor::_build() {
     {
         auto* page = this->add_options_page("Extruder 1", "funnel.svg");
         {
-            auto* optgroup = page->new_optgroup("Size");
+            auto* optgroup = page->new_optgroup("Size", "arrow_out.svg");
             optgroup->append_single_option_line("nozzle_diameter");
         }
         {
-            auto* optgroup = page->new_optgroup("Layer Height Limits");
+            auto* optgroup = page->new_optgroup("Layer Height Limits", "variable_layer_height.svg");
             optgroup->append_single_option_line("min_layer_height");
             optgroup->append_single_option_line("max_layer_height");
         }
         {
-            auto* optgroup = page->new_optgroup("Position (for multi-extruder printers)");
+            auto* optgroup = page->new_optgroup("Position (for multi-extruder printers)", "move.svg");
             optgroup->append_single_option_line("extruder_offset");
         }
         {
-            auto* optgroup = page->new_optgroup("Retraction");
+            auto* optgroup = page->new_optgroup("Retraction", "arrow_undo.svg");
             optgroup->append_single_option_line("retract_length");
             optgroup->append_single_option_line("retract_lift");
             
@@ -164,7 +164,7 @@ void PrinterEditor::_build() {
             optgroup->append_single_option_line("wipe");
         }
         {
-            auto* optgroup = page->new_optgroup("Retraction when tool is disabled (advanced settings for multi-extruder setups)");
+            auto* optgroup = page->new_optgroup("Retraction when tool is disabled (advanced settings for multi-extruder setups)", "arrow_undo.svg");
             optgroup->append_single_option_line("retract_length_toolchange");
             optgroup->append_single_option_line("retract_restart_extra_toolchange");
         }
@@ -173,7 +173,7 @@ void PrinterEditor::_build() {
     {
         auto* page = this->add_options_page("Notes", "note.svg");
         {
-            auto* optgroup = page->new_optgroup("Notes");
+            auto* optgroup = page->new_optgroup("Notes", "note.svg");
             optgroup->append_single_option_line("printer_notes");
         }
     }

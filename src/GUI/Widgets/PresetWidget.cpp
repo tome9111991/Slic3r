@@ -6,7 +6,7 @@
 namespace Slic3r { namespace GUI {
 
 PresetSection::PresetSection(wxWindow* parent, const wxString& title, const wxString& icon_name)
-    : wxPanel(parent, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxBORDER_NONE | wxTAB_TRAVERSAL),
+    : wxPanel(parent, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxBORDER_NONE | wxTAB_TRAVERSAL | wxCLIP_CHILDREN),
       m_title(title), m_icon_name(icon_name)
 {
     SetBackgroundStyle(wxBG_STYLE_PAINT);
@@ -22,7 +22,8 @@ PresetSection::PresetSection(wxWindow* parent, const wxString& title, const wxSt
     Bind(wxEVT_LEAVE_WINDOW, [this](wxMouseEvent&) { 
         if (m_hover_settings || m_hover_edit) {
             m_hover_settings = m_hover_edit = false; 
-            Refresh(); 
+            RefreshRect(m_settings_rect);
+            Update(); 
         }
     });
     Bind(wxEVT_ERASE_BACKGROUND, [](wxEraseEvent&) { });
@@ -38,6 +39,7 @@ wxString PresetSection::GetValue() const {
     return m_selector ? m_selector->GetValue() : wxString("");
 }
 
+
 void PresetSection::UpdateTheme() {
     if (m_selector) m_selector->Refresh();
     Refresh();
@@ -48,12 +50,16 @@ void PresetSection::OnSize(wxSizeEvent& event) {
     wxSize sz = GetClientSize();
     
     int headerH = 25 * scale;
-    int selectorY = 5 * scale + headerH + 2 * scale;
+    int selectorY = 2 * scale + headerH + 2 * scale;
     int selectorH = 32 * scale;
     
     if (m_selector) {
         m_selector->SetSize(5 * scale, selectorY, sz.x - 10 * scale, selectorH);
     }
+    
+    // Update hit rects based on new size
+    m_settings_rect = wxRect(sz.x - 30 * scale, 2 * scale, 25 * scale, headerH);
+    
     event.Skip();
 }
 
@@ -61,17 +67,28 @@ void PresetSection::OnPaint(wxPaintEvent&) {
     wxAutoBufferedPaintDC dc(this);
     auto theme = ThemeManager::GetColors();
     dc.SetBackground(wxBrush(theme.bg));
-    dc.Clear();
+
+    // Smart Background Clearing:
+    // Only clear the panel background if we are painting outside the header area.
+    // If we only refresh an icon inside the header, clearing with panel-bg causes flickering.
+    double scale = GetContentScaleFactor();
+    int headerY = 2 * scale;
+    int headerH = 25 * scale;
+
+    wxRect updateRect = GetUpdateRegion().GetBox();
+    bool insideHeader = (updateRect.y >= headerY && (updateRect.y + updateRect.height) <= (headerY + headerH));
+
+    if (!insideHeader || updateRect.IsEmpty()) {
+        dc.Clear();
+    }
 
     std::unique_ptr<wxGraphicsContext> gc(wxGraphicsContext::Create(dc));
     if (!gc) return;
 
-    double scale = GetContentScaleFactor();
     wxSize sz = GetSize();
     
     // 1. Draw Header Bar
-    int headerY = 5 * scale;
-    int headerH = 25 * scale;
+    // headerY and headerH are already defined above
     
     // Draw background for the full header bar
     wxColour headerBg = theme.isDark ? wxColour(50, 50, 50) : wxColour(235, 235, 235);
@@ -118,7 +135,8 @@ void PresetSection::OnMouseEvent(wxMouseEvent& event) {
     if (hover_settings != m_hover_settings || hover_edit != m_hover_edit) {
         m_hover_settings = hover_settings;
         m_hover_edit = hover_edit;
-        Refresh();
+        RefreshRect(m_settings_rect);
+        Update(); 
     }
     
     if (event.LeftDown()) {
@@ -131,8 +149,8 @@ void PresetSection::OnMouseEvent(wxMouseEvent& event) {
 
 wxSize PresetSection::DoGetBestSize() const {
     double scale = GetContentScaleFactor();
-    // Header (25) + Padding (5) + Selector (32) + Bottom Padding (10)
-    return wxSize(300 * scale, 75 * scale);
+    // Header (25) + Padding (2) + Selector (32) + Bottom Padding (5)
+    return wxSize(300 * scale, 64 * scale);
 }
 
 }} // namespace Slic3r::GUI

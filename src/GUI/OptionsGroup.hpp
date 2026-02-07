@@ -7,6 +7,7 @@
 #include <string>
 #include <map>
 #include <memory>
+#include <wx/gbsizer.h>
 
 namespace Slic3r { namespace GUI {
 
@@ -49,7 +50,9 @@ public:
 
 class OptionsGroup {
 public:
-    OptionsGroup(wxWindow* parent) : parent(parent) {}
+    OptionsGroup(wxWindow* parent) : parent(parent), show_quick_setting_toggles(true) {}
+    
+    bool show_quick_setting_toggles {true};
     
     // Create a new option wrapper for a given key
     Option get_option(const t_config_option_key& opt_key);
@@ -94,6 +97,8 @@ protected:
     std::map<t_config_option_key, wxWindow*> _quick_toggles; 
     
     wxBoxSizer* sizer; // The sizer this group populates
+    wxGridBagSizer* grid_sizer {nullptr}; 
+    int m_row_count {0};
 
     wxBitmapBundle star_filled;
     wxBitmapBundle star_empty;

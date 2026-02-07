@@ -201,14 +201,14 @@ public:
         }
 
         if (opt.multiline) {
-             long style = wxTE_MULTILINE | wxHSCROLL;
-             _text = new wxTextCtrl(parent, id, default_val, wxDefaultPosition, _default_size(), style);
-             window = _text;
+             _themed_area = new ThemedTextArea(parent, id, default_val, wxDefaultPosition, _default_size());
+             _text = _themed_area->GetTextCtrl();
+             window = _themed_area;
         } else {
              // Use ThemedTextInput for single line
-             _themed_wrapper = new ThemedTextInput(parent, id, default_val, wxDefaultPosition, _default_size());
-             _text = _themed_wrapper->GetTextCtrl();
-             window = _themed_wrapper;
+             _themed_input = new ThemedTextInput(parent, id, default_val, wxDefaultPosition, _default_size());
+             _text = _themed_input->GetTextCtrl();
+             window = _themed_input;
         }
 
         if (!opt.multiline) {
@@ -260,7 +260,8 @@ protected:
 
 private:
     wxTextCtrl* _text {nullptr};
-    ThemedTextInput* _themed_wrapper {nullptr};
+    ThemedTextInput* _themed_input {nullptr};
+    ThemedTextArea* _themed_area {nullptr};
 };
 
 class UI_Choice : public UI_Window {
@@ -321,7 +322,8 @@ public:
     double get_double() override { return std::stod(this->get_string()); }
 
 
-    wxComboBox* choice() { return this->_choice; }
+    ThemedSelect* choice() { return this->_choice; }
+    wxComboBox* combo() { return this->_combo; }
 
     void set_value(boost::any value) override;
 
@@ -353,8 +355,9 @@ protected:
         }
     }
 private:
-    wxComboBox* _choice {nullptr};
-    std::regex show_value_flag {"\bshow_value\b"};
+    wxComboBox* _combo {nullptr};
+    ThemedSelect* _choice {nullptr};
+    std::regex show_value_flag {"\\bshow_value\\b"};
 };
 
 class UI_Point : public UI_Sizer {

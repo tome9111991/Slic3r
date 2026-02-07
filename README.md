@@ -1,56 +1,78 @@
 # Slic3r (Modern C++ Port)
 
-Slic3r is a G-code generator for 3D printers. This is a modernized fork of the original Slic3r, refactored to be a pure C++ application, removing all Perl legacy code and dependencies. The architecture is now aligned with modern standards (similar to OrcaSlicer/PrusaSlicer), making it a robust foundation for future development.
+This project is an active, work-in-progress effort to port the original Perl-based Slic3r application to a pure **Modern C++ (C++17)** codebase. The goal is to create a high-performance, maintainable, and self-contained executable.
 
-## Features
-*   **Pure C++:** No Perl interpreter required. High performance and easier to maintain.
-*   **Modern Architecture:** flattened `src/` structure, CMake-based build system.
-*   **G-code generation** for FFF/FDM printers.
-*   **3D Preview** and toolpath visualization.
-*   **Modular Core:** `libslic3r` is now a first-class citizen in the source tree.
+> **⚠️ Status:** Active Development / Alpha.
+> While the core slicing engine is largely functional, many UI features and advanced tools are still being implemented or optimized. This is **not** yet a 1:1 replacement for the legacy Perl version.
 
-## Directory Structure
+## 🚀 Project Status
 
-*   `src/`: Main C++ source code.
-    *   `src/libslic3r/`: The core slicing engine.
-    *   `src/GUI/`: The wxWidgets-based user interface.
-    *   `src/slic3r.cpp`: Application entry point.
-*   `var/`: Application assets (icons, images).
-*   `package/`: Packaging scripts.
+### Core Engine (`libslic3r`)
+The slicing logic (geometry, infill, G-code generation) has been ported to C++, but active work continues on:
+*   **Optimization:** Many algorithms are marked for performance improvements (e.g., infill generation, support material).
+*   **Refactoring:** Cleaning up legacy logic and unifying data structures.
+*   **Feature Parity:** Some specific slicing features (e.g., complex cuts, specific support generation edge cases) may still be incomplete or experimental.
 
-## Building from Source
+### GUI (`src/GUI`)
+The user interface is being rebuilt from scratch using **wxWidgets** and **ImGui**, featuring a new custom theming system.
+*   **Implemented:** Main application shell, 3D Plater/Preview, basic object manipulation, G-code export.
+*   **In Progress:**
+    *   **Preset Management:** Configuration loading/saving is partially implemented but needs a centralized manager.
+    *   **Advanced Tools:** Features like "Quick Slice", object cutting/splitting, and the configuration wizard are currently stubs or WIP.
+    *   **Theming:** Custom "owner-drawn" controls for full Dark/Light mode support on Windows.
 
-This project uses **CMake** as its build system.
+## 🛠 Tech Stack
+*   **Language:** C++17
+*   **Build System:** CMake + Ninja / Visual Studio 2022
+*   **Dependency Management:** `vcpkg` (Boost, wxWidgets, OpenSSL, etc.)
+*   **GUI Library:** wxWidgets 3.2+ (Core UI) + ImGui (3D Overlays)
+*   **Rendering:** Modern OpenGL (Glad + GLM)
 
-### Windows
-You can use the provided helper script:
-```cmd
-build_vs2022.bat
-```
+## 📂 Directory Structure
 
-Or build manually using CMake and Visual Studio 2019/2022:
+| Directory | Description |
+| :--- | :--- |
+| **`src/`** | **Active C++ Source.** |
+| ├─ `libslic3r/` | Core slicing engine. |
+| └─ `GUI/` | User interface and rendering logic. |
+| **`port/`** | **Legacy Reference.** Contains the original Perl/XS code for comparison. |
+| **`resources/`** | Assets (Icons, Shaders, Fonts). |
 
-```cmd
-mkdir build
-cd build
-cmake ..
+## 🏗 Building from Source
+
+### Prerequisites (Windows)
+*   **Visual Studio 2022** (Desktop C++ Workload)
+*   **CMake** (3.21 or later)
+*   **PowerShell 5.1+**
+
+### Build Instructions
+The project uses a helper script to manage `vcpkg` dependencies automatically.
+
+1.  **Clone the repository:**
+    ```powershell
+    git clone <repo-url>
+    cd Slic3r
+    ```
+2.  **Run the build script:**
+    ```powershell
+    .\build_vs2022.bat
+    ```
+    *   This will bootstrap `vcpkg`, install dependencies (Boost, wxWidgets, etc.), and generate the Visual Studio solution in `build/`.
+    *   The compiled executable will be at `build/target/Debug/slic3r.exe` (or Release).
+
+### Manual CMake Build
+If you prefer running CMake directly (ensure `VCPKG_ROOT` is set):
+```bash
+mkdir build; cd build
+cmake .. -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake"
 cmake --build . --config Release
 ```
 
-**Requirements:**
-*   Visual Studio 2022 (C++ Desktop Development)
-*   CMake
-*   Boost
-*   wxWidgets
+## 🤝 Contributing
+Contributions are welcome!
+*   **Search for TODOs:** The codebase contains many `// TODO` and `// FIXME` comments indicating areas that need attention.
+*   **Check `GUI_TODO.md`:** (Note: May be partially outdated) for UI-specific tasks.
+*   **Legacy Comparison:** When implementing a feature, refer to the Perl implementation in `port/` to ensure logic parity.
 
-### Linux / macOS
-**Note:** The current modernization effort has been focused and tested on Windows. While the project uses standard CMake and cross-platform libraries (Boost, wxWidgets), it may require adjustments to `CMakeLists.txt` or dependencies to build successfully on Linux or macOS.
-
-```bash
-mkdir build && cd build
-cmake ..
-make
-```
-
-## Credits
-Based on Slic3r by Alessandro Ranellucci. Refactored for modern C++ environments.
+## ⚖️ License
+Licensed under **AGPLv3**. Based on the original Slic3r by Alessandro Ranellucci.

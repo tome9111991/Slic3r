@@ -23,10 +23,12 @@
 namespace Slic3r { namespace GUI {
 
 bool ThemeManager::m_isDark = true;
+std::map<ThemeManager::CacheKey, wxBitmapBundle> ThemeManager::m_iconCache;
 
 void ThemeManager::SetDarkMode(bool dark) {
     if (m_isDark != dark) {
         m_isDark = dark;
+        ClearIconCache(); // Clear SVG cache on theme change
         UpdateUI();
     }
 }
@@ -165,7 +167,20 @@ ThemeColors ThemeManager::GetColors() {
     };
 }
 
+void ThemeManager::ClearIconCache() {
+    m_iconCache.clear();
+}
+
 wxBitmapBundle ThemeManager::GetSVG(const wxString& iconName, const wxSize& size, const wxColour& color) {
+    // Check Cache first
+    unsigned long colVal = color.IsOk() ? color.GetRGBA() : 0;
+    CacheKey key{iconName, size.x, size.y, colVal};
+    
+    auto it = m_iconCache.find(key);
+    if (it != m_iconCache.end()) {
+        if (it->second.IsOk()) return it->second;
+    }
+
     // Attempt to locate resources relative to the executable
     wxString exePath = wxStandardPaths::Get().GetExecutablePath();
     wxFileName fname(exePath);
@@ -219,7 +234,11 @@ wxBitmapBundle ThemeManager::GetSVG(const wxString& iconName, const wxSize& size
         svgContent.Replace("fill=\"currentColor\"", "fill=\"" + hexColor + "\"");
     }
 
-    return wxBitmapBundle::FromSVG(svgContent.ToStdString().c_str(), size);
+    wxBitmapBundle bundle = wxBitmapBundle::FromSVG(svgContent.ToStdString().c_str(), size);
+    if (bundle.IsOk()) {
+        m_iconCache[key] = bundle;
+    }
+    return bundle;
 }
 
 wxFont ThemeManager::GetFont(FontSize size, FontWeight weight) {

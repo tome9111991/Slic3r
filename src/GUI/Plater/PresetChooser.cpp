@@ -10,7 +10,7 @@ namespace Slic3r { namespace GUI {
 PresetChooser::PresetChooser(wxWindow* parent, std::weak_ptr<Print> print) : PresetChooser(parent, print, SLIC3RAPP->settings(), SLIC3RAPP->presets) {}
 
 PresetChooser::PresetChooser(wxWindow* parent, std::weak_ptr<Print> print, Settings* external_settings, preset_store& external_presets) :
-    wxPanel(parent, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxTAB_TRAVERSAL, ""),
+    wxPanel(parent, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxTAB_TRAVERSAL | wxCLIP_CHILDREN, ""),
     _local_sizer(new wxBoxSizer(wxVERTICAL)), _parent(parent), _settings(external_settings), _print(print), _presets(external_presets)
 {
     // Apply panel background
@@ -18,7 +18,7 @@ PresetChooser::PresetChooser(wxWindow* parent, std::weak_ptr<Print> print, Setti
         this->SetBackgroundColour(ThemeManager::GetColors().bg);
     }
 
-    for (auto group : { preset_t::Printer, preset_t::Material, preset_t::Print }) {
+    for (auto group : { preset_t::Printer, preset_t::Print, preset_t::Material }) {
         wxString name = "";
         wxString icon = "";
         switch(group) {
@@ -62,7 +62,7 @@ PresetChooser::PresetChooser(wxWindow* parent, std::weak_ptr<Print> print, Setti
              }
         };
 
-        this->_local_sizer->Add(section, 0, wxEXPAND | wxBOTTOM, 10);
+        this->_local_sizer->Add(section, 0, wxEXPAND | wxBOTTOM, 5);
     }
 
     this->SetSizer(_local_sizer);
@@ -71,7 +71,7 @@ PresetChooser::PresetChooser(wxWindow* parent, std::weak_ptr<Print> print, Setti
 void PresetChooser::load(std::array<Presets, preset_types> presets) {
 
     wxString selected_printer_name {""};
-    for (const auto& group : { preset_t::Printer, preset_t::Material, preset_t::Print }) {
+    for (const auto& group : { preset_t::Printer, preset_t::Print, preset_t::Material }) {
         auto current_list = presets.at(get_preset(group));
         // Filter out profiles not compatible with this printer
         if (group != preset_t::Printer) {
@@ -95,20 +95,7 @@ void PresetChooser::load(std::array<Presets, preset_types> presets) {
             selector->Clear();
 
             for (auto preset : current_list) {
-                wxBitmapBundle bitmap;
-                switch (group) {
-                    case preset_t::Print:
-                        bitmap = get_bmp_bundle("cog.svg");
-                        break;
-                    case preset_t::Material: 
-                        bitmap = get_bmp_bundle("spool.svg");
-                        break;
-                    case preset_t::Printer: 
-                        bitmap = get_bmp_bundle("printer_empty.svg");
-                        break;
-                    default: break;
-                }
-                selector->Append(preset.name, bitmap);
+                selector->Append(preset.name, wxBitmapBundle());
                 __chooser_names[get_preset(group)].push_back(preset.name);
             }
 
@@ -219,7 +206,7 @@ void PresetChooser::UpdateTheme()
         this->SetBackgroundColour(wxNullColour);
     }
 
-    for (auto group : { preset_t::Printer, preset_t::Material, preset_t::Print }) {
+    for (auto group : { preset_t::Printer, preset_t::Print, preset_t::Material }) {
         for (auto* section : this->preset_sections[get_preset(group)]) {
             section->UpdateTheme();
         }

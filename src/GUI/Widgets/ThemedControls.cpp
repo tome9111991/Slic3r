@@ -336,55 +336,66 @@ public:
 
 private:
     void OnPaint(wxPaintEvent&) {
+        // Use AutoBufferedPaintDC to prevent flickering. 
+        // This double-buffers the drawing: draws to memory first, then blits to screen.
         wxAutoBufferedPaintDC dc(this);
-        // dc.Clear() is not needed as we fill the whole area with gc
         
         auto theme = ThemeManager::GetColors();
         double scale = GetContentScaleFactor();
         int rowH = 26 * scale;
         int paddingY = 1 * scale;
         
-        std::unique_ptr<wxGraphicsContext> gc(wxGraphicsContext::Create(dc));
-        if (gc) {
-            // 1. Draw background
-            gc->SetBrush(wxBrush(theme.bg));
-            gc->SetPen(*wxTRANSPARENT_PEN);
-            gc->DrawRectangle(0, 0, GetSize().x, GetSize().y);
+        // ------------------------------------------------------------------
+        // 1. Draw Background
+        // ------------------------------------------------------------------
+        // Fill the entire popup area with the background color to clear any previous artifacts.
+        dc.SetBrush(wxBrush(theme.bg));
+        dc.SetPen(*wxTRANSPARENT_PEN);
+        dc.DrawRectangle(0, 0, GetSize().x, GetSize().y);
+        
+        // ------------------------------------------------------------------
+        // 2. Draw List Items
+        // ------------------------------------------------------------------
+        dc.SetFont(ThemeManager::GetFont(ThemeManager::FontSize::Small));
+        
+        for (size_t i = 0; i < m_options.size(); ++i) {
+            int rowY = paddingY + (int)i * rowH;
             
-            // 2. Draw items
-            gc->SetFont(ThemeManager::GetFont(ThemeManager::FontSize::Small), theme.text);
-            
-            for (size_t i = 0; i < m_options.size(); ++i) {
-                int rowY = paddingY + (int)i * rowH;
-                
-                // Highlight frame (Border only, no background change)
-                if ((int)i == m_hoverIndex) {
-                    gc->SetBrush(*wxTRANSPARENT_BRUSH);
-                    gc->SetPen(wxPen(theme.accent, 1));
-                    gc->DrawRectangle(1 * scale, rowY, GetSize().x - 2 * scale, rowH);
-                }
-
-                // Icon
-                int tx = 8 * scale;
-                if (i < m_icons.size() && m_icons[i].IsOk()) {
-                    wxBitmap bmp = m_icons[i].GetBitmapFor(this);
-                    double iy = rowY + (rowH - bmp.GetHeight()) / 2.0;
-                    gc->DrawBitmap(bmp, tx, iy, bmp.GetWidth(), bmp.GetHeight());
-                    tx += bmp.GetWidth() + 6 * scale;
-                }
-
-                // Label
-                double tw, th;
-                gc->GetTextExtent(m_options[i], &tw, &th);
-                double ty = rowY + (rowH - th) / 2.0;
-                gc->DrawText(m_options[i], tx, ty);
+            // A. Draw Highlight Frame for Hovered Item
+            // We only draw the border (Pen), leaving the inside transparent (Brush)
+            // so we don't obscure the background color.
+            if ((int)i == m_hoverIndex) {
+               dc.SetBrush(*wxTRANSPARENT_BRUSH);
+               dc.SetPen(wxPen(theme.accent, 1));
+               // Rect inset by 1px to ensure border is fully visible inside the control
+               dc.DrawRectangle(1 * scale, rowY, GetSize().x - 2 * scale, rowH);
             }
 
-            // 3. Border (draw last to be on top)
-            gc->SetPen(wxPen(theme.border, 1));
-            gc->SetBrush(*wxTRANSPARENT_BRUSH);
-            gc->DrawRectangle(0, 0, GetSize().x, GetSize().y);
+            // B. Draw Icon (if valid)
+            int tx = 8 * scale;
+            if (i < m_icons.size() && m_icons[i].IsOk()) {
+                wxBitmap bmp = m_icons[i].GetBitmapFor(this);
+                // Center icon vertically within the row height
+                double iy = rowY + (rowH - bmp.GetHeight()) / 2;
+                dc.DrawBitmap(bmp, tx, (int)iy, true);
+                tx += bmp.GetWidth() + 6 * scale; // Move text start position
+            }
+
+            // C. Draw Text Label
+            dc.SetTextForeground(theme.text);
+            wxSize textSize = dc.GetTextExtent(m_options[i]);
+            // Center text vertically
+            double ty = rowY + (rowH - textSize.y) / 2;
+            dc.DrawText(m_options[i], tx, (int)ty);
         }
+
+        // ------------------------------------------------------------------
+        // 3. Draw Outer Border
+        // ------------------------------------------------------------------
+        // Draw a border around the entire popup window to define its edges.
+        dc.SetPen(wxPen(theme.border, 1));
+        dc.SetBrush(*wxTRANSPARENT_BRUSH);
+        dc.DrawRectangle(0, 0, GetSize().x, GetSize().y);
     }
 
     void OnMotion(wxMouseEvent& evt) {
@@ -460,83 +471,97 @@ void ThemedSelect::OpenPopup(wxMouseEvent&) {
 }
 
 void ThemedSelect::OnPaint(wxPaintEvent&) {
+    // Use AutoBufferedPaintDC to prevent flickering during repaints.
     wxAutoBufferedPaintDC dc(this);
     auto theme = ThemeManager::GetColors();
+    
+    // Clear background to theme color
     dc.SetBackground(wxBrush(theme.bg));
     dc.Clear();
     
-    std::unique_ptr<wxGraphicsContext> gc(wxGraphicsContext::Create(dc));
-    if (gc) {
-        double scale = GetContentScaleFactor();
-        
-        // Background and Border
-        wxColour borderColor;
-        wxBrush backgroundBrush = *wxTRANSPARENT_BRUSH;
+    double scale = GetContentScaleFactor();
+    wxSize sz = GetSize();
+    
+    // ------------------------------------------------------------------
+    // 1. Determine Styles (Border & Background)
+    // ------------------------------------------------------------------
+    wxColour borderColor;
+    wxBrush backgroundBrush = *wxTRANSPARENT_BRUSH;
 
-        if (m_isFlat) {
-            if (m_popupOpen || m_hover) {
-                // "Light up" the border on hover or when open
-                borderColor = theme.accent;
-                // No background tint on hover as requested
-                backgroundBrush = *wxTRANSPARENT_BRUSH;
-            } else {
-                // Constant border, slightly lighter than background in dark mode, 
-                // or a soft grey in light mode to remain visible but subtle.
-                borderColor = theme.isDark ? theme.bg.ChangeLightness(125) : theme.bg.ChangeLightness(90);
-            }
+    if (m_isFlat) {
+        // Flat Style: Transparent background, border highlights on hover
+        if (m_popupOpen || m_hover) {
+            borderColor = theme.accent;
+            backgroundBrush = *wxTRANSPARENT_BRUSH;
         } else {
-            borderColor = m_popupOpen ? theme.accent : theme.border;
-            backgroundBrush = wxBrush(theme.surface);
+            // Subtle border when idle
+            borderColor = theme.isDark ? theme.bg.ChangeLightness(125) : theme.bg.ChangeLightness(90);
         }
+    } else {
+        // Normal Style: Filled background, standard border
+        borderColor = m_popupOpen ? theme.accent : theme.border;
+        backgroundBrush = wxBrush(theme.surface);
+    }
 
-        gc->SetPen(wxPen(borderColor, 1));
-        gc->SetBrush(backgroundBrush);
-        // Draw with 0.5 offset and -1 size to ensure the 1px pen is not clipped on right/bottom
-        gc->DrawRectangle(0.5, 0.5, GetSize().x - 1, GetSize().y - 1);
-        
-        // Text and Icon
-        gc->SetFont(GetFont(), theme.text);
-        double tw, th;
-        gc->GetTextExtent(m_current, &tw, &th);
-        
-        double x = 8 * scale;
-        
-        // Find current icon
-        wxBitmap iconBmp;
-        for(size_t i=0; i<m_options.size(); i++) {
-            if (m_options[i] == m_current && i < m_icons.size()) {
-                 iconBmp = m_icons[i].GetBitmapFor(this);
-                 break;
-            }
-        }
-        
-        if (iconBmp.IsOk()) {
-             double iy = (GetSize().y - iconBmp.GetHeight()) / 2.0;
-             gc->DrawBitmap(iconBmp, (int)x, (int)iy, iconBmp.GetWidth(), iconBmp.GetHeight());
-             x += iconBmp.GetWidth() + (6 * scale);
-        }
-        
-        // Selection Text
-        gc->DrawText(m_current, (int)x, (int)((GetSize().y - th) / 2.0));
+    // ------------------------------------------------------------------
+    // 2. Draw Frame
+    // ------------------------------------------------------------------
+    dc.SetPen(wxPen(borderColor, 1));
+    dc.SetBrush(backgroundBrush);
+    dc.SetBackgroundMode(wxTRANSPARENT);
 
-        // Arrow Icon
-        wxBitmapBundle arrow = ThemeManager::GetSVG("arrow_down", wxSize(10, 10), theme.text);
-        if (arrow.IsOk()) {
-            wxBitmap bmp = arrow.GetBitmapFor(this);
-            int margin = 18 * scale;
-            int yPos = (GetSize().y - bmp.GetHeight()) / 2;
-            gc->DrawBitmap(bmp, GetSize().x - margin, yPos, bmp.GetWidth(), bmp.GetHeight());
-        } else {
-            // Fallback arrow
-            gc->SetPen(wxPen(theme.text, 2 * scale));
-            int margin = 15 * scale;
-            int sz = 5 * scale;
-            double cy = GetSize().y / 2.0;
-            double topY = cy - 2 * scale;
-            
-            gc->StrokeLine(GetSize().x - margin, topY, GetSize().x - (margin - sz), topY + sz);
-            gc->StrokeLine(GetSize().x - (margin - sz), topY + sz, GetSize().x - (margin - 2*sz), topY);
+    // Fill content area and draw border
+    dc.DrawRectangle(0, 0, sz.x, sz.y);
+    
+    // ------------------------------------------------------------------
+    // 3. Draw Content (Icon + Text)
+    // ------------------------------------------------------------------
+    dc.SetFont(GetFont());
+    dc.SetTextForeground(theme.text);
+    
+    wxSize textSize = dc.GetTextExtent(m_current);
+    
+    double x = 8.0 * scale;
+    
+    // A. Draw Icon (if the selected item has one)
+    wxBitmap iconBmp;
+    for(size_t i=0; i<m_options.size(); i++) {
+        if (m_options[i] == m_current && i < m_icons.size()) {
+             iconBmp = m_icons[i].GetBitmapFor(this);
+             break;
         }
+    }
+    
+    if (iconBmp.IsOk()) {
+         // Vertical center alignment
+         int iy = (sz.y - iconBmp.GetHeight()) / 2;
+         dc.DrawBitmap(iconBmp, (int)x, iy, true);
+         x += iconBmp.GetWidth() + (6.0 * scale); // Advance cursor
+    }
+    
+    // B. Draw Selected Text
+    int ty = (sz.y - textSize.y) / 2;
+    dc.DrawText(m_current, (int)x, ty);
+
+    // ------------------------------------------------------------------
+    // 4. Draw Dropdown Arrow
+    // ------------------------------------------------------------------
+    wxBitmapBundle arrow = ThemeManager::GetSVG("arrow_down", wxSize(10, 10), theme.text);
+    if (arrow.IsOk()) {
+        wxBitmap bmp = arrow.GetBitmapFor(this);
+        int margin = 18 * scale;
+        int yPos = (sz.y - bmp.GetHeight()) / 2;
+        dc.DrawBitmap(bmp, sz.x - margin, yPos, true);
+    } else {
+        // Fallback: Draw arrow manually if SVG fails
+        dc.SetPen(wxPen(theme.text, 2 * scale));
+        int margin = 15 * scale;
+        int arrowSz = 5 * scale;
+        int topY = (sz.y / 2) - (2 * scale);
+        int rightX = sz.x - margin;
+        
+        dc.DrawLine(rightX, topY, rightX + arrowSz, topY + arrowSz);
+        dc.DrawLine(rightX + arrowSz, topY + arrowSz, rightX + (2 * arrowSz), topY);
     }
 }
 
@@ -641,6 +666,78 @@ wxSize ThemedTextInput::DoGetBestSize() const {
     return wxSize(150 * scale, innerBest.y + (10 * scale));
 }
 
+
+// --- ThemedTextArea ---
+
+ThemedTextArea::ThemedTextArea(wxWindow* parent, wxWindowID id, const wxString& value, const wxPoint& pos, const wxSize& size)
+    : wxControl(parent, id, pos, size, wxBORDER_NONE)
+{
+    SetBackgroundStyle(wxBG_STYLE_PAINT);
+    
+    // Create inner native text control with multi-line style
+    m_textCtrl = new wxTextCtrl(this, wxID_ANY, value, wxDefaultPosition, wxDefaultSize, wxBORDER_NONE | wxTE_MULTILINE | wxHSCROLL);
+    
+    auto theme = ThemeManager::GetColors();
+    m_textCtrl->SetBackgroundColour(theme.surface);
+    m_textCtrl->SetForegroundColour(theme.text);
+    
+    Bind(wxEVT_PAINT, &ThemedTextArea::OnPaint, this);
+    Bind(wxEVT_ERASE_BACKGROUND, [](wxEraseEvent&) { });
+    Bind(wxEVT_SIZE, &ThemedTextArea::OnSize, this);
+    
+    m_textCtrl->Bind(wxEVT_SET_FOCUS, [this](wxFocusEvent& e) { Refresh(); e.Skip(); });
+    m_textCtrl->Bind(wxEVT_KILL_FOCUS, [this](wxFocusEvent& e) { Refresh(); e.Skip(); });
+    
+    Bind(wxEVT_LEFT_DOWN, [this](wxMouseEvent& e) { m_textCtrl->SetFocus(); e.Skip(); });
+}
+
+wxString ThemedTextArea::GetValue() const {
+    return m_textCtrl->GetValue();
+}
+
+void ThemedTextArea::SetValue(const wxString& val) {
+    m_textCtrl->SetValue(val);
+}
+
+void ThemedTextArea::OnSize(wxSizeEvent& evt) {
+    wxSize size = GetClientSize();
+    double scale = GetContentScaleFactor();
+    
+    int pad = 5 * scale;
+    // Multi-line editor takes almost the full area
+    m_textCtrl->SetSize(pad, pad, size.x - 2 * pad, size.y - 2 * pad);
+    
+    evt.Skip();
+}
+
+void ThemedTextArea::OnPaint(wxPaintEvent&) {
+    wxAutoBufferedPaintDC dc(this);
+    auto theme = ThemeManager::GetColors();
+    dc.SetBackground(wxBrush(theme.bg));
+    dc.Clear();
+    
+    std::unique_ptr<wxGraphicsContext> gc(wxGraphicsContext::Create(dc));
+    if (gc) {
+        double scale = GetContentScaleFactor();
+        
+        wxColour borderColor = theme.border;
+        if (m_textCtrl->HasFocus()) {
+            borderColor = theme.accent;
+        }
+        
+        gc->SetBrush(wxBrush(theme.surface));
+        gc->SetPen(wxPen(borderColor, 1));
+        
+        // Slightly larger radius for the large text area
+        gc->DrawRoundedRectangle(0, 0, GetSize().x, GetSize().y, 4 * scale);
+    }
+}
+
+wxSize ThemedTextArea::DoGetBestSize() const {
+    double scale = GetContentScaleFactor();
+    // Default size for a code/note editor
+    return wxSize(400 * scale, 150 * scale);
+}
 
 // --- ThemedNumberInput ---
 
@@ -848,6 +945,159 @@ void ThemedNumberInput::FireChangeEvent() {
     event.SetEventObject(this);
     event.SetString(wxString::Format("%.2f", m_value));
     GetEventHandler()->ProcessEvent(event);
+}
+
+// --- ThemedSection ---
+
+ThemedSection::ThemedSection(wxWindow* parent, const wxString& title, const wxString& icon)
+    : wxPanel(parent, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxBORDER_NONE | wxTAB_TRAVERSAL | wxCLIP_CHILDREN),
+      m_title(title), m_iconName(icon)
+{
+    SetBackgroundStyle(wxBG_STYLE_PAINT);
+    
+    wxBoxSizer* mainSizer = new wxBoxSizer(wxVERTICAL);
+    m_contentSizer = new wxBoxSizer(wxVERTICAL);
+    
+    // Header spacer (approximate, will be adjusted visually by painting)
+    mainSizer->Add(0, 30); 
+    
+    // Content sizer with indentation (approx 15-20px scaled)
+    wxBoxSizer* indentSizer = new wxBoxSizer(wxHORIZONTAL);
+    indentSizer->Add(5, 0); // Placeholder, will be scaled in OnSize
+    indentSizer->Add(m_contentSizer, 1, wxEXPAND);
+    
+    mainSizer->Add(indentSizer, 1, wxEXPAND | wxALL, 5);
+    
+    SetSizer(mainSizer);
+    
+    Bind(wxEVT_PAINT, &ThemedSection::OnPaint, this);
+    Bind(wxEVT_SIZE, &ThemedSection::OnSize, this);
+    Bind(wxEVT_ERASE_BACKGROUND, [](wxEraseEvent&) { });
+}
+
+void ThemedSection::OnPaint(wxPaintEvent&) {
+    wxAutoBufferedPaintDC dc(this);
+    auto theme = ThemeManager::GetColors();
+    dc.SetBackground(wxBrush(theme.bg));
+    dc.Clear();
+
+    std::unique_ptr<wxGraphicsContext> gc(wxGraphicsContext::Create(dc));
+    if (!gc) return;
+
+    double scale = GetContentScaleFactor();
+    wxSize sz = GetSize();
+    
+    int headerH = 26 * scale;
+    int headerY = 0; 
+
+    // Draw Header (removed background for cleaner look)
+    
+    // Icon
+    double textX = 8 * scale;
+    if (!m_iconName.IsEmpty()) {
+        wxBitmapBundle bundle = ThemeManager::GetSVG(m_iconName, wxSize(16, 16), theme.text);
+        if (bundle.IsOk()) {
+            wxBitmap bmp = bundle.GetBitmapFor(this);
+            gc->DrawBitmap(bmp, textX, headerY + (headerH - bmp.GetHeight()) / 2.0, bmp.GetWidth(), bmp.GetHeight());
+            textX += bmp.GetWidth() + (6 * scale);
+        }
+    }
+    
+    // Title
+    gc->SetFont(ThemeManager::GetFont(ThemeManager::FontSize::Small, ThemeManager::FontWeight::Bold), theme.text);
+    double tw, th;
+    gc->GetTextExtent(m_title, &tw, &th);
+    gc->DrawText(m_title, textX, headerY + (headerH - th) / 2.0);
+
+    // Separator line after title
+    double lineStart = textX + tw + (10 * scale);
+    double lineEnd = sz.x - (5 * scale); // 5px margin from the right
+    if (lineStart < lineEnd) {
+        gc->SetPen(wxPen(theme.border, 1));
+        double lineY = headerY + (headerH / 2.0);
+        gc->StrokeLine(lineStart, lineY, lineEnd, lineY);
+    }
+
+    // Draw separator line at the bottom
+    // To separate this section from the next one visually
+    gc->SetPen(wxPen(theme.border, 1));
+    // Draw 1px line at the very bottom
+    gc->StrokeLine(0, sz.y - 1, sz.x, sz.y - 1);
+}
+
+void ThemedSection::OnSize(wxSizeEvent& evt) {
+    double scale = GetContentScaleFactor();
+    int headerH = 26 * scale;
+    
+    // Adjust top spacer to match header height
+    wxSizer* sizer = GetSizer();
+    if (sizer && sizer->GetItemCount() > 1) {
+        // 1. Top Spacer
+        wxSizerItem* topSpacer = sizer->GetItem((size_t)0);
+        if (topSpacer && topSpacer->IsSpacer()) {
+            topSpacer->SetMinSize(0, headerH + (2 * scale)); 
+        }
+
+        // 2. Indentation
+        wxSizerItem* indentSizerItem = sizer->GetItem((size_t)1);
+        if (indentSizerItem && indentSizerItem->IsSizer()) {
+            wxSizer* indentSizer = indentSizerItem->GetSizer();
+            wxSizerItem* leftSpacer = indentSizer->GetItem((size_t)0);
+            if (leftSpacer && leftSpacer->IsSpacer()) {
+                leftSpacer->SetMinSize(20 * scale, 0);
+            }
+        }
+        sizer->Layout();
+    }
+    evt.Skip();
+    Refresh();
+}
+
+wxSize ThemedSection::DoGetBestSize() const {
+    double scale = GetContentScaleFactor();
+    wxSize content = m_contentSizer ? m_contentSizer->GetMinSize() : wxSize(100, 100);
+    return wxSize(std::max((int)(200 * scale), content.x), content.y + (35 * scale));
+}
+
+// --- ThemedPanel ---
+
+ThemedPanel::ThemedPanel(wxWindow* parent, wxWindowID id, const wxPoint& pos, const wxSize& size)
+    : wxPanel(parent, id, pos, size, wxBORDER_NONE)
+{
+    SetBackgroundStyle(wxBG_STYLE_PAINT);
+    
+    // Explicitly set background colour so sizers pick it up if needed, though OnPaint handles visual
+    SetBackgroundColour(ThemeManager::GetColors().bg);
+    
+    Bind(wxEVT_PAINT, &ThemedPanel::OnPaint, this);
+    Bind(wxEVT_ERASE_BACKGROUND, [](wxEraseEvent&) { });
+}
+
+void ThemedPanel::SetBorder(bool visible, const wxColour& color) {
+    m_hasBorder = visible;
+    if (visible && color.IsOk()) {
+        m_borderColor = color;
+    }
+    Refresh();
+}
+
+void ThemedPanel::OnPaint(wxPaintEvent&) {
+    wxAutoBufferedPaintDC dc(this);
+    auto theme = ThemeManager::GetColors();
+
+    // Fill background
+    dc.SetBackground(wxBrush(theme.bg));
+    dc.Clear();
+
+    // Draw optional border
+    if (m_hasBorder) {
+        wxColour color = m_borderColor.IsOk() ? m_borderColor : theme.border;
+        dc.SetPen(wxPen(color, 1));
+        dc.SetBrush(*wxTRANSPARENT_BRUSH);
+        
+        wxSize sz = GetSize();
+        dc.DrawRectangle(0, 0, sz.x, sz.y);
+    }
 }
 
 }} // namespace Slic3r::GUI

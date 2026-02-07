@@ -4,6 +4,7 @@
 #include <wx/wx.h>
 #include <wx/bmpbndl.h>
 #include <wx/graphics.h>
+#include <map>
 #include <string>
 
 namespace Slic3r { namespace GUI {
@@ -51,8 +52,26 @@ public:
 
     static wxFont GetFont(FontSize size = FontSize::Small, FontWeight weight = FontWeight::Normal);
 
+
 private:
     static bool m_isDark;
+    
+    // Cache Key Structure
+    struct CacheKey {
+        wxString name;
+        int w, h;
+        unsigned long color; // RGBA as long for simple key
+
+        bool operator<(const CacheKey& other) const {
+             if (name != other.name) return name < other.name;
+             if (w != other.w) return w < other.w;
+             if (h != other.h) return h < other.h;
+             return color < other.color;
+        }
+    };
+    
+    static std::map<CacheKey, wxBitmapBundle> m_iconCache;
+    static void ClearIconCache();
 };
 
 }} // namespace Slic3r::GUI

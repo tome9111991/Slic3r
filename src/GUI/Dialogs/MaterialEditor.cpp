@@ -31,13 +31,13 @@ void MaterialEditor::_build() {
     {
         auto* page = this->add_options_page("Filament", "spool.svg");
         {
-            auto* optgroup = page->new_optgroup("Filament");
+            auto* optgroup = page->new_optgroup("Filament", "spool.svg");
             optgroup->append_single_option_line("filament_colour");
             optgroup->append_single_option_line("filament_diameter");
             optgroup->append_single_option_line("extrusion_multiplier");
         }
         {
-            auto* optgroup = page->new_optgroup("Temperature (°C)");
+            auto* optgroup = page->new_optgroup("Temperature (°C)", "thermometer.svg");
             Line line("Extruder");
             line.append_option(optgroup->get_option("first_layer_temperature"));
             line.append_option(optgroup->get_option("temperature"));
@@ -49,7 +49,7 @@ void MaterialEditor::_build() {
             optgroup->append_line(line2);
         }
         {
-            auto* optgroup = page->new_optgroup("Optional information");
+            auto* optgroup = page->new_optgroup("Optional information", "info.svg");
             optgroup->append_single_option_line("filament_density");
             optgroup->append_single_option_line("filament_cost");
         }
@@ -58,12 +58,10 @@ void MaterialEditor::_build() {
     {
         auto* page = this->add_options_page("Cooling", "hourglass.svg");
         {
-            auto* optgroup = page->new_optgroup("Enable");
+            auto* optgroup = page->new_optgroup("Fan settings", "fan.svg");
             optgroup->append_single_option_line("fan_always_on");
             optgroup->append_single_option_line("cooling");
-        }
-        {
-            auto* optgroup = page->new_optgroup("Fan settings");
+
             Line line("Fan speed");
             line.append_option(optgroup->get_option("min_fan_speed"));
             line.append_option(optgroup->get_option("max_fan_speed"));
@@ -73,7 +71,7 @@ void MaterialEditor::_build() {
             optgroup->append_single_option_line("disable_fan_first_layers");
         }
         {
-            auto* optgroup = page->new_optgroup("Cooling thresholds");
+            auto* optgroup = page->new_optgroup("Cooling thresholds", "time.svg");
             optgroup->append_single_option_line("fan_below_layer_time");
             optgroup->append_single_option_line("slowdown_below_layer_time");
             optgroup->append_single_option_line("min_print_speed");
@@ -83,11 +81,11 @@ void MaterialEditor::_build() {
     {
         auto* page = this->add_options_page("Custom G-code", "script.svg");
         {
-            auto* optgroup = page->new_optgroup("Start G-code");
+            auto* optgroup = page->new_optgroup("Start G-code", "control_play.svg");
             optgroup->append_single_option_line("start_filament_gcode");
         }
         {
-            auto* optgroup = page->new_optgroup("End G-code");
+            auto* optgroup = page->new_optgroup("End G-code", "control_stop.svg");
             optgroup->append_single_option_line("end_filament_gcode");
         }
     }
@@ -95,7 +93,7 @@ void MaterialEditor::_build() {
     {
         auto* page = this->add_options_page("Notes", "note.svg");
         {
-            auto* optgroup = page->new_optgroup("Notes");
+            auto* optgroup = page->new_optgroup("Notes", "note.svg");
             optgroup->append_single_option_line("filament_notes");
         }
     }
@@ -103,7 +101,7 @@ void MaterialEditor::_build() {
     {
         auto* page = this->add_options_page("Overrides", "wrench.svg");
         {
-            auto* optgroup = page->new_optgroup("Overrides");
+            auto* optgroup = page->new_optgroup("Overrides", "wrench.svg");
             optgroup->append_single_option_line("filament_max_volumetric_speed");
         }
     }

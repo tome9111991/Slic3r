@@ -7,7 +7,7 @@
 
 namespace Slic3r { namespace GUI {
 
-// A. Universal Button
+// A. Universal Button (Replacement for wxButton)
 class ThemedButton : public wxControl {
 public:
     ThemedButton(wxWindow* parent, wxWindowID id, const wxString& label, 
@@ -27,7 +27,7 @@ private:
     bool m_pressed = false;
 };
 
-// B. SVG Checkbox
+// B. SVG Checkbox (Replacement for wxCheckBox)
 class ThemedCheckBox : public wxControl {
 public:
     ThemedCheckBox(wxWindow* parent, wxWindowID id, const wxString& label,
@@ -45,7 +45,7 @@ private:
     wxString m_label;
 };
 
-// C. Dropdown / Select
+// C. Dropdown / Select (Replacement for wxChoice or wxComboBox)
 class ThemedSelect : public wxControl {
 public:
     ThemedSelect(wxWindow* parent, wxWindowID id, const wxArrayString& options = wxArrayString(),
@@ -82,7 +82,7 @@ private:
     bool m_isFlat = false;
 };
 
-// D. Text Input Wrapper
+// D. Text Input Wrapper (Replacement for single-line wxTextCtrl)
 class ThemedTextInput : public wxControl {
 public:
     ThemedTextInput(wxWindow* parent, wxWindowID id, const wxString& value = "",
@@ -102,7 +102,27 @@ private:
     wxTextCtrl* m_textCtrl;
 };
 
-// E. Number Input (Spinner)
+// E. Multi-line Text Area (Replacement for multi-line wxTextCtrl)
+class ThemedTextArea : public wxControl {
+public:
+    ThemedTextArea(wxWindow* parent, wxWindowID id, const wxString& value = "",
+                   const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize(400, 150));
+
+    wxString GetValue() const;
+    void SetValue(const wxString& val);
+
+    wxTextCtrl* GetTextCtrl() const { return m_textCtrl; }
+
+    wxSize DoGetBestSize() const override;
+
+private:
+    void OnPaint(wxPaintEvent& evt);
+    void OnSize(wxSizeEvent& evt);
+    
+    wxTextCtrl* m_textCtrl;
+};
+
+// F. Number Input (Replacement for wxSpinCtrl or wxSpinCtrlDouble)
 class ThemedNumberInput : public wxControl {
 public:
     ThemedNumberInput(wxWindow* parent, wxWindowID id, double value = 0.0,
@@ -141,6 +161,43 @@ private:
     wxRect m_downRect;
     
     void FireChangeEvent();
+};
+
+// G. Themed Section Panel (Replacement for wxStaticBox)
+class ThemedSection : public wxPanel {
+public:
+    ThemedSection(wxWindow* parent, const wxString& title, const wxString& icon = "");
+
+    // Add content to the returned sizer
+    wxBoxSizer* GetContentSizer() const { return m_contentSizer; }
+    
+    void SetTitle(const wxString& title) { m_title = title; Refresh(); }
+
+    wxSize DoGetBestSize() const override;
+
+private:
+    void OnPaint(wxPaintEvent& evt);
+    void OnSize(wxSizeEvent& evt);
+    
+    wxString m_title;
+    wxString m_iconName;
+    wxBoxSizer* m_contentSizer;
+};
+
+// H. Generic Themed Panel (with optional border)
+class ThemedPanel : public wxPanel {
+public:
+    ThemedPanel(wxWindow* parent, wxWindowID id = wxID_ANY, 
+                const wxPoint& pos = wxDefaultPosition, 
+                const wxSize& size = wxDefaultSize);
+
+    void SetBorder(bool visible, const wxColour& color = wxNullColour);
+    
+private:
+    void OnPaint(wxPaintEvent& evt);
+    
+    bool m_hasBorder = false;
+    wxColour m_borderColor;
 };
 
 }} // namespace Slic3r::GUI

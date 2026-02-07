@@ -10,7 +10,7 @@ UI_Choice::UI_Choice(wxWindow* parent, Slic3r::ConfigOptionDef _opt, wxWindowID 
     auto values {wxArrayString()};
     for (auto v : opt.enum_values) values.Add(wxString(v));
 
-    if (opt.gui_type.size() > 0 && opt.gui_type.compare("select_open"s)) {
+    if (opt.gui_type != "select_open"s) {
         _choice = new ThemedSelect(parent, id, values, wxDefaultPosition, _default_size());
         // ThemedSelect should trigger events, binding to the control should work if it mimics basic events
         // Assuming it emits wxEVT_COMBOBOX or similar command events
@@ -26,6 +26,10 @@ UI_Choice::UI_Choice(wxWindow* parent, Slic3r::ConfigOptionDef _opt, wxWindowID 
 
     window->Bind(wxEVT_TEXT_ENTER, [this](wxCommandEvent& e) { this->_on_change(""); e.Skip(); });
     window->Bind(wxEVT_KILL_FOCUS, [this](wxFocusEvent& e) { if (this->on_kill_focus != nullptr) {this->on_kill_focus(""); this->_on_change("");} e.Skip(); });
+
+    if (opt.default_value != nullptr) {
+        this->set_value(opt.default_value->serialize());
+    }
 }
 
 std::string UI_Choice::get_string() { 

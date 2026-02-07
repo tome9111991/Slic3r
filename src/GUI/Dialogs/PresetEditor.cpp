@@ -22,18 +22,26 @@ PresetEditor::PresetEditor(wxWindow* parent, t_config_option_keys options) :
     this->_sizer = new wxBoxSizer(wxHORIZONTAL);
     this->SetSizer(this->_sizer);
 
+    // Use ThemedPanel with "hard black" style (user preference)
+    ThemedPanel* left_side_panel = new ThemedPanel(this);
+    left_side_panel->SetBorder(true, *wxBLACK);
+    
     wxSizer* left_sizer = new wxBoxSizer(wxVERTICAL);
+    
+    // Add margin to sizer to prevent content from covering the border
+    wxBoxSizer* border_sizer = new wxBoxSizer(wxVERTICAL);
+    border_sizer->Add(left_sizer, 1, wxEXPAND | wxALL, 1);
+    left_side_panel->SetSizer(border_sizer);
 
     {
         // choice menu
-        // choice menu
-        this->_presets_choice = new ThemedSelect(this, wxID_ANY, wxArrayString(), wxDefaultPosition, wxSize(left_col_width, 30));
+        this->_presets_choice = new ThemedSelect(left_side_panel, wxID_ANY, wxArrayString(), wxDefaultPosition, wxSize(left_col_width, 30));
 
         // buttons
-        this->_btn_save_preset = new ThemedButton(this, wxID_ANY, "", wxDefaultPosition, wxDefaultSize);
+        this->_btn_save_preset = new ThemedButton(left_side_panel, wxID_ANY, "", wxDefaultPosition, wxDefaultSize);
         this->_btn_save_preset->SetBitmap(get_bmp_bundle("disk.svg"));
         
-        this->_btn_delete_preset = new ThemedButton(this, wxID_ANY, "", wxDefaultPosition, wxDefaultSize);
+        this->_btn_delete_preset = new ThemedButton(left_side_panel, wxID_ANY, "", wxDefaultPosition, wxDefaultSize);
         this->_btn_delete_preset->SetBitmap(get_bmp_bundle("delete.svg"));
 
         this->_btn_delete_preset->Enable(false);
@@ -63,7 +71,7 @@ PresetEditor::PresetEditor(wxWindow* parent, t_config_option_keys options) :
     }
 
     // tree
-    this->_treectrl = new wxTreeCtrl(this, wxID_ANY, wxDefaultPosition, wxSize(left_col_width, -1), wxTR_NO_BUTTONS | wxTR_HIDE_ROOT | wxTR_SINGLE | wxTR_NO_LINES | wxBORDER_SUNKEN | wxWANTS_CHARS);
+    this->_treectrl = new wxTreeCtrl(left_side_panel, wxID_ANY, wxDefaultPosition, wxSize(left_col_width, -1), wxTR_NO_BUTTONS | wxTR_HIDE_ROOT | wxTR_SINGLE | wxTR_NO_LINES | wxBORDER_SUNKEN | wxWANTS_CHARS);
     
     this->_treectrl->Bind(wxEVT_TREE_SEL_CHANGED, [this](wxTreeEvent& event) {
         wxTreeItemId item = event.GetItem();
@@ -79,7 +87,7 @@ PresetEditor::PresetEditor(wxWindow* parent, t_config_option_keys options) :
 
     left_sizer->Add(this->_treectrl, 1, wxEXPAND);
     
-    this->_sizer->Add(left_sizer, 0, wxEXPAND | wxALL, 5);
+    this->_sizer->Add(left_side_panel, 0, wxEXPAND | wxALL, 5);
 
     // Right side content area
     

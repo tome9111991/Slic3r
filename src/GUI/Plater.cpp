@@ -183,9 +183,20 @@ const auto TB_SETTINGS      {wxNewId()};
 const auto PROGRESS_BAR_EVENT = wxNewEventType();
 
 Plater::Plater(wxWindow* parent, const wxString& title) : 
-    wxPanel(parent, wxID_ANY, wxDefaultPosition, wxDefaultSize, 0, title),
-    _presets(new PresetChooser(dynamic_cast<wxWindow*>(this), this->print))
+    wxPanel(parent, wxID_ANY, wxDefaultPosition, wxDefaultSize, 0, title)
 {
+    // Use ThemedPanel with "hard black" style
+    this->sidebar_content = new ThemedPanel(this);
+    this->sidebar_content->SetBorder(true, *wxBLACK);
+    
+    // Create a wrapper sizer to add 1px padding so content doesn't cover the border
+    wxBoxSizer* border_sizer = new wxBoxSizer(wxVERTICAL);
+    border_sizer->Add(this->left_sizer, 1, wxEXPAND | wxALL, 1);
+    
+    this->sidebar_content->SetSizer(border_sizer);
+
+    this->_presets = new PresetChooser(this->sidebar_content, this->print);
+
     if (ThemeManager::IsDark()) {
         this->SetBackgroundColour(ThemeManager::GetColors().bg);
     }
@@ -251,15 +262,16 @@ Plater::Plater(wxWindow* parent, const wxString& title) :
         e.Skip();
     });
 
-    wxStaticBoxSizer* object_info_sizer {nullptr};
+    // Info Section
     {
-        auto* box {new wxStaticBox(this, wxID_ANY, _("Info"))};
-        object_info_sizer = new wxStaticBoxSizer(box, wxVERTICAL);
-        object_info_sizer->SetMinSize(wxSize(350, -1));
+        this->object_info_section = new ThemedSection(this->sidebar_content, _("Info"), "info");
+        auto* object_info_sizer = this->object_info_section->GetContentSizer();
+        this->object_info_section->SetMinSize(wxSize(350, -1));
+
         {
             auto* sizer {new wxBoxSizer(wxHORIZONTAL)};
             object_info_sizer->Add(sizer, 0, wxEXPAND | wxBOTTOM, 5);
-            auto* text  {new wxStaticText(box, wxID_ANY, _("Object:"), wxDefaultPosition, wxDefaultSize, wxALIGN_LEFT)};
+            auto* text  {new wxStaticText(this->object_info_section, wxID_ANY, _("Object:"), wxDefaultPosition, wxDefaultSize, wxALIGN_LEFT)};
             text->SetFont(ui_settings->small_font());
             if (ThemeManager::IsDark()) text->SetForegroundColour(*wxWHITE);
             else text->SetForegroundColour(*wxBLACK); // Force Black on Light
@@ -269,7 +281,7 @@ Plater::Plater(wxWindow* parent, const wxString& title) :
              * the control anyway), because if we leave the default (-1) it will stretch
              * too much according to the contents, and this is bad with long file names.
              */
-            this->object_info.choice = new ThemedSelect(box, wxID_ANY, wxArrayString(), wxDefaultPosition, wxSize(100, 30));
+            this->object_info.choice = new ThemedSelect(this->object_info_section, wxID_ANY, wxArrayString(), wxDefaultPosition, wxSize(100, 30));
             this->object_info.choice->SetFont(ui_settings->small_font());
             // ThemedSelect handles colors internally via ThemeManager
 
@@ -293,23 +305,23 @@ Plater::Plater(wxWindow* parent, const wxString& title) :
         grid_sizer->AddGrowableCol(1, 1);
         grid_sizer->AddGrowableCol(3, 1);
 
-        add_info_field(box, this->object_info.copies, _("Copies"), grid_sizer);
-        add_info_field(box, this->object_info.size, _("Size"), grid_sizer);
-        add_info_field(box, this->object_info.volume, _("Volume"), grid_sizer);
-        add_info_field(box, this->object_info.facets, _("Facets"), grid_sizer);
-        add_info_field(box, this->object_info.materials, _("Materials"), grid_sizer);
+        add_info_field(this->object_info_section, this->object_info.copies, _("Copies"), grid_sizer);
+        add_info_field(this->object_info_section, this->object_info.size, _("Size"), grid_sizer);
+        add_info_field(this->object_info_section, this->object_info.volume, _("Volume"), grid_sizer);
+        add_info_field(this->object_info_section, this->object_info.facets, _("Facets"), grid_sizer);
+        add_info_field(this->object_info_section, this->object_info.materials, _("Materials"), grid_sizer);
         {
             wxString name {"Manifold:"};
-            auto* text {new wxStaticText(box, wxID_ANY, name, wxDefaultPosition, wxDefaultSize, wxALIGN_LEFT)};
+            auto* text {new wxStaticText(this->object_info_section, wxID_ANY, name, wxDefaultPosition, wxDefaultSize, wxALIGN_LEFT)};
             text->SetFont(ui_settings->small_font());
             if (ThemeManager::IsDark()) text->SetForegroundColour(*wxWHITE);
             grid_sizer->Add(text, 0);
 
-            this->object_info.manifold = new wxStaticText(box, wxID_ANY, "", wxDefaultPosition, wxDefaultSize, wxALIGN_LEFT);
+            this->object_info.manifold = new wxStaticText(this->object_info_section, wxID_ANY, "", wxDefaultPosition, wxDefaultSize, wxALIGN_LEFT);
             this->object_info.manifold->SetFont(ui_settings->small_font());
             if (ThemeManager::IsDark()) this->object_info.manifold->SetForegroundColour(*wxWHITE);
 
-            this->object_info.manifold_warning_icon = new wxStaticBitmap(box, wxID_ANY, get_bmp_bundle("error.svg"));
+            this->object_info.manifold_warning_icon = new wxStaticBitmap(this->object_info_section, wxID_ANY, get_bmp_bundle("error.svg"));
             this->object_info.manifold_warning_icon->Hide();
 
             auto* h_sizer {new wxBoxSizer(wxHORIZONTAL)};
@@ -327,11 +339,12 @@ Plater::Plater(wxWindow* parent, const wxString& title) :
 
     // Quick Settings placeholder
     {
-        auto* box {new wxStaticBox(this, wxID_ANY, _("Quick Settings"))};
-        this->shortcut_sizer = new wxStaticBoxSizer(box, wxVERTICAL);
-        this->shortcut_sizer->SetMinSize(wxSize(350, 60)); 
+        this->quick_settings_section = new ThemedSection(this->sidebar_content, _("Quick Settings"), "cog");
+        this->shortcut_sizer = this->quick_settings_section->GetContentSizer();
+        // this->shortcut_sizer->SetMinSize(wxSize(350, 60)); // Set on section or sizer?
+        this->quick_settings_section->SetMinSize(wxSize(350, -1));
         
-        this->quick_settings_label = new wxStaticText(box, wxID_ANY, _("Pinned settings will appear here..."), wxDefaultPosition, wxDefaultSize, wxALIGN_CENTER_HORIZONTAL);
+        this->quick_settings_label = new wxStaticText(this->quick_settings_section, wxID_ANY, _("Pinned settings will appear here..."), wxDefaultPosition, wxDefaultSize, wxALIGN_CENTER_HORIZONTAL);
         this->quick_settings_label->SetFont(ui_settings->small_font());
         if (ThemeManager::IsDark()) this->quick_settings_label->SetForegroundColour(*wxWHITE);
         this->shortcut_sizer->Add(this->quick_settings_label, 1, wxEXPAND | wxTOP | wxBOTTOM, 15);
@@ -350,19 +363,18 @@ Plater::Plater(wxWindow* parent, const wxString& title) :
     left_sizer->Add(this->_presets, 0, wxEXPAND | wxTOP, 10);
     this->_presets->Show();
 
-    left_sizer->Add(this->shortcut_sizer, 0, wxEXPAND | wxTOP, 5);
+    left_sizer->Add(this->quick_settings_section, 0, wxEXPAND | wxTOP, 5);
 
 //    $right_sizer->Add($self->{settings_override_panel}, 1, wxEXPAND, 5);
-    left_sizer->Add(object_info_sizer, 0, wxEXPAND, 0);
+    left_sizer->Add(this->object_info_section, 0, wxEXPAND | wxTOP, 15);
 //    $right_sizer->Add($object_info_sizer, 0, wxEXPAND, 0);
 
 
     auto hsizer {new wxBoxSizer(wxHORIZONTAL)};
-    hsizer->Add(left_sizer, 0, wxEXPAND | wxLEFT | wxRIGHT, 3);
+    hsizer->Add(this->sidebar_content, 0, wxEXPAND | wxALL, 1);
     
-    // Add vertical separator
-    auto* line = new wxStaticLine(this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxLI_VERTICAL);
-    hsizer->Add(line, 0, wxEXPAND | wxALL, 0);
+    // The sidebar_frame already provides the black separator via its border,
+    // so we don't need the static gray line here.
 
     hsizer->Add(this->preview_notebook, 1, wxEXPAND | wxTOP, 1);
 
@@ -385,6 +397,11 @@ void Plater::update_ui_from_settings() {
          this->SetBackgroundColour(ThemeManager::GetColors().bg);
     } else {
          this->SetBackgroundColour(wxColour(240, 240, 240)); 
+    }
+    
+    if (this->sidebar_content) {
+        this->sidebar_content->SetBackgroundColour(ThemeManager::GetColors().bg);
+        this->sidebar_content->Refresh();
     }
     
     // Update Toolbar Buttons
@@ -1744,17 +1761,24 @@ void Plater::update_quick_settings() {
     
     // Clear sizer
     this->shortcut_sizer->Clear(true);
-    this->quick_options_group = nullptr;
+    
+    if (this->quick_options_group) {
+        delete this->quick_options_group;
+        this->quick_options_group = nullptr;
+    }
     this->quick_settings_label = nullptr;
 
     if (ui_settings->quick_settings.empty()) {
-        this->quick_settings_label = new wxStaticText(this->shortcut_sizer->GetStaticBox(), wxID_ANY, _("Pinned settings will appear here..."), wxDefaultPosition, wxDefaultSize, wxALIGN_CENTER_HORIZONTAL);
+        this->quick_settings_section->SetMinSize(wxSize(350, -1));
+        
+        this->quick_settings_label = new wxStaticText(this->quick_settings_section, wxID_ANY, _("Pinned settings will appear here..."), wxDefaultPosition, wxDefaultSize, wxALIGN_CENTER_HORIZONTAL);
         this->quick_settings_label->SetFont(ui_settings->small_font());
         if (ThemeManager::IsDark()) this->quick_settings_label->SetForegroundColour(*wxWHITE);
         else this->quick_settings_label->SetForegroundColour(*wxBLACK);
         this->shortcut_sizer->Add(this->quick_settings_label, 1, wxEXPAND | wxTOP | wxBOTTOM, 15);
     } else {
-        this->quick_options_group = new OptionsGroup(this->shortcut_sizer->GetStaticBox());
+        this->quick_options_group = new OptionsGroup(this->quick_settings_section);
+        this->quick_options_group->show_quick_setting_toggles = false;
         this->quick_options_group->set_sizer(this->shortcut_sizer);
         
         for (const auto& key : ui_settings->quick_settings) {
@@ -1773,13 +1797,12 @@ void Plater::update_quick_settings() {
             } catch(...) {}
         };
 
-        this->quick_options_group->on_quick_setting_change = [this](const std::string& key, bool) {
-            ui_settings->toggle_quick_setting(key);
-            this->update_quick_settings();
-        };
-
         this->quick_options_group->update_options(&this->config->config());
     }
+    
+    // Force recalculation of best size for the section
+    this->quick_settings_section->InvalidateBestSize();
+    this->quick_settings_section->Layout();
     
     this->Layout();
 }

@@ -298,13 +298,12 @@ public:
             this->SetScrollRate(10, 10);
         }
 
-    OptionsGroup* new_optgroup(const wxString& title) {
-        auto* sb = new wxStaticBox(this, wxID_ANY, title);
-        auto* sbs = new wxStaticBoxSizer(sb, wxVERTICAL);
-        this->vsizer->Add(sbs, 0, wxEXPAND | wxALL, 5);
+    OptionsGroup* new_optgroup(const wxString& title, const wxString& icon = "") {
+        auto* section = new ThemedSection(this, title, icon);
+        this->vsizer->Add(section, 0, wxEXPAND | wxALL, 5);
         
-        auto* og = new OptionsGroup(this);
-        og->set_sizer(sbs);
+        auto* og = new OptionsGroup(section);
+        og->set_sizer(section->GetContentSizer());
         og->on_change = this->on_change;
         og->on_quick_setting_change = this->on_quick_setting_change;
         _optgroups.push_back(std::unique_ptr<OptionsGroup>(og));

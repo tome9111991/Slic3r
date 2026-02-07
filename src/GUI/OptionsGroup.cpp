@@ -5,6 +5,7 @@
 #include <wx/sizer.h>
 #include <wx/stattext.h>
 #include <wx/statbox.h>
+#include <wx/gbsizer.h>
 #include "libslic3r/PrintConfig.hpp"
 #include "Log.hpp"
 #include "GUI.hpp"
@@ -28,24 +29,27 @@ void OptionsGroup::append_single_option_line(const t_config_option_key& opt_key)
     
     _fields[opt_key] = std::unique_ptr<UI_Field>(field);
 
-    auto* line_sizer = new wxBoxSizer(wxHORIZONTAL);
-    
-    // Quick Toggle Button
-    if (!this->star_filled.IsOk()) {
-        this->star_filled = get_bmp_bundle("star_filled.svg", 14);
-        this->star_empty = get_bmp_bundle("star_empty.svg", 14);
-    }
+    int start_col = this->show_quick_setting_toggles ? 1 : 0;
+    int row = m_row_count++;
 
-    auto* btn_quick = new ThemedButton(parent, wxID_ANY, "", wxDefaultPosition, wxSize(20, 20));
-    btn_quick->SetBitmap(ui_settings->is_quick_setting(opt_key) ? this->star_filled : this->star_empty);
-    btn_quick->Bind(wxEVT_BUTTON, [this, opt_key, btn_quick](wxCommandEvent&) {
-        if (this->on_quick_setting_change) {
-             this->on_quick_setting_change(opt_key, true); 
+    if (this->show_quick_setting_toggles) {
+        if (!this->star_filled.IsOk()) {
+            this->star_filled = get_bmp_bundle("star_filled.svg", 14);
+            this->star_empty = get_bmp_bundle("star_empty.svg", 14);
         }
-    });
-    line_sizer->Add(btn_quick, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 2);
-    _quick_toggles[opt_key] = btn_quick;
 
+        auto* btn_quick = new ThemedButton(parent, wxID_ANY, "", wxDefaultPosition, wxSize(20, 20));
+        btn_quick->SetBitmap(ui_settings->is_quick_setting(opt_key) ? this->star_filled : this->star_empty);
+        btn_quick->Bind(wxEVT_BUTTON, [this, opt_key, btn_quick](wxCommandEvent&) {
+            if (this->on_quick_setting_change) {
+                 this->on_quick_setting_change(opt_key, true); 
+            }
+        });
+        
+        // 1. Star Column
+        _quick_toggles[opt_key] = btn_quick;
+        grid_sizer->Add(btn_quick, wxGBPosition(row, 0), wxGBSpan(1, 1), wxALIGN_CENTER_VERTICAL);
+    }
 
     std::string label_text = opt_key;
     std::string unit_text = "";
@@ -61,77 +65,90 @@ void OptionsGroup::append_single_option_line(const t_config_option_key& opt_key)
     if (!def.sidetext.empty()) {
         unit_text = def.sidetext;
     } else {
-        // Parse from label if (unit) exists
         size_t open_paren = label_text.find_last_of('(');
         size_t close_paren = label_text.find_last_of(')');
         if (open_paren != std::string::npos && close_paren != std::string::npos && close_paren > open_paren) {
              unit_text = label_text.substr(open_paren + 1, close_paren - open_paren - 1);
-             // remove it from label
              label_text = label_text.substr(0, open_paren);
-             // trim
              while (!label_text.empty() && isspace(label_text.back())) label_text.pop_back();
         }
     }
     
+    int label_row = row;
     auto* label = new wxStaticText(parent, wxID_ANY, wxString::FromUTF8(label_text + ":"));
     if (ThemeManager::IsDark()) label->SetForegroundColour(*wxWHITE);
     else label->SetForegroundColour(*wxBLACK);
-    line_sizer->Add(label, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 5);
+    
+    int left_border = 0;
+    if (label_text.find("↳") != std::string::npos) {
+        left_border = 15;
+    }
+
+    // 2. Label Column
+    grid_sizer->Add(label, wxGBPosition(label_row, start_col), wxGBSpan(1, 1), wxALIGN_CENTER_VERTICAL | wxLEFT, left_border);
     _labels[opt_key] = label;
 
     if (this->get_option(opt_key).desc.type == coBool) {
-        // Don't expand checkboxes, keeps the background highlight tight to the box
-        line_sizer->Add(field->get_window(), 0, wxALIGN_LEFT | wxALIGN_CENTER_VERTICAL);
+        // 3. Field Column
+        grid_sizer->Add(field->get_window(), wxGBPosition(label_row, start_col + 1), wxGBSpan(1, 1), wxALIGN_LEFT | wxALIGN_CENTER_VERTICAL);
+    } else if (this->get_option(opt_key).desc.type == coEnum) {
+        field->get_window()->SetMinSize(wxSize(120, -1)); 
+        grid_sizer->Add(field->get_window(), wxGBPosition(label_row, start_col + 1), wxGBSpan(1, 1), wxALIGN_LEFT | wxALIGN_CENTER_VERTICAL);
+    } else if (def.multiline) {
+        field->get_window()->SetMinSize(wxSize(200, 150));
+        // Move to NEXT row for multi-line text areas
+        int field_row = m_row_count++;
+        // Multi-line spans full width (Star + Label + Field + Unit + Grow columns)
+        int total_cols = this->show_quick_setting_toggles ? 5 : 4;
+        grid_sizer->Add(field->get_window(), wxGBPosition(field_row, 0), wxGBSpan(1, total_cols), wxEXPAND | wxTOP | wxBOTTOM, 5);
     } else {
-        // Standardize width for text/inputs if single line
-        field->get_window()->SetMinSize(wxSize(120, -1)); // Enforce sensible width
-        line_sizer->Add(field->get_window(), 0, wxEXPAND);
+        field->get_window()->SetMinSize(wxSize(80, -1)); 
+        grid_sizer->Add(field->get_window(), wxGBPosition(label_row, start_col + 1), wxGBSpan(1, 1), wxALIGN_LEFT | wxALIGN_CENTER_VERTICAL);
     }
 
     if (!unit_text.empty()) {
         auto* unit_lbl = new wxStaticText(parent, wxID_ANY, wxString::FromUTF8(unit_text));
         if (ThemeManager::IsDark()) unit_lbl->SetForegroundColour(wxColour(150, 150, 150));
         else unit_lbl->SetForegroundColour(wxColour(100, 100, 100));
-        line_sizer->Add(unit_lbl, 0, wxALIGN_CENTER_VERTICAL | wxLEFT, 5);
+        // 4. Unit Column
+        grid_sizer->Add(unit_lbl, wxGBPosition(label_row, start_col + 2), wxGBSpan(1, 1), wxALIGN_CENTER_VERTICAL | wxLEFT, 5);
         _units[opt_key] = unit_lbl;
     }
-    
-    // Add spacer to push everything to left? Or use EXPAND?
-    line_sizer->AddStretchSpacer(1);
-
-    if (this->sizer)
-        this->sizer->Add(line_sizer, 0, wxEXPAND | wxALL, 2);
 }
 
-void OptionsGroup::append_line(const Line& line) {
-    auto* line_sizer = new wxBoxSizer(wxHORIZONTAL);
-    
+void OptionsGroup::append_line(const GUI::Line& line) {
+    int start_col = this->show_quick_setting_toggles ? 1 : 0;
+    int row = m_row_count++;
+
+    if (this->show_quick_setting_toggles) {
+        // 1. Star column (Spacer)
+        grid_sizer->Add(20, 20, wxGBPosition(row, 0));
+    }
+
+    // 2. Label column
     if (!line.label.empty()) {
         auto* label = new wxStaticText(parent, wxID_ANY, wxString::FromUTF8(line.label + ":"));
         if (ThemeManager::IsDark()) label->SetForegroundColour(*wxWHITE);
         else label->SetForegroundColour(*wxBLACK);
-        line_sizer->Add(label, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 5);
+        grid_sizer->Add(label, wxGBPosition(row, start_col), wxGBSpan(1, 1), wxALIGN_CENTER_VERTICAL | wxRIGHT, 5);
     }
     
+    // 3. Field column (can contain multiple fields)
+    auto* line_sizer = new wxBoxSizer(wxHORIZONTAL);
     for (const auto& opt : line.options) {
-        // Store the option definition so build_field can find it
         _options[opt.opt_id] = std::make_unique<Option>(opt);
-
         auto* field = this->build_field(opt.opt_id);
         if (field) {
             _fields[opt.opt_id] = std::unique_ptr<UI_Field>(field);
-            
             if (opt.desc.type == coBool) {
-                // Don't expand checkboxes
                 line_sizer->Add(field->get_window(), 0, wxALIGN_LEFT | wxALIGN_CENTER_VERTICAL | wxRIGHT, 5);
             } else {
+                field->get_window()->SetMinSize(wxSize(60, -1));
                 line_sizer->Add(field->get_window(), 1, wxEXPAND | wxRIGHT, 5);
             }
         }
     }
-    
-    if (this->sizer)
-        this->sizer->Add(line_sizer, 0, wxEXPAND | wxALL, 5);
+    grid_sizer->Add(line_sizer, wxGBPosition(row, start_col + 1), wxGBSpan(1, 1), wxEXPAND | wxALIGN_CENTER_VERTICAL);
 }
 
 ConfigOption* OptionsGroup::get_field(const t_config_option_key& opt_key) {
@@ -145,7 +162,6 @@ void OptionsGroup::update_options(const ConfigBase* config, const std::vector<st
             if (!opt) continue;
             
             const ConfigOptionDef* def = nullptr;
-            // Check local options first
             if (_options.count(key)) {
                 def = &_options[key]->desc;
             } else if (print_config_def.has(key)) {
@@ -160,9 +176,9 @@ void OptionsGroup::update_options(const ConfigBase* config, const std::vector<st
                          case coFloat: field->set_value(opt->getFloat()); break;
                          case coString: field->set_value(opt->getString()); break;
                          case coEnum: {
-                                field->set_value(opt->serialize());
-                                break;
-                        }
+                                 field->set_value(opt->serialize());
+                                 break;
+                         }
                          default: 
                              field->set_value(opt->serialize());
                              break;
@@ -171,11 +187,8 @@ void OptionsGroup::update_options(const ConfigBase* config, const std::vector<st
                  }
             }
 
-            // Update Dirty Status
             bool is_dirty = std::find(dirty_keys.begin(), dirty_keys.end(), key) != dirty_keys.end();
-            // field->set_dirty_status(is_dirty); // OLD BEHAVIOR DISABLED
             
-            // New Label Behavior
             if (_labels.count(key)) {
                 wxStaticText* lbl = _labels[key];
                 if (is_dirty) {
@@ -187,7 +200,6 @@ void OptionsGroup::update_options(const ConfigBase* config, const std::vector<st
                 lbl->Refresh();
             }
 
-            // Sync Quick Toggle State
             if (_quick_toggles.count(key)) {
                 this->set_quick_setting_status(key, ui_settings->is_quick_setting(key));
             }
@@ -209,13 +221,9 @@ void OptionsGroup::set_quick_setting_status(const std::string& opt_key, bool act
 
 UI_Field* OptionsGroup::build_field(const t_config_option_key& opt_key) {
     ConfigOptionDef def;
-    
-    // Check local defined options first
     if (_options.count(opt_key)) {
         def = _options[opt_key]->desc;
-    } 
-    // Then check global print config
-    else if (print_config_def.has(opt_key)) {
+    } else if (print_config_def.has(opt_key)) {
         def = print_config_def.get(opt_key);
     } else {
         def.label = opt_key;
@@ -223,7 +231,6 @@ UI_Field* OptionsGroup::build_field(const t_config_option_key& opt_key) {
     }
     
     UI_Field* field = nullptr;
-    
     switch (def.type) {
         case coFloat:
         case coFloats:
@@ -269,7 +276,6 @@ UI_Field* OptionsGroup::build_field(const t_config_option_key& opt_key) {
             field = f;
         }
     }
-    
     return field;
 }
 
@@ -278,6 +284,14 @@ void OptionsGroup::set_sizer(wxBoxSizer* s) {
     if (auto* ss = dynamic_cast<wxStaticBoxSizer*>(s)) {
         parent = ss->GetStaticBox();
     }
+
+    int grow_col = this->show_quick_setting_toggles ? 4 : 3;
+    grid_sizer = new wxGridBagSizer(5, 5); 
+    grid_sizer->SetCols(grow_col + 1); // Explicitly set column count to avoid AddGrowableCol asserts
+    grid_sizer->AddGrowableCol(grow_col, 1); // Only the last dummy column grows to push content to left
+    
+    if (this->sizer)
+        this->sizer->Add(grid_sizer, 0, wxEXPAND | wxALL, 5);
 }
 
 }} // namespace Slic3r::GUI

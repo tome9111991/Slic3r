@@ -94,7 +94,7 @@ void PrintEditor::_build() {
     {
         auto* page = this->add_options_page("Layers and perimeters", "layers.svg");
         {
-            auto* optgroup = page->new_optgroup("Layer height");
+            auto* optgroup = page->new_optgroup("Layer height", "variable_layer_height.svg");
             optgroup->append_single_option_line("layer_height");
             optgroup->append_single_option_line("first_layer_height");
             optgroup->append_single_option_line("adaptive_slicing");
@@ -102,13 +102,13 @@ void PrintEditor::_build() {
             optgroup->append_single_option_line("match_horizontal_surfaces");
         }
         {
-            auto* optgroup = page->new_optgroup("Vertical shells");
+            auto* optgroup = page->new_optgroup("Vertical shells", "shell.svg");
             optgroup->append_single_option_line("perimeters");
             optgroup->append_single_option_line("min_shell_thickness");
             optgroup->append_single_option_line("spiral_vase");
         }
         {
-            auto* optgroup = page->new_optgroup("Horizontal shells");
+            auto* optgroup = page->new_optgroup("Horizontal shells", "layers.svg");
             Line line("Solid layers");
             line.append_option(optgroup->get_option("top_solid_layers"));
             line.append_option(optgroup->get_option("bottom_solid_layers"));
@@ -117,7 +117,7 @@ void PrintEditor::_build() {
             optgroup->append_single_option_line("min_top_bottom_shell_thickness");
         }
         {
-            auto* optgroup = page->new_optgroup("Quality (slower slicing)");
+            auto* optgroup = page->new_optgroup("Quality (slower slicing)", "star.svg");
             optgroup->append_single_option_line("extra_perimeters");
             optgroup->append_single_option_line("avoid_crossing_perimeters");
             optgroup->append_single_option_line("thin_walls");
@@ -130,7 +130,7 @@ void PrintEditor::_build() {
     {
         auto* page = this->add_options_page("Infill", "infill.svg");
         {
-            auto* optgroup = page->new_optgroup("Infill");
+            auto* optgroup = page->new_optgroup("Infill", "infill.svg");
             optgroup->append_single_option_line("fill_density");
             optgroup->append_single_option_line("fill_pattern");
             
@@ -140,12 +140,12 @@ void PrintEditor::_build() {
             optgroup->append_line(line);
         }
         {
-            auto* optgroup = page->new_optgroup("Reducing printing time");
+            auto* optgroup = page->new_optgroup("Reducing printing time", "time.svg");
             optgroup->append_single_option_line("infill_every_layers");
             optgroup->append_single_option_line("infill_only_where_needed");
         }
         {
-            auto* optgroup = page->new_optgroup("Advanced");
+            auto* optgroup = page->new_optgroup("Advanced", "wand.svg");
             optgroup->append_single_option_line("fill_gaps");
             optgroup->append_single_option_line("solid_infill_every_layers");
             optgroup->append_single_option_line("fill_angle");
@@ -158,14 +158,14 @@ void PrintEditor::_build() {
     {
         auto* page = this->add_options_page("Skirt and brim", "box.svg");
         {
-            auto* optgroup = page->new_optgroup("Skirt");
+            auto* optgroup = page->new_optgroup("Skirt", "skirt.svg");
             optgroup->append_single_option_line("skirts");
             optgroup->append_single_option_line("skirt_distance");
             optgroup->append_single_option_line("skirt_height");
             optgroup->append_single_option_line("min_skirt_length");
         }
         {
-            auto* optgroup = page->new_optgroup("Brim");
+            auto* optgroup = page->new_optgroup("Brim", "brim.svg");
             optgroup->append_single_option_line("brim_width");
             optgroup->append_single_option_line("brim_ears");
             optgroup->append_single_option_line("brim_ears_max_angle");
@@ -177,18 +177,18 @@ void PrintEditor::_build() {
     {
         auto* page = this->add_options_page("Support material", "building.svg");
         {
-            auto* optgroup = page->new_optgroup("Support material");
+            auto* optgroup = page->new_optgroup("Support material", "building.svg");
             optgroup->append_single_option_line("support_material");
             optgroup->append_single_option_line("support_material_threshold");
             optgroup->append_single_option_line("support_material_max_layers");
             optgroup->append_single_option_line("support_material_enforce_layers");
         }
         {
-            auto* optgroup = page->new_optgroup("Raft");
+            auto* optgroup = page->new_optgroup("Raft", "raft.svg");
             optgroup->append_single_option_line("raft_layers");
         }
         {
-            auto* optgroup = page->new_optgroup("Options for support material and raft");
+            auto* optgroup = page->new_optgroup("Options for support material and raft", "cog.svg");
             optgroup->append_single_option_line("support_material_contact_distance");
             optgroup->append_single_option_line("support_material_pattern");
             optgroup->append_single_option_line("support_material_spacing");
@@ -205,7 +205,7 @@ void PrintEditor::_build() {
     {
         auto* page = this->add_options_page("Speed", "time.svg");
         {
-            auto* optgroup = page->new_optgroup("Speed for print moves");
+            auto* optgroup = page->new_optgroup("Speed for print moves", "speed.svg");
             optgroup->append_single_option_line("perimeter_speed");
             optgroup->append_single_option_line("small_perimeter_speed");
             optgroup->append_single_option_line("external_perimeter_speed");
@@ -218,15 +218,15 @@ void PrintEditor::_build() {
             optgroup->append_single_option_line("support_material_interface_speed");
         }
         {
-            auto* optgroup = page->new_optgroup("Speed for non-print moves");
+            auto* optgroup = page->new_optgroup("Speed for non-print moves", "lorry.svg");
             optgroup->append_single_option_line("travel_speed");
         }
         {
-            auto* optgroup = page->new_optgroup("Modifiers");
+            auto* optgroup = page->new_optgroup("Modifiers", "wand.svg");
             optgroup->append_single_option_line("first_layer_speed");
         }
         {
-            auto* optgroup = page->new_optgroup("Acceleration control (advanced)");
+            auto* optgroup = page->new_optgroup("Acceleration control (advanced)", "rocket.svg");
             optgroup->append_single_option_line("perimeter_acceleration");
             optgroup->append_single_option_line("infill_acceleration");
             optgroup->append_single_option_line("bridge_acceleration");
@@ -234,7 +234,7 @@ void PrintEditor::_build() {
             optgroup->append_single_option_line("default_acceleration");
         }
         {
-            auto* optgroup = page->new_optgroup("Autospeed (advanced)");
+            auto* optgroup = page->new_optgroup("Autospeed (advanced)", "speed.svg");
             optgroup->append_single_option_line("max_print_speed");
             optgroup->append_single_option_line("max_volumetric_speed");
         }
@@ -243,7 +243,7 @@ void PrintEditor::_build() {
     {
         auto* page = this->add_options_page("Multiple extruders", "funnel.svg");
         {
-            auto* optgroup = page->new_optgroup("Extruders");
+            auto* optgroup = page->new_optgroup("Extruders", "funnel.svg");
             optgroup->append_single_option_line("perimeter_extruder");
             optgroup->append_single_option_line("infill_extruder");
             optgroup->append_single_option_line("solid_infill_extruder");
@@ -251,12 +251,12 @@ void PrintEditor::_build() {
             optgroup->append_single_option_line("support_material_interface_extruder");
         }
         {
-            auto* optgroup = page->new_optgroup("Ooze prevention");
+            auto* optgroup = page->new_optgroup("Ooze prevention", "flow.svg");
             optgroup->append_single_option_line("ooze_prevention");
             optgroup->append_single_option_line("standby_temperature_delta");
         }
         {
-            auto* optgroup = page->new_optgroup("Advanced");
+            auto* optgroup = page->new_optgroup("Advanced", "wand.svg");
             optgroup->append_single_option_line("regions_overlap");
             optgroup->append_single_option_line("interface_shells");
         }
@@ -265,7 +265,7 @@ void PrintEditor::_build() {
     {
         auto* page = this->add_options_page("Advanced", "wand.svg");
         {
-            auto* optgroup = page->new_optgroup("Extrusion width");
+            auto* optgroup = page->new_optgroup("Extrusion width", "arrow_out.svg");
             optgroup->append_single_option_line("extrusion_width");
             optgroup->append_single_option_line("first_layer_extrusion_width");
             optgroup->append_single_option_line("perimeter_extrusion_width");
@@ -277,15 +277,15 @@ void PrintEditor::_build() {
             optgroup->append_single_option_line("support_material_extrusion_width");
         }
         {
-            auto* optgroup = page->new_optgroup("Overlap");
+            auto* optgroup = page->new_optgroup("Overlap", "shape_ungroup.svg");
             optgroup->append_single_option_line("infill_overlap");
         }
         {
-            auto* optgroup = page->new_optgroup("Flow");
+            auto* optgroup = page->new_optgroup("Flow", "flow.svg");
             optgroup->append_single_option_line("bridge_flow_ratio");
         }
         {
-            auto* optgroup = page->new_optgroup("Other");
+            auto* optgroup = page->new_optgroup("Other", "cog.svg");
             optgroup->append_single_option_line("xy_size_compensation");
             optgroup->append_single_option_line("resolution");
         }
@@ -294,7 +294,7 @@ void PrintEditor::_build() {
     {
         auto* page = this->add_options_page("Output options", "page_white_go.svg");
         {
-            auto* optgroup = page->new_optgroup("Sequential printing");
+            auto* optgroup = page->new_optgroup("Sequential printing", "bricks.svg");
             optgroup->append_single_option_line("complete_objects");
             
             Line line("Extruder clearance (mm)");
@@ -303,13 +303,13 @@ void PrintEditor::_build() {
             optgroup->append_line(line);
         }
         {
-            auto* optgroup = page->new_optgroup("Output file");
+            auto* optgroup = page->new_optgroup("Output file", "disk.svg");
             optgroup->append_single_option_line("gcode_comments");
             optgroup->append_single_option_line("label_printed_objects");
             optgroup->append_single_option_line("output_filename_format");
         }
         {
-            auto* optgroup = page->new_optgroup("Post-processing scripts");
+            auto* optgroup = page->new_optgroup("Post-processing scripts", "script.svg");
             optgroup->append_single_option_line("post_process");
         }
     }
@@ -317,7 +317,7 @@ void PrintEditor::_build() {
     {
         auto* page = this->add_options_page("Notes", "note.svg");
         {
-            auto* optgroup = page->new_optgroup("Notes");
+            auto* optgroup = page->new_optgroup("Notes", "note.svg");
             optgroup->append_single_option_line("notes");
         }
     }

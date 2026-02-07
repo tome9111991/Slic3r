@@ -14,6 +14,8 @@
 #include <fstream>
 #include <thread>
 #include <sstream>
+#include <system_error>
+#include <boost/nowide/fstream.hpp>
 
 #ifdef __cpp_lib_quoted_string_io
     #include <iomanip>
@@ -701,23 +703,24 @@ Print::export_gcode(std::string outfile, bool quiet)
     // write G-code to a temporary file in order to make the export atomic
     const std::string tempfile{ outfile + ".tmp" };
     {
-        std::ofstream outstream(tempfile);
+        boost::nowide::ofstream outstream(tempfile);
         this->export_gcode(outstream);
     }
     
     // rename the temporary file to the destination file
     // When renaming, some other application (thank you, Windows Explorer) 
-    // may keep the file locked. Try to wait a bit and then rename the file again.
-    for (int i = 0; std::rename(tempfile.c_str(), outfile.c_str()) != 0; ++i) {
-        if (i == 4) {
-            std::stringstream ss;
-            ss << "Failed to remove the output G-code file from "
-                << tempfile << " to " << outfile << ". Is " << tempfile << " locked?";
-            throw std::runtime_error(ss.str());
-        } else {
-            // Wait for 1/4 seconds and try to rename once again.
-            std::this_thread::sleep_for(std::chrono::milliseconds(250));
-        }
+    // may keep the file locked. rename_file() handles retries and existing file check.
+    std::error_code ec = Slic3r::rename_file(tempfile, outfile);
+    if (ec) {
+        std::stringstream ss;
+        ss << "Failed to replace the output G-code file at " << outfile << "\n\n"
+           << "System Error: " << ec.message() << " (Code: " << ec.value() << ")\n\n"
+           << "Possible causes:\n"
+           << "- The file is open in another program (G-code viewer, Editor, etc.)\n"
+           << "- A cloud sync service (OneDrive/Dropbox) is currently syncing the file.\n"
+           << "- An Antivirus software is scanning the file.\n"
+           << "- You do not have permissions to write to this location.";
+        throw std::runtime_error(ss.str());
     }
     
     // run post-processing scripts
