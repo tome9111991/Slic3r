@@ -19,6 +19,7 @@
 #include "GL/Camera.hpp"
 #include "GL/Buffer.hpp"
 #include <memory>
+#include "ImGuiWrapper.hpp"
 
 namespace Slic3r { namespace GUI {
 
@@ -54,6 +55,7 @@ public:
 
 private:
     wxGLContext* m_context = nullptr;
+    std::unique_ptr<ImGuiWrapper> m_imgui;
     
     // GL State
     bool init = false;

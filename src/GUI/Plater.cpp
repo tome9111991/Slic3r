@@ -374,6 +374,7 @@ Plater::Plater(wxWindow* parent, const wxString& title) :
 
     sizer->SetSizeHints(this);
     this->SetSizer(sizer);
+    this->Layout();
 
     this->selection_changed();
 }

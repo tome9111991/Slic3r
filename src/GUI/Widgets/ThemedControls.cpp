@@ -14,6 +14,7 @@ ThemedButton::ThemedButton(wxWindow* parent, wxWindowID id, const wxString& labe
     SetBackgroundStyle(wxBG_STYLE_PAINT);
     
     Bind(wxEVT_PAINT, &ThemedButton::OnPaint, this);
+    Bind(wxEVT_ERASE_BACKGROUND, [](wxEraseEvent&) { });
     Bind(wxEVT_ENTER_WINDOW, [this](wxMouseEvent& e) { m_hover = true; Refresh(); e.Skip(); });
     Bind(wxEVT_LEAVE_WINDOW, [this](wxMouseEvent& e) { m_hover = false; m_pressed = false; Refresh(); e.Skip(); });
     Bind(wxEVT_LEFT_DOWN, [this](wxMouseEvent& e) { m_pressed = true; Refresh(); e.Skip(); });
@@ -128,6 +129,7 @@ ThemedCheckBox::ThemedCheckBox(wxWindow* parent, wxWindowID id, const wxString& 
 {
     SetBackgroundStyle(wxBG_STYLE_PAINT);
     Bind(wxEVT_PAINT, &ThemedCheckBox::OnPaint, this);
+    Bind(wxEVT_ERASE_BACKGROUND, [](wxEraseEvent&) { });
     Bind(wxEVT_LEFT_DOWN, [this](wxMouseEvent& e) { 
         m_checked = !m_checked; 
         
@@ -207,7 +209,10 @@ ThemedSelect::ThemedSelect(wxWindow* parent, wxWindowID id, const wxArrayString&
     
     SetBackgroundStyle(wxBG_STYLE_PAINT);
     Bind(wxEVT_PAINT, &ThemedSelect::OnPaint, this);
+    Bind(wxEVT_ERASE_BACKGROUND, [](wxEraseEvent&) { });
     Bind(wxEVT_LEFT_DOWN, &ThemedSelect::OpenPopup, this);
+    Bind(wxEVT_ENTER_WINDOW, [this](wxMouseEvent& e) { m_hover = true; Refresh(); e.Skip(); });
+    Bind(wxEVT_LEAVE_WINDOW, [this](wxMouseEvent& e) { m_hover = false; Refresh(); e.Skip(); });
 }
 
 void ThemedSelect::SetValue(const wxString& val) {
@@ -352,9 +357,9 @@ private:
             for (size_t i = 0; i < m_options.size(); ++i) {
                 int rowY = paddingY + (int)i * rowH;
                 
-                // Highlight frame
+                // Highlight frame (Border only, no background change)
                 if ((int)i == m_hoverIndex) {
-                    gc->SetBrush(wxBrush(theme.accent.ChangeLightness(180))); // Subtle highlight background
+                    gc->SetBrush(*wxTRANSPARENT_BRUSH);
                     gc->SetPen(wxPen(theme.accent, 1));
                     gc->DrawRectangle(1 * scale, rowY, GetSize().x - 2 * scale, rowH);
                 }
@@ -457,16 +462,37 @@ void ThemedSelect::OpenPopup(wxMouseEvent&) {
 void ThemedSelect::OnPaint(wxPaintEvent&) {
     wxAutoBufferedPaintDC dc(this);
     auto theme = ThemeManager::GetColors();
+    dc.SetBackground(wxBrush(theme.bg));
+    dc.Clear();
     
     std::unique_ptr<wxGraphicsContext> gc(wxGraphicsContext::Create(dc));
     if (gc) {
         double scale = GetContentScaleFactor();
         
         // Background and Border
-        wxColour borderColor = m_popupOpen ? theme.accent : theme.border;
+        wxColour borderColor;
+        wxBrush backgroundBrush = *wxTRANSPARENT_BRUSH;
+
+        if (m_isFlat) {
+            if (m_popupOpen || m_hover) {
+                // "Light up" the border on hover or when open
+                borderColor = theme.accent;
+                // No background tint on hover as requested
+                backgroundBrush = *wxTRANSPARENT_BRUSH;
+            } else {
+                // Constant border, slightly lighter than background in dark mode, 
+                // or a soft grey in light mode to remain visible but subtle.
+                borderColor = theme.isDark ? theme.bg.ChangeLightness(125) : theme.bg.ChangeLightness(90);
+            }
+        } else {
+            borderColor = m_popupOpen ? theme.accent : theme.border;
+            backgroundBrush = wxBrush(theme.surface);
+        }
+
         gc->SetPen(wxPen(borderColor, 1));
-        gc->SetBrush(wxBrush(theme.surface));
-        gc->DrawRoundedRectangle(0, 0, GetSize().x, GetSize().y, 3 * scale);
+        gc->SetBrush(backgroundBrush);
+        // Draw with 0.5 offset and -1 size to ensure the 1px pen is not clipped on right/bottom
+        gc->DrawRectangle(0.5, 0.5, GetSize().x - 1, GetSize().y - 1);
         
         // Text and Icon
         gc->SetFont(GetFont(), theme.text);
@@ -536,6 +562,7 @@ ThemedTextInput::ThemedTextInput(wxWindow* parent, wxWindowID id, const wxString
     m_textCtrl->SetForegroundColour(theme.text);
     
     Bind(wxEVT_PAINT, &ThemedTextInput::OnPaint, this);
+    Bind(wxEVT_ERASE_BACKGROUND, [](wxEraseEvent&) { });
     Bind(wxEVT_SIZE, &ThemedTextInput::OnSize, this);
     
     // Repaint on focus change to update border color
@@ -631,6 +658,7 @@ ThemedNumberInput::ThemedNumberInput(wxWindow* parent, wxWindowID id, double val
     m_textCtrl->SetForegroundColour(theme.text);
 
     Bind(wxEVT_PAINT, &ThemedNumberInput::OnPaint, this);
+    Bind(wxEVT_ERASE_BACKGROUND, [](wxEraseEvent&) { });
     Bind(wxEVT_SIZE, &ThemedNumberInput::OnSize, this);
     Bind(wxEVT_LEFT_DOWN, &ThemedNumberInput::OnLeftDown, this);
     Bind(wxEVT_LEFT_UP, &ThemedNumberInput::OnLeftUp, this);

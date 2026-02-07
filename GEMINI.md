@@ -65,6 +65,7 @@ To ensure full control over Light/Dark modes independent of system settings, we 
 
 ### 1. New Widgets
 *   **Location:** `src/GUI/Widgets/`
+*   **Preference:** **Reuse over Creation**. Always check `src/GUI/Widgets/ThemedControls.hpp` first. Re-use existing themed widgets whenever possible. Only create new custom widgets if no existing widget (like `ThemedSelect`, `ThemedButton`, etc.) can be adapted to the required functionality.
 *   **Implementation:** Inherit from `wxControl` or `wxPanel`.
 *   **Painting:** Override `OnPaint` (using `wxAutoBufferedPaintDC`) and draw manually using `wxGraphicsContext`.
 *   **Events:** Emit standard wxWidgets events (e.g., `wxEVT_BUTTON`, `wxEVT_CHECKBOX`) so usage remains standard.
@@ -96,6 +97,35 @@ We enforce a strict separation between Application UI and 3D Canvas rendering:
 2.  Implement drawing logic in `.cpp`, referencing `ThemeManager` for all colors.
 3.  Add the source file to `CMakeLists.txt` (if new file created).
 4.  Verify appearance in both Light (`ThemeManager::SetDarkMode(false)`) and Dark modes.
+
+
+### 4. ImGui Integration
+We use **ImGui** (Immediate Mode GUI) for high-performance interactions *inside* the 3D viewport. This is distinct from the outer wxWidgets shell.
+
+*   **When to use ImGui:**
+    *   **3D Overlays:** HUDs, notifications, floating controls (e.g., Z-Slider, Legend).
+    *   **Gizmos:** Interactive 3D manipulators (Move, Scale, Rotate) that need to redraw every frame.
+    *   **Complex Interactions:** Custom widgets that would be too difficult/slow toimplement in wxWidgets.
+
+*   **When to use wxWidgets:**
+    *   **Main Window Shell:** Menus (`File`, `Edit`), Toolbar, Status Bar.
+    *   **Static Dialogs:** Preferences, Print Settings, Filament Settings.
+    *   **OS Integration:** File dialogs, detailed multi-window management.
+
+*   **How it works:**
+    *   The `ImGuiWrapper` class bridges wxWidgets events (Mouse/Keyboard) to ImGui's IO system.
+    *   Rendering happens at the end of `Scene3D::repaint()`, overlaying the 3D scene.
+
+*   **Adding new ImGui elements:**
+    Go to `src/GUI/Scene3D.cpp` inside `repaint()`:
+    ```cpp
+    if (m_imgui) {
+        ImGui::Begin("My Tool");
+        if (ImGui::Button("Click Me")) { ... }
+        ImGui::End();
+        m_imgui->render();
+    }
+    ```
 
 ## Useful References
 - **Perl GUI:** `port/lib/Slic3r/GUI/`

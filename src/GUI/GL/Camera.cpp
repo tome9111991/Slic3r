@@ -9,8 +9,8 @@ Camera::Camera()
     : m_target(0.0f, 0.0f, 0.0f)
     , m_distance(200.0f)
     , m_theta(45.0f)
-    , m_phi(225.0f)
-    , m_zoom(3.5f)
+    , m_phi(270.0f)
+    , m_zoom(4.0f)
     , m_near_plane(-1000.0f)
     , m_far_plane(1000.0f)
     , m_viewport_x(0)
@@ -47,7 +47,7 @@ void Camera::rotate(float delta_theta, float delta_phi) {
 void Camera::zoom(float factor) {
     m_zoom *= factor;
     // Clamp zoom to prevent going too far out or too close
-    m_zoom = std::max(1.0f, std::min(1000.0f, m_zoom));
+    m_zoom = std::max(2.0f, std::min(1000.0f, m_zoom));
 }
 
 void Camera::pan(float dx, float dy) {

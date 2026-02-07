@@ -381,6 +381,7 @@ find_package(glad CONFIG REQUIRED)
 find_package(glm CONFIG REQUIRED)
 set(wxWidgets_USE_UNICODE ON)
 find_package(wxWidgets COMPONENTS net gl html aui adv core base)
+find_package(imgui CONFIG REQUIRED)
 endif()
 
 IF(CMAKE_HOST_UNIX)
@@ -453,16 +454,18 @@ IF(wxWidgets_FOUND AND OPENGL_FOUND AND Enable_GUI)
     ${GUI_LIBDIR}/Widgets/ThemedMenuBar.cpp
     ${GUI_LIBDIR}/Widgets/ThemedMenuPopup.cpp
     ${GUI_LIBDIR}/Widgets/ThemedMenu.cpp
+    ${GUI_LIBDIR}/Widgets/PresetWidget.cpp
     ${GUI_LIBDIR}/Dialogs/WidgetGallery.cpp
     ${GUI_LIBDIR}/GL/GLManager.cpp
     ${GUI_LIBDIR}/GL/Shader.cpp
     ${GUI_LIBDIR}/GL/Camera.cpp
     ${GUI_LIBDIR}/GL/Buffer.cpp
+    ${GUI_LIBDIR}/ImGuiWrapper.cpp
     )
     target_compile_features(slic3r_gui PUBLIC cxx_std_17)
     target_include_directories(slic3r_gui PUBLIC ${SLIC3R_GUI_INCLUDES} ${SLIC3R_INCLUDES} )
     #only build GUI lib if building with wx
-    target_link_libraries (slic3r_gui ${wxWidgets_LIBRARIES} ${OPENGL_LIBRARIES} glad::glad glm::glm)
+    target_link_libraries (slic3r_gui ${wxWidgets_LIBRARIES} ${OPENGL_LIBRARIES} glad::glad glm::glm imgui::imgui)
     target_link_libraries (slic3r slic3r_gui ${wxWidgets_LIBRARIES} ${OPENGL_LIBRARIES})
     add_compile_options(-DUSE_WX)
 

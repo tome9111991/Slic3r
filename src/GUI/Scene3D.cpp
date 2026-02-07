@@ -80,6 +80,8 @@ Scene3D::~Scene3D() {
 
 void Scene3D::init_gl(){
     if(this->init) return;
+
+    if (!m_imgui) m_imgui = std::make_unique<ImGuiWrapper>();
     
     // Initialize GLAD
     if(!GL::GLManager::init()) {
@@ -239,6 +241,8 @@ void Scene3D::repaint(wxPaintEvent& e) {
     SetCurrent(*m_context);
     
     init_gl();
+
+    if (m_imgui) m_imgui->new_frame(this->GetSize().GetWidth(), this->GetSize().GetHeight());
     
     // Update Bed VBOs if needed
     if(m_bed_dirty) {
@@ -354,6 +358,15 @@ void Scene3D::repaint(wxPaintEvent& e) {
     draw_axes(Pointf3(0,0,0), 20.0f, 2, true);
 
     this->after_render();
+
+    // Draw ImGui
+    if (m_imgui) {
+        ImGui::Begin("Slic3r ImGui Overlay");
+        ImGui::Text("Frames: %.1f FPS", ImGui::GetIO().Framerate);
+        ImGui::End();
+        
+        m_imgui->render();
+    }
 
     glFlush();
     SwapBuffers();
@@ -602,6 +615,7 @@ void Scene3D::set_bed_shape(Points _bed_shape){
 }
 
 void Scene3D::mouse_move(wxMouseEvent &e){
+    if (m_imgui && m_imgui->update_mouse_data(e)) return;
     if(e.Dragging()){
         const auto pos = Point(e.GetX(),e.GetY());
         if(dragging){
@@ -626,17 +640,20 @@ void Scene3D::mouse_move(wxMouseEvent &e){
 }
 
 void Scene3D::mouse_up(wxMouseEvent &e){
+    if (m_imgui && m_imgui->update_mouse_data(e)) return;
     dragging = false;
     Refresh();
 }
 
 void Scene3D::mouse_down(wxMouseEvent &e){
+    if (m_imgui && m_imgui->update_mouse_data(e)) return;
     dragging = false;
     drag_start = Point(e.GetX(), e.GetY());
     e.Skip();
 }
 
 void Scene3D::mouse_wheel(wxMouseEvent &e){
+    if (m_imgui && m_imgui->update_mouse_data(e)) return;
     float delta = ((float)e.GetWheelRotation()) / e.GetWheelDelta();
     // Increased zoom speed from 2% to 10% per notch for better responsiveness
     float zoom_factor = std::pow(1.1f, delta);

@@ -8,6 +8,7 @@
 #endif
 #include <wx/bmpcbox.h>
 #include "../Widgets/ThemedControls.hpp"
+#include "../Widgets/PresetWidget.hpp"
 
 #include <vector>
 #include <array>
@@ -34,11 +35,13 @@ public:
     PresetChooser(wxWindow* parent, std::weak_ptr<Print> print);
     PresetChooser(wxWindow* parent, std::weak_ptr<Print> print, Settings* external_settings, preset_store& external_presets);
 
-    std::array<Choosers, preset_types> preset_choosers;
+    std::array<std::vector<PresetSection*>, preset_types> preset_sections;
 
 
     /// Load the presets from the backing store and set up the choosers
     void load(std::array<Presets, preset_types> presets);
+
+    wxSize DoGetBestSize() const override;
     
     /// Call load() with the app's own presets
     void load() { this->load(this->_presets); }
@@ -70,9 +73,9 @@ public:
     /// Cycle through active presets and prompt user to save dirty configs, if necessary.
     bool prompt_unsaved_changes();
 private:
-    wxFlexGridSizer* _local_sizer {};
+    wxBoxSizer* _local_sizer {};
     wxWindow* _parent {};
-    void _on_change_combobox(preset_t preset, ThemedSelect* choice);
+    void _on_change_combobox(preset_t preset, size_t index, const wxString& selection);
     chooser_name_map __chooser_names;
 
     /// Reference to a Slic3r::Settings object.

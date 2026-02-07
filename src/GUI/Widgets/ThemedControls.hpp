@@ -66,6 +66,8 @@ public:
     void SetString(int n, const wxString& s);
     wxString GetString(int n) const;
 
+    void SetFlat(bool flat) { m_isFlat = flat; Refresh(); }
+
     wxSize DoGetBestSize() const override;
 
 private:
@@ -76,6 +78,8 @@ private:
     std::vector<wxBitmapBundle> m_icons;
     wxString m_current;
     bool m_popupOpen = false;
+    bool m_hover = false;
+    bool m_isFlat = false;
 };
 
 // D. Text Input Wrapper

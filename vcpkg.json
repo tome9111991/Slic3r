@@ -18,7 +18,16 @@
     "boost-foreach",
     "wxwidgets",
     "glad",
-    "glm"
+    "glm",
+    {
+      "name": "imgui",
+      "features": [
+        "opengl3-binding",
+        "win32-binding",
+        "freetype",
+        "wchar32"
+      ]
+    }
   ],
   "builtin-baseline": "6d7bf7ef2193e2d1c5798a5ff8811d533104c861"
 }
