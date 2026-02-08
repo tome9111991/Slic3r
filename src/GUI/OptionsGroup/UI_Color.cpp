@@ -19,11 +19,14 @@ void UI_Color::set_value(boost::any value) {
     if (value.type() == typeid(wxColour)) {
         _picker->SetColour(boost::any_cast<wxColour>(value));
     } else if (value.type() == typeid(std::string)) {
-        _picker->SetColour(wxString(boost::any_cast<std::string>(value)));
+        _picker->SetColour(_string_to_color(boost::any_cast<std::string>(value)));
     } else if (value.type() == typeid(const char*)) {
-        _picker->SetColour(wxString(boost::any_cast<const char*>(value)));
+        _picker->SetColour(_string_to_color(std::string(boost::any_cast<const char*>(value))));
     } else if (value.type() == typeid(wxString)) {
-        _picker->SetColour(boost::any_cast<wxString>(value));
+        _picker->SetColour(_string_to_color(boost::any_cast<wxString>(value).ToStdString()));
+    } else if (value.type() == typeid(std::vector<std::string>)) {
+        auto vec = boost::any_cast<std::vector<std::string>>(value);
+        if (!vec.empty()) _picker->SetColour(_string_to_color(vec[0]));
     } else {
         Slic3r::Log::warn(this->LogChannel(), LOG_WSTRING("Type " << value.type().name() << " is not handled in set_value."));
     }
@@ -34,11 +37,19 @@ std::string UI_Color::get_string() {
 }
 
 wxColour UI_Color::_string_to_color(const std::string& color) {
-    // if invalid color string sent, use the default
-    wxColour col(255,255,255,255);
-    if (col.Set(wxString(color)))
+    // If it's a vector serialized as string (Slic3r style: "#FF0000;#00FF00")
+    // pick the first one.
+    std::string first_color = color;
+    size_t semi = color.find(';');
+    if (semi != std::string::npos) {
+        first_color = color.substr(0, semi);
+    }
+
+    wxColour col;
+    if (col.Set(wxString(first_color)))
         return col;
-    return wxColor();
+    
+    return wxColour(255, 255, 255); // Default to white if invalid
 }
 
 } } // Namespace Slic3r::GUI

@@ -2,6 +2,12 @@
 #define THEMEMANAGER_HPP
 
 #include <wx/wx.h>
+#include <wx/font.h>
+
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
 #include <wx/bmpbndl.h>
 #include <wx/graphics.h>
 #include <map>
@@ -40,6 +46,7 @@ public:
 
     // Font Management
     enum class FontSize {
+        Tiny,   // Units, subtle hints
         Small,  // Standard UI elements
         Medium, // Headers, Important labels (approx 12pt)
         Large   // Section headers
@@ -51,10 +58,13 @@ public:
     };
 
     static wxFont GetFont(FontSize size = FontSize::Small, FontWeight weight = FontWeight::Normal);
-
+    
+    // Load fonts from resources
+    static void InitFonts();
 
 private:
     static bool m_isDark;
+    static wxString m_fontFace;
     
     // Cache Key Structure
     struct CacheKey {

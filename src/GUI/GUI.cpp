@@ -20,6 +20,7 @@
 
 // Logging mechanism
 #include "Log.hpp"
+#include "Theme/ThemeManager.hpp"
 
 namespace Slic3r { namespace GUI {
 
@@ -53,6 +54,9 @@ bool App::OnInit()
         set_local_dir(res_path.ToStdString() + "/localization");
         
         Slic3r::Log::info(LogChannel, "Resources Dir: " + resources_dir());
+
+        // Initialize custom fonts from resources
+        ThemeManager::InitFonts();
 
         ui_settings = Settings::init_settings();
         ui_settings->load_settings();
@@ -267,9 +271,9 @@ void App::load_presets() {
     for (size_t group = 0; group < preset_types; ++group) {
         Presets& preset_list = this->presets.at(group);
         wxString& ini = this->preset_ini.at(group);
-        // keep external or dirty presets
+        // keep external or dirty presets (remove those that are NOT external/dirty)
         preset_list.erase(std::remove_if(preset_list.begin(), preset_list.end(), 
-                    [](const Preset& t) -> bool { return (t.external && t.file_exists()) || t.dirty(); }),
+                    [](const Preset& t) -> bool { return !((t.external && t.file_exists()) || t.dirty()); }),
                 preset_list.end());
         if (wxDirExists(ini)) {
             auto sink { wxDirTraverserSimple() };

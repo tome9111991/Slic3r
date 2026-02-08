@@ -72,6 +72,10 @@ public:
 
     /// Cycle through active presets and prompt user to save dirty configs, if necessary.
     bool prompt_unsaved_changes();
+
+    /// Fetch the preset name corresponding to the chooser index
+    wxString _get_selected_preset(preset_t group, size_t index) const;
+
 private:
     wxBoxSizer* _local_sizer {};
     wxWindow* _parent {};
@@ -91,9 +95,6 @@ private:
 
     /// Return the vector of strings representing the selected preset names.
     std::vector<wxString> _get_selected_presets(preset_t group) const;
-
-    /// Fetch the preset name corresponding to the chooser index
-    wxString _get_selected_preset(preset_t group, size_t index) const;
 
     /// Update Settings presets with the state of this system
     void _update_preset_settings(preset_t preset);

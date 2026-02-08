@@ -51,13 +51,17 @@ PresetChooser::PresetChooser(wxWindow* parent, std::weak_ptr<Print> print, Setti
         });
 
         section->on_settings_click = [this, group]() {
-             if (auto plater = dynamic_cast<Plater*>(this->GetParent())) {
+             wxWindow* win = this->GetParent();
+             while (win && !dynamic_cast<Plater*>(win)) win = win->GetParent();
+             if (auto plater = dynamic_cast<Plater*>(win)) {
                  plater->show_preset_editor(group, 0); 
              }
         };
 
         section->on_edit_click = [this, group]() {
-             if (auto plater = dynamic_cast<Plater*>(this->GetParent())) {
+             wxWindow* win = this->GetParent();
+             while (win && !dynamic_cast<Plater*>(win)) win = win->GetParent();
+             if (auto plater = dynamic_cast<Plater*>(win)) {
                  plater->show_preset_editor(group, 0); 
              }
         };
@@ -176,15 +180,14 @@ wxString PresetChooser::_get_selected_preset(preset_t group, size_t index) const
 void PresetChooser::_on_change_combobox(preset_t preset, size_t index, const wxString& selection) {
     if (!this->prompt_unsaved_changes()) return;
     
-    if (index < this->preset_sections[get_preset(preset)].size()) {
-        this->preset_sections[get_preset(preset)][index]->SetValue(selection);
-    }
-
-    wxTheApp->CallAfter([this,preset]()
-    {
-        this->_on_select_preset(preset);
+    this->_on_select_preset(preset);
+    
+    // _on_select_preset calls load() if preset == Printer.
+    // We only need to explicitly call load() for other types to ensure UI consistency
+    // without triggering double-loads for Printer which could cause race conditions or UI lag.
+    if (preset != preset_t::Printer) {
         this->load();
-    });
+    }
 }
 
 wxSize PresetChooser::DoGetBestSize() const {

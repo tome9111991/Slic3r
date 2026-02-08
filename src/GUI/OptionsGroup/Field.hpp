@@ -55,7 +55,10 @@ public:
 
     virtual wxSizer* get_sizer() { return this->sizer; }
 
+    virtual void set_suffix(const wxString& suffix) { /* base does nothing */ }
+
     std::function<void (const std::string&)> on_kill_focus {nullptr};
+    std::function<void (const std::string&)> on_change_final {nullptr};
 
 protected:
     wxWindow* parent {nullptr};
@@ -68,7 +71,7 @@ protected:
     
     virtual void _on_change(std::string opt_id) = 0; 
 
-    wxSize _default_size() { return wxSize((opt.width >= 0 ? opt.width : 60), (opt.height != -1 ? opt.height : -1)); }
+    wxSize _default_size() { return wxSize((opt.width >= 0 ? opt.width : 100), (opt.height != -1 ? opt.height : -1)); }
     
 public:
     virtual void set_dirty_status(bool dirty) {
@@ -157,20 +160,29 @@ public:
         // ThemedNumberInput fires wxEVT_TEXT when changed via buttons or text
         _spin->Bind(wxEVT_TEXT, [this](wxCommandEvent& e) { this->_on_change(""); e.Skip(); });
         
+        auto* text = _spin->GetTextCtrl();
+
         // Also support Enter if needed? ThemedNumberInput doesn't propagate TEXT_ENTER by default unless skipped.
         // But ThemedNumberInput::OnTextEnter calls Skip(), so we can bind to it?
         // Actually, let's bind to the control itself.
-        _spin->Bind(wxEVT_TEXT_ENTER, [this](wxCommandEvent& e) { this->_on_change(""); e.Skip(); });
+        text->Bind(wxEVT_TEXT_ENTER, [this](wxCommandEvent& e) { 
+            this->_on_change(""); 
+            if (this->on_change_final) this->on_change_final("");
+            e.Skip(); 
+        });
         
-        _spin->Bind(wxEVT_KILL_FOCUS, [this](wxFocusEvent& e) { 
+        text->Bind(wxEVT_KILL_FOCUS, [this](wxFocusEvent& e) { 
             if (this->on_kill_focus != nullptr) this->on_kill_focus("");
             this->_on_change(""); 
+            if (this->on_change_final) this->on_change_final("");
             e.Skip(); 
         });
     }
     ~UI_SpinCtrl() { }
     int get_int() { return (int)this->_spin->GetValue(); }
     void set_value(boost::any value) { this->_spin->SetValue((double)boost::any_cast<int>(value)); }
+
+    void set_suffix(const wxString& suffix) override { if (_spin) _spin->SetSuffix(suffix); }
 
     ThemedNumberInput* spinctrl() { return _spin; }
     
@@ -212,25 +224,51 @@ public:
         }
 
         if (!opt.multiline) {
-            _text->Bind(wxEVT_TEXT_ENTER, [this](wxCommandEvent& e) { this->_on_change(""); e.Skip(); });
+            _text->Bind(wxEVT_TEXT_ENTER, [this](wxCommandEvent& e) { 
+                this->_on_change(""); 
+                if (this->on_change_final) this->on_change_final("");
+                e.Skip(); 
+            });
         }
         _text->Bind(wxEVT_TEXT, [this](wxCommandEvent& e) { this->_on_change(""); e.Skip(); });
         _text->Bind(wxEVT_KILL_FOCUS, [this](wxFocusEvent& e) { 
             if (this->on_kill_focus != nullptr) this->on_kill_focus(""); 
             this->_on_change(""); 
+            if (this->on_change_final) this->on_change_final("");
             e.Skip(); 
         });
     }
     ~UI_TextCtrl() { }
-    std::string get_string() { return this->_text->GetValue().ToStdString(); }
+    std::string get_string() { 
+        std::string s = this->_text->GetValue().ToStdString();
+        if (_themed_input && _themed_input->GetSuffix() == "%" && !s.empty() && s.find('%') == std::string::npos) {
+            s += "%";
+        }
+        return s;
+    }
     void set_value(boost::any value) override { 
         try {
-            this->_text->SetValue(boost::any_cast<std::string>(value)); 
+            std::string s = boost::any_cast<std::string>(value);
+            // If the field has a '%' suffix, we don't want to show the '%' inside the text box.
+            if (_themed_input && (_themed_input->GetSuffix() == "%" || _themed_input->GetSuffix().Lower().Contains("percent")) && s.ends_with("%")) {
+                s.pop_back();
+            }
+            this->_text->SetValue(s); 
         } catch (...) {
              try {
-                 this->_text->SetValue(std::to_string(boost::any_cast<double>(value)));
+                 double val = boost::any_cast<double>(value);
+                 wxString s = wxString::Format("%.4f", val);
+                 if (s.Contains(".")) {
+                     while (s.EndsWith("0")) s.RemoveLast();
+                     if (s.EndsWith(".")) s.RemoveLast();
+                 }
+                 this->_text->SetValue(s);
              } catch (...) {}
         }
+    }
+
+    void set_suffix(const wxString& suffix) override { 
+        if (_themed_input) _themed_input->SetSuffix(suffix); 
     }
     
     // Override to ensure we set color on the actual text control, not the wrapper

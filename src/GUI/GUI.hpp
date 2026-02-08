@@ -47,12 +47,13 @@ public:
     preset_store presets { Presets() };
     std::array<wxString, preset_types> preset_ini { };
     Settings* settings() { return ui_settings.get(); }
+    
+    /// Reload all presets from the filesystem.
+    void load_presets();
 
 private:
     std::unique_ptr<Notifier> notifier {nullptr};
     // std::unique_ptr<Settings> ui_settings {nullptr}; // Removed to use global
-
-    void load_presets();
 
     const std::string LogChannel {"APP"}; //< Which log these messages should go to.
 

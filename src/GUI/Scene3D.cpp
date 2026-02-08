@@ -358,19 +358,25 @@ void Scene3D::repaint(wxPaintEvent& e) {
 
     draw_ground();
 
-    // Selection boxes pass: Always above bed, but occludable by parts
-    glDisable(GL_DEPTH_TEST);
+    draw_volumes();
+
+    // Selection boxes pass: Occluded by parts
+    // Lift the selection box slightly (+0.05f) to avoid Z-fighting with the grid at Z=0
     for(auto &volume : volumes) {
         if (volume.selected) {
-            glm::mat4 model = glm::mat4(1.0f);
-            model = glm::translate(model, glm::vec3(volume.origin.x, volume.origin.y, volume.origin.z));
-            m_shader->set_uniform("model", model);
-            draw_selection_box(volume.bb);
+            if (volume.is_obb) {
+                glm::mat4 m = volume.instance_transformation;
+                m[3][2] += 0.05f; // Add small Z bias
+                m_shader->set_uniform("model", m);
+                draw_selection_box(volume.raw_bbox);
+            } else {
+                glm::mat4 model = glm::mat4(1.0f);
+                model = glm::translate(model, glm::vec3(volume.origin.x, volume.origin.y, volume.origin.z + 0.05f));
+                m_shader->set_uniform("model", model);
+                draw_selection_box(volume.bb);
+            }
         }
     }
-    glEnable(GL_DEPTH_TEST);
-
-    draw_volumes();
     
     // Draw Axes (Unlit)
     m_shader->set_uniform("u_lit", 0);
@@ -534,8 +540,30 @@ void Scene3D::draw_selection_box(const BoundingBoxf3& bb) {
     float size_x = bb.max.x - bb.min.x;
     float size_y = bb.max.y - bb.min.y;
     float size_z = bb.max.z - bb.min.z;
-    float L = std::min({size_x, size_y, size_z}) * 0.25f;
-    if (L > 5.0f) L = 5.0f; 
+    
+    // Calculate per-axis lengths
+    // User requested: min 15%, max 30% of dimension to prevent touching on thin objects.
+    auto get_len = [](float dim) {
+        float l = dim * 0.15f; // Base: 15%
+        
+        // Absolute minimum for visibility, but allow it to be smaller for very tiny objects 
+        // via the relative cap below.
+        if (l < 1.0f) l = 1.0f; 
+        
+        // Strict relative cap at 30% ensures lines never touch (leaving at least 40% gap)
+        if (l > dim * 0.3f) l = dim * 0.3f;
+        
+        return l;
+    };
+
+    float Lx = get_len(size_x);
+    float Ly = get_len(size_y);
+    float Lz = get_len(size_z);
+
+    // Old safety clamp (50%) is superseded by the strict 30% cap above, 
+    // but we keep the variables assignment clean.
+
+
     
     std::vector<float> v;
     auto add_corner = [&](float x, float y, float z, float dx, float dy, float dz) {
@@ -544,15 +572,15 @@ void Scene3D::draw_selection_box(const BoundingBoxf3& bb) {
         v.insert(v.end(), {x, y, z, x, y, z + dz});
     };
 
-    add_corner(bb.min.x, bb.min.y, bb.min.z,  L,  L,  L);
-    add_corner(bb.max.x, bb.min.y, bb.min.z, -L,  L,  L);
-    add_corner(bb.max.x, bb.max.y, bb.min.z, -L, -L,  L);
-    add_corner(bb.min.x, bb.max.y, bb.min.z,  L, -L,  L);
+    add_corner(bb.min.x, bb.min.y, bb.min.z,  Lx,  Ly,  Lz);
+    add_corner(bb.max.x, bb.min.y, bb.min.z, -Lx,  Ly,  Lz);
+    add_corner(bb.max.x, bb.max.y, bb.min.z, -Lx, -Ly,  Lz);
+    add_corner(bb.min.x, bb.max.y, bb.min.z,  Lx, -Ly,  Lz);
 
-    add_corner(bb.min.x, bb.min.y, bb.max.z,  L,  L, -L);
-    add_corner(bb.max.x, bb.min.y, bb.max.z, -L,  L, -L);
-    add_corner(bb.max.x, bb.max.y, bb.max.z, -L, -L, -L);
-    add_corner(bb.min.x, bb.max.y, bb.max.z,  L, -L, -L);
+    add_corner(bb.min.x, bb.min.y, bb.max.z,  Lx,  Ly, -Lz);
+    add_corner(bb.max.x, bb.min.y, bb.max.z, -Lx,  Ly, -Lz);
+    add_corner(bb.max.x, bb.max.y, bb.max.z, -Lx, -Ly, -Lz);
+    add_corner(bb.min.x, bb.max.y, bb.max.z,  Lx, -Ly, -Lz);
     
     m_shader->set_uniform("u_lit", 0);
     m_shader->set_uniform("objectColor", glm::vec3(1.0f, 1.0f, 1.0f)); // White
@@ -638,7 +666,7 @@ bool Scene3D::mouse_move(wxMouseEvent &e){
     if(e.Dragging()){
         const auto pos = Point(e.GetX(),e.GetY());
         if(dragging){
-             if (e.LeftIsDown()) {
+             if (e.LeftIsDown() && !m_prevent_camera_movement) {
                 // Rotate (Inverted to match expected direction)
                 float dx = (pos.x - drag_start.x);
                 float dy = (pos.y - drag_start.y);

@@ -330,6 +330,12 @@ public:
         }
     }
 
+    void set_dirty_status(const std::string& key, bool is_dirty) {
+        for (auto& og : _optgroups) {
+            og->set_dirty_status(key, is_dirty);
+        }
+    }
+
 protected:
     wxSizer* vsizer {nullptr};
     wxString title {""};

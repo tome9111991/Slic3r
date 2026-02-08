@@ -231,7 +231,7 @@ Plater::Plater(wxWindow* parent, const wxString& title) :
 
     // Quick Settings placeholder
     {
-        this->quick_settings_section = new ThemedSection(this->sidebar_content, _("Quick Settings"), "cog");
+        this->quick_settings_section = new ThemedSection(this->sidebar_content, _("Quick Settings"), "pinned");
         this->shortcut_sizer = this->quick_settings_section->GetContentSizer();
         // this->shortcut_sizer->SetMinSize(wxSize(350, 60)); // Set on section or sizer?
         this->quick_settings_section->SetMinSize(wxSize(350, -1));
@@ -1387,6 +1387,10 @@ void Plater::show_preset_editor(preset_t group, unsigned int idx) {
 
     wxDialog* dlg = new wxDialog(this, wxID_ANY, title, wxDefaultPosition, wxSize(900, 600), wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER);
     wxWindow* editor = nullptr;
+    wxString selected_preset = "";
+    if (this->_presets) {
+        selected_preset = this->_presets->_get_selected_preset(group, idx);
+    }
     
     switch (group) {
         case preset_t::Print:
@@ -1405,6 +1409,10 @@ void Plater::show_preset_editor(preset_t group, unsigned int idx) {
     
     if (editor) {
         if (auto* pe = dynamic_cast<PresetEditor*>(editor)) {
+             if (!selected_preset.IsEmpty()) {
+                 pe->select_preset_by_name(selected_preset);
+             }
+
              pe->on_quick_setting_change = [this](const std::string& key, bool active) {
                   this->update_quick_settings();
              };

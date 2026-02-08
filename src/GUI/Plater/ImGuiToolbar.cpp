@@ -141,9 +141,7 @@ void ImGuiToolbar::draw(const PlaterActions& actions, float canvas_width, float 
                 cb();
             }
 
-            if (ImGui::IsItemHovered() && tooltip) {
-                ImGui::SetTooltip("%s", tooltip);
-            }
+
             ImGui::PopID();
         };
         

@@ -122,23 +122,25 @@ PresetPage* PresetEditor::add_options_page(const wxString& _title, const wxStrin
     this->_treectrl->AppendItem(this->_treectrl->GetRootItem(), _title, icon_idx, icon_idx, new PageData(page));
     
     // Bind Callback
-    page->on_change = [this](const std::string& key, boost::any value) {
+    page->on_change = [this, page](const std::string& key, boost::any value) {
         if (!this->config) return;
         
         // Very basic type mapping
         try {
-            if (value.type() == typeid(bool)) 
-                this->config->set(key, boost::any_cast<bool>(value));
-            else if (value.type() == typeid(int)) 
-                this->config->set(key, boost::any_cast<int>(value));
-            else if (value.type() == typeid(double)) 
-                this->config->set(key, boost::any_cast<double>(value));
-            else if (value.type() == typeid(std::string)) 
-                this->config->set(key, boost::any_cast<std::string>(value));
-            
-             Slic3r::Log::info(this->LogChannel(), "Updated config: " + key);
+            if (!value.empty()) {
+                if (value.type() == typeid(bool)) 
+                    this->config->set(key, boost::any_cast<bool>(value));
+                else if (value.type() == typeid(int)) 
+                    this->config->set(key, boost::any_cast<int>(value));
+                else if (value.type() == typeid(double)) 
+                    this->config->set(key, boost::any_cast<double>(value));
+                else if (value.type() == typeid(std::string)) 
+                    this->config->set(key, boost::any_cast<std::string>(value));
+                
+                Slic3r::Log::info(this->LogChannel(), "Updated config: " + key);
+            }
              
-             // Visual feedback for dirty state
+             // Visual feedback for dirty state (always performed)
              if (this->current_preset) {
                  // Check if the overall preset is dirty (for the * in the name)
                  if (this->current_preset->dirty()) {
@@ -152,35 +154,19 @@ PresetPage* PresetEditor::add_options_page(const wxString& _title, const wxStrin
                  }
                  
                  // Check if THIS specific option is dirty
-                 // Manual check:
+                 // We use Preset::dirty_options() which compares _config (pristine) and _dirty_config (live)
                  bool is_dirty = false;
+                 auto dirty_keys = this->current_preset->dirty_options();
+                 is_dirty = std::find(dirty_keys.begin(), dirty_keys.end(), key) != dirty_keys.end();
                  
-                 // Get safe pointers to the configs
-                 auto pristine_cfg = this->current_preset->config().lock();
-                 auto current_cfg = this->config; // The one we are editing right now
-
-                 if (pristine_cfg && current_cfg && pristine_cfg->has(key)) {
-                      auto opt_pristine = pristine_cfg->config().option(key);
-                      auto opt_current = current_cfg->config().option(key);
-                      
-                      if (opt_pristine && opt_current) {
-                          auto val_pristine = opt_pristine->serialize();
-                          auto val_current = opt_current->serialize();
-                          is_dirty = (val_pristine != val_current);
-                          Slic3r::Log::info(this->LogChannel(), "Dirty Check for " + key + ": IsDirty=" + (is_dirty?"Yes":"No") + " Pristine='" + val_pristine + "' Current='" + val_current + "'");
-                      }
-                 } else {
-                      is_dirty = true;
-                      Slic3r::Log::info(this->LogChannel(), "Dirty Check for " + key + ": IsDirty=Yes (Missing in pristine or invalid pointers)");
-                 }
+                 Slic3r::Log::info(this->LogChannel(), "Dirty Check for " + key + ": IsDirty=" + (is_dirty?"Yes":"No"));
                  
                  UI_Field* field = this->get_ui_field(key);
                  if (field) {
                      field->set_dirty_status(is_dirty);
-                     Slic3r::Log::info(this->LogChannel(), "Set visual status for " + key);
-                 } else {
-                     Slic3r::Log::warn(this->LogChannel(), "Field not found for " + key);
                  }
+                 page->set_dirty_status(key, is_dirty);
+                 Slic3r::Log::info(this->LogChannel(), "Set visual status for " + key);
              }
         } catch(std::exception& e) {
              Slic3r::Log::error(this->LogChannel(), "Failed to update config for " + key + ": " + e.what());
@@ -341,6 +327,25 @@ void PresetEditor::_on_select_preset(bool force) {
     }
 }
 
+void PresetEditor::select_preset_by_name(const wxString& name, bool force) {
+    if (this->_presets_choice) {
+        int n = this->_presets_choice->FindString(name);
+        if (n == wxNOT_FOUND) {
+            // Try to match without " (modified)" suffix if name was taken from dropdown directly
+            wxString search_name = name;
+            if (search_name.EndsWith(" *")) {
+                search_name = search_name.Left(search_name.Length() - 2);
+                n = this->_presets_choice->FindString(search_name);
+            }
+        }
+        
+        if (n != wxNOT_FOUND) {
+            this->_presets_choice->SetSelection(n);
+            this->_on_select_preset(force);
+        }
+    }
+}
+
 void PresetEditor::reload_config() {
     if (!this->config) return;
     
@@ -370,9 +375,11 @@ void PresetEditor::_on_preset_loaded() {}
 void PresetEditor::_update_tree() {}
 
 void PresetEditor::load_presets() {
+    if (!SLIC3RAPP) return;
+    SLIC3RAPP->load_presets();
+    
     this->_presets_choice->Clear();
     try {
-        if (!SLIC3RAPP) return;
         auto& presets = SLIC3RAPP->presets.at(this->typeId());
         for (size_t i = 0; i < presets.size(); ++i) {
             this->_presets_choice->Append(presets[i].dropdown_name());

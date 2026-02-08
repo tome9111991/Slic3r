@@ -17,6 +17,7 @@ public:
     void SetBitmap(const wxBitmapBundle& bmp);
 
     wxSize DoGetBestSize() const override;
+    bool AcceptsFocus() const override { return true; }
 
 private:
     void OnPaint(wxPaintEvent& evt);
@@ -37,6 +38,7 @@ public:
     void SetValue(bool val);
 
     wxSize DoGetBestSize() const override;
+    bool AcceptsFocus() const override { return true; }
 
 private:
     void OnPaint(wxPaintEvent& evt);
@@ -69,14 +71,18 @@ public:
     void SetFlat(bool flat) { m_isFlat = flat; Refresh(); }
 
     wxSize DoGetBestSize() const override;
+    bool AcceptsFocus() const override { return true; }
 
 private:
     void OpenPopup(wxMouseEvent& evt);
     void OnPaint(wxPaintEvent& evt);
 
+    friend class ThemedSelectPopup;
+
     wxArrayString m_options;
     std::vector<wxBitmapBundle> m_icons;
     wxString m_current;
+    int m_selection = -1;
     bool m_popupOpen = false;
     bool m_hover = false;
     bool m_isFlat = false;
@@ -92,14 +98,19 @@ public:
     void SetValue(const wxString& val);
 
     wxTextCtrl* GetTextCtrl() const { return m_textCtrl; }
+    
+    void SetSuffix(const wxString& suffix) { m_suffix = suffix; Refresh(); }
+    wxString GetSuffix() const { return m_suffix; }
 
     wxSize DoGetBestSize() const override;
+    bool AcceptsFocus() const override { return true; }
 
 private:
     void OnPaint(wxPaintEvent& evt);
     void OnSize(wxSizeEvent& evt);
     
     wxTextCtrl* m_textCtrl;
+    wxString m_suffix;
 };
 
 // E. Multi-line Text Area (Replacement for multi-line wxTextCtrl)
@@ -114,6 +125,7 @@ public:
     wxTextCtrl* GetTextCtrl() const { return m_textCtrl; }
 
     wxSize DoGetBestSize() const override;
+    bool AcceptsFocus() const override { return true; }
 
 private:
     void OnPaint(wxPaintEvent& evt);
@@ -131,10 +143,16 @@ public:
     double GetValue() const;
     void SetValue(double val);
     
+    wxTextCtrl* GetTextCtrl() const { return m_textCtrl; }
+
     void SetRange(double min, double max);
     void SetIncrement(double inc);
+    
+    void SetSuffix(const wxString& suffix) { m_suffix = suffix; Refresh(); }
+    wxString GetSuffix() const { return m_suffix; }
 
     wxSize DoGetBestSize() const override;
+    bool AcceptsFocus() const override { return true; }
 
 private:
     void OnPaint(wxPaintEvent& evt);
@@ -148,6 +166,7 @@ private:
     void UpdateText();
 
     wxTextCtrl* m_textCtrl;
+    wxString m_suffix;
     double m_value;
     double m_min = 0.0;
     double m_max = 1000.0;
@@ -174,6 +193,7 @@ public:
     void SetTitle(const wxString& title) { m_title = title; Refresh(); }
 
     wxSize DoGetBestSize() const override;
+    bool AcceptsFocus() const override { return true; }
 
 private:
     void OnPaint(wxPaintEvent& evt);
@@ -190,6 +210,7 @@ public:
     ThemedPanel(wxWindow* parent, wxWindowID id = wxID_ANY, 
                 const wxPoint& pos = wxDefaultPosition, 
                 const wxSize& size = wxDefaultSize);
+    bool AcceptsFocus() const override { return true; }
 
     void SetBorder(bool visible, const wxColour& color = wxNullColour);
     

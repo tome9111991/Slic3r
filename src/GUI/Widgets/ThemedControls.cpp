@@ -17,7 +17,7 @@ ThemedButton::ThemedButton(wxWindow* parent, wxWindowID id, const wxString& labe
     Bind(wxEVT_ERASE_BACKGROUND, [](wxEraseEvent&) { });
     Bind(wxEVT_ENTER_WINDOW, [this](wxMouseEvent& e) { m_hover = true; Refresh(); e.Skip(); });
     Bind(wxEVT_LEAVE_WINDOW, [this](wxMouseEvent& e) { m_hover = false; m_pressed = false; Refresh(); e.Skip(); });
-    Bind(wxEVT_LEFT_DOWN, [this](wxMouseEvent& e) { m_pressed = true; Refresh(); e.Skip(); });
+    Bind(wxEVT_LEFT_DOWN, [this](wxMouseEvent& e) { SetFocus(); m_pressed = true; Refresh(); e.Skip(); });
     Bind(wxEVT_LEFT_UP, [this](wxMouseEvent& e) { 
         if(m_pressed) {
             wxCommandEvent evt(wxEVT_BUTTON, GetId());
@@ -131,6 +131,7 @@ ThemedCheckBox::ThemedCheckBox(wxWindow* parent, wxWindowID id, const wxString& 
     Bind(wxEVT_PAINT, &ThemedCheckBox::OnPaint, this);
     Bind(wxEVT_ERASE_BACKGROUND, [](wxEraseEvent&) { });
     Bind(wxEVT_LEFT_DOWN, [this](wxMouseEvent& e) { 
+        SetFocus();
         m_checked = !m_checked; 
         
         wxCommandEvent evt(wxEVT_CHECKBOX, GetId());
@@ -205,7 +206,10 @@ ThemedSelect::ThemedSelect(wxWindow* parent, wxWindowID id, const wxArrayString&
     // Don't auto-select first item if it might be empty or valid to not select? 
     // wxChoice usually starts with -1 (no selection) unless SetSelection is called.
     // But for dropdown, we usually want checking.
-    if (!options.IsEmpty()) m_current = options[0];
+    if (!options.IsEmpty()) {
+        m_current = options[0];
+        m_selection = 0;
+    }
     
     SetBackgroundStyle(wxBG_STYLE_PAINT);
     Bind(wxEVT_PAINT, &ThemedSelect::OnPaint, this);
@@ -217,22 +221,20 @@ ThemedSelect::ThemedSelect(wxWindow* parent, wxWindowID id, const wxArrayString&
 
 void ThemedSelect::SetValue(const wxString& val) {
     m_current = val;
+    m_selection = FindString(val);
     Refresh();
 }
 
 int ThemedSelect::GetSelection() const {
-    if (m_options.IsEmpty()) return wxNOT_FOUND;
-    for (size_t i = 0; i < m_options.size(); ++i) {
-        if (m_options[i] == m_current) return (int)i;
-    }
-    return wxNOT_FOUND;
+    return m_selection;
 }
 
 void ThemedSelect::SetSelection(int n) {
-    if (n == wxNOT_FOUND) {
+    m_selection = n;
+    if (m_selection == wxNOT_FOUND) {
         m_current = "";
-    } else if (n >= 0 && n < (int)m_options.size()) {
-        m_current = m_options[n];
+    } else if (m_selection >= 0 && m_selection < (int)m_options.size()) {
+        m_current = m_options[m_selection];
     }
     Refresh();
 }
@@ -241,6 +243,8 @@ void ThemedSelect::Clear() {
     m_options.Clear();
     m_icons.clear();
     m_current = "";
+    m_selection = -1;
+    m_popupOpen = false;
     Refresh();
 }
 
@@ -250,8 +254,9 @@ void ThemedSelect::Append(const wxString& item, const wxBitmapBundle& icon) {
     while (m_icons.size() < m_options.size() - 1) m_icons.push_back(wxBitmapBundle());
     m_icons.push_back(icon);
     
-    if (m_options.GetCount() == 1 && m_current.IsEmpty()) {
+    if (m_options.GetCount() == 1 && m_selection == -1) {
         m_current = item; // Auto-select first if previously empty?
+        m_selection = 0;
     }
     Refresh();
 }
@@ -285,7 +290,7 @@ void ThemedSelect::SetString(int n, const wxString& s) {
             // If the renamed item WAS selected, we should probably update m_current to the new string so it stays valid.
         }
         // Actually, logic: check if index n is the currently selected index.
-        if (GetSelection() == n) {
+        if (m_selection == n) {
              m_current = s;
         }
         Refresh();
@@ -428,6 +433,15 @@ private:
     void OnMouseClick(wxMouseEvent& evt) {
         if (m_hoverIndex != -1) {
             m_selection = m_hoverIndex;
+            
+            // Update parent state immediately so GetSelection() works in event handlers
+            if (auto* parent = dynamic_cast<ThemedSelect*>(GetParent())) {
+                parent->m_selection = m_selection;
+                parent->m_current = m_options[m_selection];
+                parent->m_popupOpen = false; // Reset immediately to prevent stuck state
+                parent->Refresh();
+            }
+
             Dismiss();
             
             // Trigger parent event
@@ -450,17 +464,24 @@ private:
 
 
 void ThemedSelect::OpenPopup(wxMouseEvent&) {
-    if (m_options.IsEmpty()) return;
+    if (m_options.IsEmpty() || m_popupOpen) return;
 
+    SetFocus();
     m_popupOpen = true;
     Refresh();
 
     ThemedSelectPopup* popup = new ThemedSelectPopup(this, m_options, m_icons, m_current, [this](int sel) {
         if (sel != wxNOT_FOUND) {
+            m_selection = sel;
             m_current = m_options[sel];
         }
-        m_popupOpen = false;
-        Refresh();
+        
+        // Use CallAfter to delay resetting m_popupOpen flag.
+        // This prevents the click that dismissed the popup from immediately re-opening it.
+        wxTheApp->CallAfter([this]() {
+            m_popupOpen = false;
+            Refresh();
+        });
     });
     
     // Position directly below the control
@@ -584,7 +605,7 @@ ThemedTextInput::ThemedTextInput(wxWindow* parent, wxWindowID id, const wxString
     
     auto theme = ThemeManager::GetColors();
     m_textCtrl->SetBackgroundColour(theme.surface);
-    m_textCtrl->SetForegroundColour(theme.text);
+    m_textCtrl->SetForegroundColour(*wxWHITE);
     
     Bind(wxEVT_PAINT, &ThemedTextInput::OnPaint, this);
     Bind(wxEVT_ERASE_BACKGROUND, [](wxEraseEvent&) { });
@@ -613,6 +634,14 @@ void ThemedTextInput::OnSize(wxSizeEvent& evt) {
     // Horizontal padding (left/right)
     int padX = 8 * scale;
     
+    // Calculate suffix width if present
+    int suffixWidth = 0;
+    if (!m_suffix.IsEmpty()) {
+        wxWindowDC dc(this);
+        dc.SetFont(ThemeManager::GetFont(ThemeManager::FontSize::Tiny));
+        suffixWidth = dc.GetTextExtent(m_suffix).x + (8 * scale); // text + gap
+    }
+
     // Calculate best height for text control to center it vertically
     wxSize bestSz = m_textCtrl->GetBestSize();
     int targetH = bestSz.y;
@@ -621,8 +650,8 @@ void ThemedTextInput::OnSize(wxSizeEvent& evt) {
     if (yPos < 0) yPos = 0;
     
     // Resize inner control
-    // Width is full width minus padding on both sides
-    int targetW = size.x - (2 * padX);
+    // Width is full width minus padding on both sides and suffix
+    int targetW = size.x - (2 * padX) - suffixWidth;
     if (targetW < 0) targetW = 0;
     
     m_textCtrl->SetSize(padX, yPos, targetW, targetH);
@@ -636,7 +665,7 @@ void ThemedTextInput::OnPaint(wxPaintEvent&) {
     dc.SetBackground(wxBrush(theme.bg));
     dc.Clear();
     
-    wxGraphicsContext* gc = wxGraphicsContext::Create(dc);
+    std::unique_ptr<wxGraphicsContext> gc(wxGraphicsContext::Create(dc));
     if (gc) {
         double scale = GetContentScaleFactor();
         
@@ -650,10 +679,18 @@ void ThemedTextInput::OnPaint(wxPaintEvent&) {
         gc->SetPen(wxPen(borderColor, 1));
         
         // Draw background and border
-        // We draw full size
         gc->DrawRoundedRectangle(0, 0, GetSize().x, GetSize().y, 3 * scale);
         
-        delete gc;
+        // Draw Suffix
+        if (!m_suffix.IsEmpty()) {
+            gc->SetFont(ThemeManager::GetFont(ThemeManager::FontSize::Tiny), theme.textMuted);
+            double sw, sh;
+            gc->GetTextExtent(m_suffix, &sw, &sh);
+            
+            double sx = GetSize().x - (8 * scale) - sw;
+            double sy = (GetSize().y - sh) / 2.0;
+            gc->DrawText(m_suffix, sx, sy);
+        }
     }
 }
 
@@ -663,7 +700,7 @@ wxSize ThemedTextInput::DoGetBestSize() const {
     
     // Add padding to inner best size
     // 16px horizontal padding total (8+8), 10px vertical (5+5)
-    return wxSize(150 * scale, innerBest.y + (10 * scale));
+    return wxSize(200 * scale, innerBest.y + (10 * scale));
 }
 
 
@@ -679,7 +716,7 @@ ThemedTextArea::ThemedTextArea(wxWindow* parent, wxWindowID id, const wxString& 
     
     auto theme = ThemeManager::GetColors();
     m_textCtrl->SetBackgroundColour(theme.surface);
-    m_textCtrl->SetForegroundColour(theme.text);
+    m_textCtrl->SetForegroundColour(*wxWHITE);
     
     Bind(wxEVT_PAINT, &ThemedTextArea::OnPaint, this);
     Bind(wxEVT_ERASE_BACKGROUND, [](wxEraseEvent&) { });
@@ -752,12 +789,13 @@ ThemedNumberInput::ThemedNumberInput(wxWindow* parent, wxWindowID id, double val
 
     auto theme = ThemeManager::GetColors();
     m_textCtrl->SetBackgroundColour(theme.surface);
-    m_textCtrl->SetForegroundColour(theme.text);
+    m_textCtrl->SetForegroundColour(*wxWHITE);
 
     Bind(wxEVT_PAINT, &ThemedNumberInput::OnPaint, this);
     Bind(wxEVT_ERASE_BACKGROUND, [](wxEraseEvent&) { });
     Bind(wxEVT_SIZE, &ThemedNumberInput::OnSize, this);
     Bind(wxEVT_LEFT_DOWN, &ThemedNumberInput::OnLeftDown, this);
+    Bind(wxEVT_LEFT_DCLICK, &ThemedNumberInput::OnLeftDown, this);
     Bind(wxEVT_LEFT_UP, &ThemedNumberInput::OnLeftUp, this);
     Bind(wxEVT_LEAVE_WINDOW, &ThemedNumberInput::OnMouseLeave, this);
     
@@ -804,7 +842,12 @@ void ThemedNumberInput::SetIncrement(double inc) {
 }
 
 void ThemedNumberInput::UpdateText() {
-    m_textCtrl->ChangeValue(wxString::Format("%.2f", m_value));
+    wxString s = wxString::Format("%.4f", m_value);
+    if (s.Contains(".")) {
+        while (s.EndsWith("0")) s.RemoveLast();
+        if (s.EndsWith(".")) s.RemoveLast();
+    }
+    m_textCtrl->ChangeValue(s);
 }
 
 void ThemedNumberInput::OnTextEnter(wxCommandEvent& evt) {
@@ -829,12 +872,20 @@ void ThemedNumberInput::OnSize(wxSizeEvent& evt) {
     int btnWidth = 24 * scale;
     int padX = 8 * scale;
     
+    // Calculate suffix width if present
+    int suffixWidth = 0;
+    if (!m_suffix.IsEmpty()) {
+        wxWindowDC dc(this);
+        dc.SetFont(ThemeManager::GetFont(ThemeManager::FontSize::Tiny));
+        suffixWidth = dc.GetTextExtent(m_suffix).x + (8 * scale);
+    }
+
     wxSize bestSz = m_textCtrl->GetBestSize();
     int targetH = bestSz.y;
     int yPos = (size.y - targetH) / 2;
     if (yPos < 0) yPos = 0;
     
-    int textW = size.x - btnWidth - padX - (1 * scale); // Reserve space for buttons + divider
+    int textW = size.x - btnWidth - padX - suffixWidth - (1 * scale); // Reserve space for buttons + suffix + divider
     if (textW < 0) textW = 0;
     
     m_textCtrl->SetSize(padX, yPos, textW, targetH);
@@ -859,10 +910,10 @@ void ThemedNumberInput::OnLeftDown(wxMouseEvent& evt) {
         SetValue(m_value - m_inc);
         FireChangeEvent();
         Refresh();
-    } else {
-        // Focus text if clicked elsewhere (outside inner control but on panel)
-        m_textCtrl->SetFocus();
     }
+    
+    // In any case, make sure this control (or its inner text) has focus
+    m_textCtrl->SetFocus();
 }
 
 void ThemedNumberInput::OnLeftUp(wxMouseEvent& evt) {
@@ -914,21 +965,47 @@ void ThemedNumberInput::OnPaint(wxPaintEvent&) {
             gc->DrawRectangle(m_downRect.GetX(), m_downRect.GetY(), m_downRect.GetWidth(), m_downRect.GetHeight());
         }
 
-        // Draw Arrows
-        wxSize iconSz(8, 8);
-        wxBitmapBundle upIcon = ThemeManager::GetSVG("arrow_up", iconSz, theme.text);
-        wxBitmapBundle downIcon = ThemeManager::GetSVG("arrow_down", iconSz, theme.text);
-        
-        if (upIcon.IsOk()) {
-             wxBitmap bmp = upIcon.GetBitmapFor(this);
-             gc->DrawBitmap(bmp, m_upRect.GetX() + (m_upRect.GetWidth() - bmp.GetWidth()) / 2.0, 
-                           m_upRect.GetY() + (m_upRect.GetHeight() - bmp.GetHeight()) / 2.0, bmp.GetWidth(), bmp.GetHeight());
+        // Draw Arrows (Flat Triangles)
+        gc->SetBrush(wxBrush(theme.text));
+        gc->SetPen(*wxTRANSPARENT_PEN);
+
+        double triW = 7.0 * scale;
+        double triH = 4.0 * scale;
+
+        // Up arrow
+        {
+            double cx = m_upRect.GetX() + m_upRect.GetWidth() / 2.0;
+            double cy = m_upRect.GetY() + m_upRect.GetHeight() / 2.0;
+            wxGraphicsPath path = gc->CreatePath();
+            path.MoveToPoint(cx - triW / 2.0, cy + triH / 2.0);
+            path.AddLineToPoint(cx + triW / 2.0, cy + triH / 2.0);
+            path.AddLineToPoint(cx, cy - triH / 2.0);
+            path.CloseSubpath();
+            gc->FillPath(path);
         }
-        
-        if (downIcon.IsOk()) {
-             wxBitmap bmp = downIcon.GetBitmapFor(this);
-             gc->DrawBitmap(bmp, m_downRect.GetX() + (m_downRect.GetWidth() - bmp.GetWidth()) / 2.0, 
-                           m_downRect.GetY() + (m_downRect.GetHeight() - bmp.GetHeight()) / 2.0, bmp.GetWidth(), bmp.GetHeight());
+
+        // Down arrow
+        {
+            double cx = m_downRect.GetX() + m_downRect.GetWidth() / 2.0;
+            double cy = m_downRect.GetY() + m_downRect.GetHeight() / 2.0;
+            wxGraphicsPath path = gc->CreatePath();
+            path.MoveToPoint(cx - triW / 2.0, cy - triH / 2.0);
+            path.AddLineToPoint(cx + triW / 2.0, cy - triH / 2.0);
+            path.AddLineToPoint(cx, cy + triH / 2.0);
+            path.CloseSubpath();
+            gc->FillPath(path);
+        }
+
+        // Draw Suffix
+        if (!m_suffix.IsEmpty()) {
+            gc->SetFont(ThemeManager::GetFont(ThemeManager::FontSize::Tiny), theme.textMuted);
+            double sw, sh;
+            gc->GetTextExtent(m_suffix, &sw, &sh);
+            
+            // Position to the left of the divider
+            double sx = m_upRect.GetX() - (4 * scale) - sw;
+            double sy = (GetSize().y - sh) / 2.0;
+            gc->DrawText(m_suffix, sx, sy);
         }
     }
 }
@@ -937,13 +1014,19 @@ wxSize ThemedNumberInput::DoGetBestSize() const {
     double scale = GetContentScaleFactor();
     wxSize inner = m_textCtrl->GetBestSize();
     // Text width + Button width + padding
-    return wxSize(120 * scale, inner.y + (10 * scale));
+    return wxSize(140 * scale, inner.y + (10 * scale));
 }
 
 void ThemedNumberInput::FireChangeEvent() {
     wxCommandEvent event(wxEVT_TEXT, GetId());
     event.SetEventObject(this);
-    event.SetString(wxString::Format("%.2f", m_value));
+    
+    wxString s = wxString::Format("%.4f", m_value);
+    if (s.Contains(".")) {
+        while (s.EndsWith("0")) s.RemoveLast();
+        if (s.EndsWith(".")) s.RemoveLast();
+    }
+    event.SetString(s);
     GetEventHandler()->ProcessEvent(event);
 }
 
@@ -972,6 +1055,7 @@ ThemedSection::ThemedSection(wxWindow* parent, const wxString& title, const wxSt
     
     Bind(wxEVT_PAINT, &ThemedSection::OnPaint, this);
     Bind(wxEVT_SIZE, &ThemedSection::OnSize, this);
+    Bind(wxEVT_LEFT_DOWN, [this](wxMouseEvent& e) { this->wxWindow::SetFocus(); e.Skip(); });
     Bind(wxEVT_ERASE_BACKGROUND, [](wxEraseEvent&) { });
 }
 
@@ -1070,6 +1154,7 @@ ThemedPanel::ThemedPanel(wxWindow* parent, wxWindowID id, const wxPoint& pos, co
     SetBackgroundColour(ThemeManager::GetColors().bg);
     
     Bind(wxEVT_PAINT, &ThemedPanel::OnPaint, this);
+    Bind(wxEVT_LEFT_DOWN, [this](wxMouseEvent& e) { this->wxWindow::SetFocus(); e.Skip(); });
     Bind(wxEVT_ERASE_BACKGROUND, [](wxEraseEvent&) { });
 }
 

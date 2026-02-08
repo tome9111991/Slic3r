@@ -1712,13 +1712,13 @@ PrintConfigDef::PrintConfigDef()
     def->default_value = new ConfigOptionBool(false);
 
     def = this->add("use_set_and_wait_extruder", coBool);
-    def->label = __TRANS("Use Set-and-Wait GCode (Extruder)");
+    def->label = __TRANS("Use Set-and-Wait GCode for Extruder");
     def->tooltip = __TRANS("If your firmware supports a set and wait gcode for temperature changes, use it for automatically inserted temperature gcode for all extruders. Does not affect custom gcode.");
     def->cli = "use-set-and-wait-extruder!";
     def->default_value = new ConfigOptionBool(false);
 
     def = this->add("use_set_and_wait_bed", coBool);
-    def->label = __TRANS("Use Set-and-Wait GCode (Bed)");
+    def->label = __TRANS("Use Set-and-Wait GCode for Bed");
     def->tooltip = __TRANS("If your firmware supports a set and wait gcode for temperature changes, use it for automatically inserted temperature gcode for the heatbed. Does not affect custom gcode.");
     def->cli = "use-set-and-wait-heatbed!";
     def->default_value = new ConfigOptionBool(false);

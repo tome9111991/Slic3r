@@ -23,6 +23,7 @@
 namespace Slic3r { namespace GUI {
 
 bool ThemeManager::m_isDark = true;
+wxString ThemeManager::m_fontFace = "";
 std::map<ThemeManager::CacheKey, wxBitmapBundle> ThemeManager::m_iconCache;
 
 void ThemeManager::SetDarkMode(bool dark) {
@@ -242,22 +243,33 @@ wxBitmapBundle ThemeManager::GetSVG(const wxString& iconName, const wxSize& size
 }
 
 wxFont ThemeManager::GetFont(FontSize size, FontWeight weight) {
-    wxFont font = wxSystemSettings::GetFont(wxSYS_DEFAULT_GUI_FONT);
+    wxFont font;
+    
+    int pointSize = 9;
+    #ifdef __WXOSX__
+    pointSize = 11;
+    #endif
 
     // Size adjustments
     switch (size) {
+        case FontSize::Tiny:
+            pointSize = 7;
+            break;
         case FontSize::Small:
-            // Standard UI size
-            #ifdef __WXOSX__
-            font.SetPointSize(11);
-            #endif
             break;
         case FontSize::Medium:
-            font.SetPointSize(12);
+            pointSize = 12;
             break;
         case FontSize::Large:
-            font.SetPointSize(14);
+            pointSize = 14;
             break;
+    }
+
+    if (!m_fontFace.IsEmpty()) {
+        font = wxFont(wxFontInfo(pointSize).FaceName(m_fontFace));
+    } else {
+        font = wxSystemSettings::GetFont(wxSYS_DEFAULT_GUI_FONT);
+        font.SetPointSize(pointSize);
     }
 
     // Weight adjustments
@@ -266,6 +278,57 @@ wxFont ThemeManager::GetFont(FontSize size, FontWeight weight) {
     }
 
     return font;
+}
+
+void ThemeManager::InitFonts() {
+    // Determine resource path
+    wxString exePath = wxStandardPaths::Get().GetExecutablePath();
+    wxFileName fname(exePath);
+    wxString appDir = fname.GetPath();
+
+    wxString resourceBase;
+#ifdef __WXOSX__
+    resourceBase = appDir + "/../Resources/fonts/";
+#else
+    resourceBase = appDir + "/resources/fonts/";
+#endif
+
+    if (!wxDirExists(resourceBase)) resourceBase = appDir + "/../resources/fonts/";
+    if (!wxDirExists(resourceBase)) resourceBase = "resources/fonts/"; 
+
+    wxString mainFont = resourceBase + "NotoSans-Regular.ttf";
+    
+    if (wxFileExists(mainFont)) {
+        bool loaded = false;
+        
+        // 1. Try wxWidgets way (if compile-time enabled)
+#if defined(wxUSE_PRIVATE_FONTS) && wxUSE_PRIVATE_FONTS
+        if (wxFont::AddPrivateFont(mainFont)) {
+            m_fontFace = "Noto Sans";
+            loaded = true;
+        }
+#endif
+
+        // 2. Windows Fallback (Native)
+#ifdef _WIN32
+        if (!loaded) {
+            if (AddFontResourceExW(mainFont.wc_str(), FR_PRIVATE, 0) != 0) {
+                m_fontFace = "Noto Sans";
+                loaded = true;
+            }
+        }
+#endif
+    }
+    
+    // Load CJK Support
+    wxString cjkFont = resourceBase + "NotoSansCJK-Regular.ttc";
+    if (wxFileExists(cjkFont)) {
+#if defined(wxUSE_PRIVATE_FONTS) && wxUSE_PRIVATE_FONTS
+        wxFont::AddPrivateFont(cjkFont);
+#elif defined(_WIN32)
+        AddFontResourceExW(cjkFont.wc_str(), FR_PRIVATE, 0);
+#endif
+    }
 }
 
 }} // namespace Slic3r::GUI

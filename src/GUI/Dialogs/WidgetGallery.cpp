@@ -19,6 +19,7 @@ WidgetGallery::WidgetGallery(wxWindow* parent)
          dc.SetBackground(wxBrush(ThemeManager::GetColors().bg));
          dc.Clear();
     });
+    Bind(wxEVT_LEFT_DOWN, [this](wxMouseEvent& e) { this->wxWindow::SetFocus(); e.Skip(); });
 }
 
 void WidgetGallery::InitGui()

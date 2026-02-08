@@ -84,6 +84,7 @@ public:
     std::function<void(const std::string&, bool)> on_quick_setting_change {nullptr};
 
     void set_quick_setting_status(const std::string& opt_key, bool active);
+    void set_dirty_status(const std::string& opt_key, bool is_dirty);
 
 protected:
     wxWindow* parent;
@@ -92,6 +93,8 @@ protected:
     
     // UI Elements storage
     std::map<t_config_option_key, wxStaticText*> _labels;
+    std::map<wxStaticText*, std::vector<std::string>> _label_to_keys;
+    std::map<t_config_option_key, bool> _dirty_states;
     std::map<t_config_option_key, wxStaticText*> _units;
     // We use a simple bitmap button or static bitmap for the star
     std::map<t_config_option_key, wxWindow*> _quick_toggles; 

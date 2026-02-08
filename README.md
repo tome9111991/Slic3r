@@ -24,8 +24,8 @@ The user interface is being rebuilt from scratch using **wxWidgets** and **ImGui
 ## 🛠 Tech Stack
 *   **Language:** C++23
 *   **Build System:** CMake + Ninja / Visual Studio 2022
-*   **Dependency Management:** `vcpkg` (Boost, wxWidgets, OpenSSL, etc.)
-*   **GUI Library:** wxWidgets 3.2+ (Core UI) + ImGui (3D Overlays)
+*   **Dependency Management:** `vcpkg` (Boost, wxWidgets, etc.)
+*   **GUI Library:** wxWidgets 3.3.1 (Core UI) + ImGui (3D Overlays)
 *   **Rendering:** Modern OpenGL 4.6 (Glad + GLM)
 
 ## 📂 Directory Structure

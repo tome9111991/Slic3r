@@ -21,6 +21,9 @@
 #include <memory>
 #include "ImGuiWrapper.hpp"
 
+#include <glm/glm.hpp>
+#include <glm/gtc/type_ptr.hpp>
+
 namespace Slic3r { namespace GUI {
 
 enum class Direction { Top, Bottom, Left, Right, Front, Back, Diagonal };
@@ -30,6 +33,12 @@ struct Volume {
     Pointf3 origin;
     GLVertexArray model; // CPU Data
     BoundingBoxf3 bb;
+    
+    // OBB Support
+    bool is_obb = false;
+    glm::mat4 instance_transformation = glm::mat4(1.0f);
+    BoundingBoxf3 raw_bbox;
+
     std::vector<float> tube_coords;
     bool selected = false;
 
@@ -67,6 +76,7 @@ private:
 protected:
     GL::Camera m_camera;
     bool dragging = false;
+    bool m_prevent_camera_movement = false;
     Point drag_start = Point(0,0);
 
     
