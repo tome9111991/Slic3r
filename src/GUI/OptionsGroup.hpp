@@ -60,6 +60,9 @@ public:
     // Add a single option as a line
     void append_single_option_line(const t_config_option_key& opt_key);
     
+    // Add an option with reference to config (convenience wrapper)
+    void append_option(const t_config_option_key& opt_key, const ConfigBase& config);
+    
     // Add a constructed line
     void append_line(const Line& line);
     
@@ -85,6 +88,12 @@ public:
 
     void set_quick_setting_status(const std::string& opt_key, bool active);
     void set_dirty_status(const std::string& opt_key, bool is_dirty);
+
+    // Clear all options and reset the group
+    void clear();
+
+    wxWindow* gl_parent() { return parent; }
+    wxBoxSizer* sizer_ptr() { return sizer; }
 
 protected:
     wxWindow* parent;

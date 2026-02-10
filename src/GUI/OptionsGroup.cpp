@@ -15,12 +15,30 @@ namespace Slic3r { namespace GUI {
 Option OptionsGroup::get_option(const t_config_option_key& opt_key) {
     if (print_config_def.has(opt_key)) {
         const ConfigOptionDef& def = print_config_def.get(opt_key);
+        // FIXME: Option constructor mismatch in original code? 
+        // We need to construct Option with id, type, default_value
+        // If Option has constructor(id, type, default_value)
         return Option(opt_key, def.type, *def.default_value);
     }
     ConfigOptionDef def;
     def.label = opt_key;
     ConfigOptionString dummy(""); 
     return Option(opt_key, coString, dummy);
+}
+
+void OptionsGroup::append_option(const t_config_option_key& opt_key, const ConfigBase& config) {
+    // Check if key exists in config defs
+    if (!print_config_def.has(opt_key)) return;
+    
+    // In our simplified model, append_single_option_line does the heavy lifting of UI creation
+    // However, it relies on _options map being populated if we want custom behavior,
+    // or it looks up print_config_def directly.
+    
+    // We can just call append_single_option_line directly if we are okay with default behavior
+    this->append_single_option_line(opt_key);
+    
+    // If we wanted to store a copy of the option definition first:
+    // _options[opt_key] = std::make_unique<Option>(get_option(opt_key));
 }
 
 void OptionsGroup::append_single_option_line(const t_config_option_key& opt_key) {
@@ -427,6 +445,27 @@ void OptionsGroup::set_sizer(wxBoxSizer* s) {
     
     if (this->sizer)
         this->sizer->Add(grid_sizer, 0, wxEXPAND | wxALL, 5);
+}
+
+void OptionsGroup::clear() {
+    // Clear UI Elements
+    if (grid_sizer) {
+        grid_sizer->Clear(true); // Delete windows managed by sizer
+    }
+    
+    _fields.clear();
+    _options.clear();
+    _labels.clear();
+    _label_to_keys.clear();
+    _dirty_states.clear();
+    _units.clear();
+    _quick_toggles.clear();
+    
+    m_row_count = 0;
+    
+    // We should probably recreate grid_sizer to be clean, 
+    // but wxGridBagSizer::Clear/Layout should be enough if we just re-add.
+    if (this->sizer) this->sizer->Layout();
 }
 
 }} // namespace Slic3r::GUI
