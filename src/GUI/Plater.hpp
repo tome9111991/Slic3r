@@ -34,6 +34,7 @@
 #include "MainFrame.hpp"
 #include "Widgets/ThemedMenu.hpp"
 #include "Widgets/ThemedControls.hpp"
+#include "Widgets/ThemedTabbedPanel.hpp"
 
 namespace Slic3r { namespace GUI {
 
@@ -172,9 +173,14 @@ private:
 
     wxBoxSizer* shortcut_sizer {nullptr};
     ThemedPanel* sidebar_content {nullptr};
-    ThemedSection* quick_settings_section {nullptr};
+    
+    // Quick Settings
+    ThemedTabbedPanel* quick_settings_panel {nullptr};
+    OptionsGroup* quick_settings_printer {nullptr};
+    OptionsGroup* quick_settings_filament {nullptr};
+    OptionsGroup* quick_settings_print {nullptr};
+
     ThemedSection* object_info_section {nullptr};
-    wxStaticText* quick_settings_label {nullptr};
 
     /// Handles the actual load of the file from the dialog handoff.
     std::vector<int> load_file(const std::string file, const int obj_idx_to_load = -1);

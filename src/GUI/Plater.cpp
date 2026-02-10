@@ -28,6 +28,7 @@
 #include "Dialogs/ObjectCutDialog.hpp"
 #include "Dialogs/ObjectSettingsDialog.hpp"
 #include "Dialogs/PresetEditor.hpp"
+#include "Widgets/ThemedTabbedPanel.hpp"
 #include "OptionsGroup.hpp"
 
 
@@ -229,19 +230,13 @@ Plater::Plater(wxWindow* parent, const wxString& title) :
     this->selection_changed();
 
 
-    // Quick Settings placeholder
+    // Quick Settings using ThemedTabbedPanel
     {
-        this->quick_settings_section = new ThemedSection(this->sidebar_content, _("Quick Settings"), "pinned");
-        this->shortcut_sizer = this->quick_settings_section->GetContentSizer();
-        // this->shortcut_sizer->SetMinSize(wxSize(350, 60)); // Set on section or sizer?
-        this->quick_settings_section->SetMinSize(wxSize(350, -1));
-        
-        this->quick_settings_label = new wxStaticText(this->quick_settings_section, wxID_ANY, _("Pinned settings will appear here..."), wxDefaultPosition, wxDefaultSize, wxALIGN_CENTER_HORIZONTAL);
-        this->quick_settings_label->SetFont(ui_settings->small_font());
-        if (ThemeManager::IsDark()) this->quick_settings_label->SetForegroundColour(*wxWHITE);
-        this->shortcut_sizer->Add(this->quick_settings_label, 1, wxEXPAND | wxTOP | wxBOTTOM, 15);
+        this->quick_settings_panel = new ThemedTabbedPanel(this->sidebar_content, wxID_ANY);
+        this->quick_settings_panel->SetMinSize(wxSize(350, 200)); 
     }
-
+    
+    // Explicitly call update_quick_settings to populate the newly created OptionGroups
     this->update_quick_settings();
 
 
@@ -252,7 +247,7 @@ Plater::Plater(wxWindow* parent, const wxString& title) :
     left_sizer->Add(this->_presets, 0, wxEXPAND | wxTOP, 10);
     this->_presets->Show();
 
-    left_sizer->Add(this->quick_settings_section, 0, wxEXPAND | wxTOP, 5);
+    left_sizer->Add(this->quick_settings_panel, 0, wxEXPAND | wxTOP, 5);
 
 //    $right_sizer->Add($self->{settings_override_panel}, 1, wxEXPAND, 5);
     left_sizer->Add(this->object_info_section, 0, wxEXPAND | wxTOP, 15);
@@ -305,10 +300,7 @@ void Plater::update_ui_from_settings() {
         this->_presets->UpdateTheme();
     }
 
-    if (this->quick_settings_label) {
-        if (ThemeManager::IsDark()) this->quick_settings_label->SetForegroundColour(*wxWHITE);
-        else this->quick_settings_label->SetForegroundColour(*wxBLACK);
-    }
+
     
     this->update_quick_settings();
 
@@ -1588,54 +1580,101 @@ void Plater::slice() {
 }
 
 void Plater::update_quick_settings() {
-    if (!this->shortcut_sizer) return;
-    
-    // Clear sizer
-    this->shortcut_sizer->Clear(true);
-    
-    if (this->quick_options_group) {
-        delete this->quick_options_group;
-        this->quick_options_group = nullptr;
-    }
-    this->quick_settings_label = nullptr;
+    if (!this->config) return;
 
-    if (ui_settings->quick_settings.empty()) {
-        this->quick_settings_section->SetMinSize(wxSize(350, -1));
-        
-        this->quick_settings_label = new wxStaticText(this->quick_settings_section, wxID_ANY, _("Pinned settings will appear here..."), wxDefaultPosition, wxDefaultSize, wxALIGN_CENTER_HORIZONTAL);
-        this->quick_settings_label->SetFont(ui_settings->small_font());
-        if (ThemeManager::IsDark()) this->quick_settings_label->SetForegroundColour(*wxWHITE);
-        else this->quick_settings_label->SetForegroundColour(*wxBLACK);
-        this->shortcut_sizer->Add(this->quick_settings_label, 1, wxEXPAND | wxTOP | wxBOTTOM, 15);
-    } else {
-        this->quick_options_group = new OptionsGroup(this->quick_settings_section);
-        this->quick_options_group->show_quick_setting_toggles = false;
-        this->quick_options_group->set_sizer(this->shortcut_sizer);
-        
-        for (const auto& key : ui_settings->quick_settings) {
-            this->quick_options_group->append_single_option_line(key);
+    // 1. Cleanup existing OptionsGroups
+    if (this->quick_settings_printer) { delete this->quick_settings_printer; this->quick_settings_printer = nullptr; }
+    if (this->quick_settings_filament) { delete this->quick_settings_filament; this->quick_settings_filament = nullptr; }
+    if (this->quick_settings_print) { delete this->quick_settings_print; this->quick_settings_print = nullptr; }
+
+    // 2. Clear Tabs
+    if (this->quick_settings_panel) {
+        this->quick_settings_panel->Clear();
+    }
+
+    // 3. Define Keys
+    const std::vector<std::string> printer_keys = {
+        "z_offset", "extruders_count", "has_heatbed", "serial_port", "serial_speed", "host_type", "print_host", "octoprint_apikey",
+        "gcode_flavor", "use_relative_e_distances", "use_firmware_retraction", "use_volumetric_e", "pressure_advance", "vibration_limit",
+        "z_steps_per_mm", "use_set_and_wait_extruder", "use_set_and_wait_bed", "fan_percentage", "start_gcode", "end_gcode",
+        "before_layer_gcode", "layer_gcode", "toolchange_gcode", "between_objects_gcode", "nozzle_diameter", "min_layer_height",
+        "max_layer_height", "extruder_offset", "retract_length", "retract_lift", "retract_lift_above", "retract_lift_below",
+        "retract_speed", "retract_restart_extra", "retract_before_travel", "retract_layer_change", "wipe", "retract_length_toolchange",
+        "retract_restart_extra_toolchange", "printer_notes", "bed_shape"
+    };
+
+    const std::vector<std::string> filament_keys = {
+        "filament_colour", "filament_diameter", "extrusion_multiplier", "first_layer_temperature", "temperature",
+        "first_layer_bed_temperature", "bed_temperature", "filament_density", "filament_cost", "fan_always_on", "cooling",
+        "min_fan_speed", "max_fan_speed", "bridge_fan_speed", "disable_fan_first_layers", "fan_below_layer_time",
+        "slowdown_below_layer_time", "min_print_speed", "start_filament_gcode", "end_filament_gcode", "filament_notes",
+        "filament_max_volumetric_speed"
+    };
+
+    const std::vector<std::string> print_keys = {
+        "layer_height", "first_layer_height", "adaptive_slicing", "adaptive_slicing_quality", "match_horizontal_surfaces",
+        "perimeters", "min_shell_thickness", "spiral_vase", "top_solid_layers", "bottom_solid_layers", "min_top_bottom_shell_thickness",
+        "extra_perimeters", "avoid_crossing_perimeters", "thin_walls", "overhangs", "seam_position", "external_perimeters_first",
+        "fill_density", "fill_pattern", "top_infill_pattern", "bottom_infill_pattern", "infill_every_layers", "infill_only_where_needed",
+        "fill_gaps", "solid_infill_every_layers", "fill_angle", "solid_infill_below_area", "only_retract_when_crossing_perimeters",
+        "infill_first", "skirts", "skirt_distance", "skirt_height", "min_skirt_length", "brim_width", "brim_ears", "brim_ears_max_angle",
+        "interior_brim_width", "brim_connections_width", "support_material", "support_material_threshold", "support_material_max_layers",
+        "support_material_enforce_layers", "raft_layers", "support_material_contact_distance", "support_material_pattern",
+        "support_material_spacing", "support_material_angle", "support_material_pillar_size", "support_material_pillar_spacing",
+        "support_material_interface_layers", "support_material_interface_spacing", "support_material_buildplate_only", "dont_support_bridges",
+        "perimeter_speed", "small_perimeter_speed", "external_perimeter_speed", "infill_speed", "solid_infill_speed", "top_solid_infill_speed",
+        "gap_fill_speed", "bridge_speed", "support_material_speed", "support_material_interface_speed", "travel_speed", "first_layer_speed",
+        "perimeter_acceleration", "infill_acceleration", "bridge_acceleration", "first_layer_acceleration", "default_acceleration",
+        "max_print_speed", "max_volumetric_speed", "perimeter_extruder", "infill_extruder", "solid_infill_extruder", "support_material_extruder",
+        "support_material_interface_extruder", "ooze_prevention", "standby_temperature_delta", "regions_overlap", "interface_shells",
+        "extrusion_width", "first_layer_extrusion_width", "perimeter_extrusion_width", "external_perimeter_extrusion_width",
+        "infill_extrusion_width", "solid_infill_extrusion_width", "top_infill_extrusion_width", "support_material_interface_extrusion_width",
+        "support_material_extrusion_width", "infill_overlap", "bridge_flow_ratio", "xy_size_compensation", "resolution", "complete_objects",
+        "extruder_clearance_radius", "extruder_clearance_height", "gcode_comments", "label_printed_objects", "output_filename_format",
+        "post_process", "notes"
+    };
+
+    // 4. Helper to build filtered list and create tab
+    auto process_tab = [&](const wxString& title, const wxString& icon_name, OptionsGroup*& group_ptr, const std::vector<std::string>& all_keys) {
+        std::vector<std::string> valid_keys;
+        for (const auto& key : all_keys) {
+            if (ui_settings->is_quick_setting(key) && this->config->has(key)) {
+                valid_keys.push_back(key);
+            }
         }
         
-        this->quick_options_group->on_change = [this](const std::string& key, boost::any value) {
-             try {
-                if (value.type() == typeid(bool)) this->config->set(key, boost::any_cast<bool>(value));
-                else if (value.type() == typeid(int)) this->config->set(key, boost::any_cast<int>(value));
-                else if (value.type() == typeid(double)) this->config->set(key, boost::any_cast<double>(value));
-                else if (value.type() == typeid(std::string)) this->config->set(key, boost::any_cast<std::string>(value));
-                
-                // Propagate to print
-                this->print->apply_config(this->config->config());
-            } catch(...) {}
-        };
+        if (!valid_keys.empty()) {
+            auto* page = this->quick_settings_panel->AddTab(title, get_bmp_bundle(icon_name));
+            group_ptr = new OptionsGroup(page);
+            group_ptr->show_quick_setting_toggles = false;
+            group_ptr->set_sizer(static_cast<wxBoxSizer*>(page->GetSizer()));
+            
+            for (const auto& key : valid_keys) {
+                group_ptr->append_option(key, this->config->config());
+            }
+            group_ptr->update_options(&this->config->config());
+            
+            // Force layout update for the scrolled window page
+            page->Layout();
+            page->FitInside(); // Critical for scrolling to work and content to size correctly
+        }
+    };
 
-        this->quick_options_group->update_options(&this->config->config());
+    // 5. Create Tabs if needed
+    process_tab(_("Printer"), "printer_empty.svg", this->quick_settings_printer, printer_keys);
+    process_tab(_("Process"), "cog.svg", this->quick_settings_print, print_keys);
+    process_tab(_("Filament"), "spool.svg", this->quick_settings_filament, filament_keys);
+
+    if (this->quick_settings_panel) {
+        this->quick_settings_panel->Layout();
+        this->quick_settings_panel->Refresh();
+        
+        // Ensure the selection in the book is refreshed to show content
+        if (this->quick_settings_panel->GetSelection() != -1) {
+            this->quick_settings_panel->SetSelection(this->quick_settings_panel->GetSelection());
+        }
     }
-    
-    // Force recalculation of best size for the section
-    this->quick_settings_section->InvalidateBestSize();
-    this->quick_settings_section->Layout();
-    
-    this->Layout();
 }
+
 
 }} // Namespace Slic3r::GUI
