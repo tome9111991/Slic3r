@@ -456,6 +456,7 @@ IF(wxWidgets_FOUND AND OPENGL_FOUND AND Enable_GUI)
     ${GUI_LIBDIR}/Widgets/ThemedMenuPopup.cpp
     ${GUI_LIBDIR}/Widgets/ThemedMenu.cpp
     ${GUI_LIBDIR}/Widgets/PresetWidget.cpp
+    ${GUI_LIBDIR}/Widgets/ThemedTabbedPanel.cpp
     ${GUI_LIBDIR}/Dialogs/WidgetGallery.cpp
     ${GUI_LIBDIR}/GL/GLManager.cpp
     ${GUI_LIBDIR}/GL/Shader.cpp
