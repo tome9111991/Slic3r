@@ -54,7 +54,7 @@ void confess_at(const char *file, int line, const char *func, const char *pat, .
 #define __TRANS(s) s
 namespace Slic3r {
 
-constexpr auto SLIC3R_VERSION = "1.5.0";
+constexpr auto SLIC3R_VERSION = "1.6.0 Alpha";
 
 
 #ifndef SLIC3R_BUILD_COMMIT
