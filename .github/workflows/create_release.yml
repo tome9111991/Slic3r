@@ -62,6 +62,13 @@ jobs:
       run: |
         .\build_vs2022.bat
 
+    - name: Upload vcpkg Logs
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: vcpkg-logs
+        path: build/obj/vcpkg-manifest-install.log
+
     - name: Package Release
       shell: pwsh
       run: |
