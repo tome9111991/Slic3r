@@ -46,6 +46,9 @@ jobs:
             $tag = "v${{ steps.get_version.outputs.EXTRACTED_VERSION }}"
         }
         
+        # Sanitize tag: replace spaces with hyphens
+        $tag = $tag -replace ' ', '-'
+        
         $title = "${{ github.event.inputs.release_title }}"
         if ([string]::IsNullOrWhiteSpace($title)) {
             $title = "Slic3r C++ Release $tag"
