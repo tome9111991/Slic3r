@@ -27,7 +27,7 @@ jobs:
       shell: pwsh
       run: |
         $headerFile = "src/libslic3r/libslic3r.h"
-        $content = Get-Content $headerFile
+        $content = Get-Content $headerFile -Raw
         if ($content -match 'constexpr auto SLIC3R_VERSION = "([^"]+)"') {
             $version = $matches[1]
             echo "EXTRACTED_VERSION=$version" >> $env:GITHUB_OUTPUT
