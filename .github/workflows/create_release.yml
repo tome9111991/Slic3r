@@ -1,0 +1,81 @@
+name: Create Manual Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Tag-Name (optional, Standard ist die Version aus dem Code)'
+        required: false
+      release_title:
+        description: 'Titel des Releases (optional)'
+        required: false
+
+jobs:
+  release:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4 
+      with:
+        submodules: recursive
+
+    - name: Extract Version
+      id: get_version
+      shell: pwsh
+      run: |
+        $headerFile = "src/libslic3r/libslic3r.h"
+        $content = Get-Content $headerFile
+        if ($content -match 'constexpr auto SLIC3R_VERSION = "([^"]+)"') {
+            $version = $matches[1]
+            echo "EXTRACTED_VERSION=$version" >> $env:GITHUB_OUTPUT
+            echo "Version found: $version"
+        } else {
+            echo "EXTRACTED_VERSION=v1.0.0-unknown" >> $env:GITHUB_OUTPUT
+            echo "::warning::Version not found in $headerFile"
+        }
+
+    - name: Set Release Variables
+      id: vars
+      shell: pwsh
+      run: |
+        $tag = "${{ github.event.inputs.tag_name }}"
+        if ([string]::IsNullOrWhiteSpace($tag)) {
+            $tag = "v${{ steps.get_version.outputs.EXTRACTED_VERSION }}"
+        }
+        
+        $title = "${{ github.event.inputs.release_title }}"
+        if ([string]::IsNullOrWhiteSpace($title)) {
+            $title = "Slic3r C++ Release $tag"
+        }
+        
+        echo "RELEASE_TAG=$tag" >> $env:GITHUB_OUTPUT
+        echo "RELEASE_TITLE=$title" >> $env:GITHUB_OUTPUT
+
+    - name: Set up MSVC
+      uses: ilammy/msvc-dev-cmd@v1
+
+    - name: Build project
+      shell: cmd
+      run: |
+        .\build_vs2022.bat
+
+    - name: Package Release
+      shell: pwsh
+      run: |
+        $tag = "${{ steps.vars.outputs.RELEASE_TAG }}"
+        Compress-Archive -Path build/target/* -DestinationPath "Slic3r-Windows-$tag.zip"
+
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ steps.vars.outputs.RELEASE_TAG }}
+        name: ${{ steps.vars.outputs.RELEASE_TITLE }}
+        files: Slic3r-Windows-*.zip
+        generate_release_notes: true
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
